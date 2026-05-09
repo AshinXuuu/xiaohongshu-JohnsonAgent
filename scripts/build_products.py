@@ -26,6 +26,15 @@ OUTPUT = ROOT / "data" / "products.json"
 # 如需放入,把下面这行改为 True
 INCLUDE_BRAND_GUIDELINES = False
 
+# 是否处理 PDF 文件。
+# 默认 False:实际经验中 PDF 多为图片/扫描件,文字提取不稳定且大文件会卡住。
+# 卖点提取主要依赖 docx,PDF 仅作为业务自查阅参考。
+# 如果某个产品确实只有 PDF 没有 docx,且 PDF 是文本型(可复制文字),可以临时改为 True。
+INCLUDE_PDF = False
+
+# 跳过超过此大小的 PDF(单位 MB),避免大型扫描件卡死提取
+PDF_MAX_MB = 5
+
 
 def extract_docx(p: Path) -> str:
     try:
@@ -59,7 +68,7 @@ def extract_pdf(p: Path) -> str:
 
 
 def extract_dir(d: Path) -> str:
-    """合并文件夹下所有 docx/pdf 文本"""
+    """合并文件夹下所有 docx/pdf 文本(PDF 默认跳过,见顶部 INCLUDE_PDF 配置)"""
     chunks = []
     for f in sorted(d.iterdir()):
         if f.name.startswith("."):
@@ -67,6 +76,13 @@ def extract_dir(d: Path) -> str:
         if f.suffix.lower() == ".docx":
             chunks.append(f"## 文件:{f.name}\n\n{extract_docx(f)}")
         elif f.suffix.lower() == ".pdf":
+            if not INCLUDE_PDF:
+                continue
+            size_mb = f.stat().st_size / (1024 * 1024)
+            if size_mb > PDF_MAX_MB:
+                print(f"  ⏭️  跳过大 PDF: {f.name} ({size_mb:.1f}MB > {PDF_MAX_MB}MB)")
+                continue
+            print(f"  📄 提取 PDF: {f.name} ({size_mb:.1f}MB)")
             text = extract_pdf(f)
             if text:
                 chunks.append(f"## 文件:{f.name}\n\n{text}")
