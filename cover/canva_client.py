@@ -215,20 +215,20 @@ def wait_for_autofill(access_token, job_id, timeout=120):
 
 # ─────────── 高级封装:一站式生成封面 ───────────
 
-def make_cover(refresh_token, template_id, autofill_text, photo_path):
+def make_cover(refresh_token, template_id, autofill_text, photo_bytes, photo_name="cover.jpg"):
     """
     一站式调用:
     1. 用 refresh_token 换 access_token
-    2. 上传产品照片 → 拿 asset_id
+    2. 上传业务现场上传的产品照片 → 拿 asset_id
     3. 调 autofill 把照片和文字塞进模板
     4. 返回设计的编辑 URL
 
+    参数:
+        photo_bytes: 图片二进制内容(业务从网页上传)
+        photo_name : 文件名(只是 Canva 资产库里的显示名)
+
     autofill_text 形如:
-    {
-        "title": "客厅多了它",
-        "subtitle": "30+ 真香",
-        ...其他模板里命名的文字占位符
-    }
+        {"title": "客厅多了它", "subtitle": "30+ 真香", ...}
     """
     client_id = os.environ["CANVA_CLIENT_ID"]
     client_secret = os.environ["CANVA_CLIENT_SECRET"]
@@ -239,9 +239,7 @@ def make_cover(refresh_token, template_id, autofill_text, photo_path):
     new_refresh = token.get("refresh_token", refresh_token)
 
     # 2. 上传图片
-    with open(photo_path, "rb") as f:
-        photo_bytes = f.read()
-    upload = upload_asset(access_token, Path(photo_path).name, photo_bytes)
+    upload = upload_asset(access_token, photo_name, photo_bytes)
     asset = wait_for_asset_upload(access_token, upload["job"]["id"])
     asset_id = asset["id"]
 
