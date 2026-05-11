@@ -240,6 +240,83 @@
     font-size: 12px;
     margin-top: 30px;
   }
+  /* Canva 模块样式 */
+  .canva-title-pick {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .canva-title-pick label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #fafafa;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-size: 14px;
+  }
+  .canva-title-pick label:hover { background: #f0f0f0; }
+  .canva-title-pick input[type="radio"]:checked + span {
+    font-weight: 600;
+    color: var(--primary);
+  }
+  .template-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 600px) { .template-grid { grid-template-columns: repeat(2, 1fr); } }
+  .template-card {
+    cursor: pointer;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 2px solid #e5e5e5;
+    transition: all 0.15s;
+    background: #fafafa;
+    position: relative;
+  }
+  .template-card:hover { border-color: var(--primary); }
+  .template-card.active { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+  .template-card img {
+    width: 100%;
+    aspect-ratio: 3/4;
+    object-fit: cover;
+    display: block;
+  }
+  .template-card .name {
+    padding: 6px 8px;
+    font-size: 12px;
+    color: #555;
+    text-align: center;
+    background: white;
+  }
+  .canva-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #00C4CC, #7D2AE8);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  .canva-btn:disabled { background: #ccc; cursor: not-allowed; }
+  .canva-status {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: none;
+  }
+  .canva-status.show { display: block; }
+  .canva-status.loading { background: #f0f9ff; color: #0369a1; border-left: 3px solid #0369a1; }
+  .canva-status.success { background: #f0fdf4; color: #166534; border-left: 3px solid #16a34a; }
+  .canva-status.error { background: #fef2f2; color: #991b1b; border-left: 3px solid #dc2626; }
 </style>
 </head>
 <body>
@@ -284,7 +361,11 @@
     <!-- 结果区动态填充 -->
   </div>
 
-  <p class="footer-hint">生成结果仅供参考,发布前请人工把关一遍内容真实性 · 模型: DeepSeek</p>
+  <div class="card result-section" id="canvaSection">
+    <!-- Canva 模块动态填充 -->
+  </div>
+
+  <p class="footer-hint">生成结果仅供参考,发布前请人工把关一遍内容真实性 · 模型: DeepSeek · 封面: Canva</p>
 
 </div>
 
@@ -376,6 +457,7 @@ async function generate() {
       return;
     }
     renderResult(data);
+    renderCanvaSection(data);
   } catch (e) {
     resultEl.innerHTML = `<div class="error">⚠️ 网络错误:${e.message}</div>`;
   } finally {
@@ -439,6 +521,140 @@ function escapeHtml(s) {
 
 window.copy = copy;
 loadProducts();
+
+// ─── Canva 集成 ───
+const canvaSectionEl = $('canvaSection');
+let canvaTemplates = null;
+let canvaSelectedTemplate = null;
+let canvaSelectedTitle = '';
+
+async function loadCanvaTemplates() {
+  if (canvaTemplates !== null) return canvaTemplates;
+  try {
+    const resp = await fetch('/api/canva-templates');
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      throw new Error(data.error || 'unknown');
+    }
+    canvaTemplates = data.templates || [];
+    return canvaTemplates;
+  } catch (e) {
+    canvaTemplates = [];
+    throw e;
+  }
+}
+
+async function renderCanvaSection(data) {
+  const titles = data.titles || [];
+  canvaSelectedTitle = titles[0] || '';
+  canvaSectionEl.classList.add('visible');
+  canvaSectionEl.innerHTML = `
+    <div class="section-title">🎨 一键去 Canva 做封面</div>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      系统会自动把你选的标题和产品图填进 Canva 模板,跳转过去就能直接调整导出。
+    </p>
+    <label style="font-size:13px;color:var(--muted);">选择封面主标题</label>
+    <div class="canva-title-pick" id="canvaTitlePick">
+      ${titles.map((t, i) => `
+        <label>
+          <input type="radio" name="canvaTitle" value="${escapeHtml(t)}" ${i === 0 ? 'checked' : ''} />
+          <span>${escapeHtml(t)}</span>
+        </label>
+      `).join('')}
+    </div>
+    <label style="font-size:13px;color:var(--muted);">选择模板</label>
+    <div id="canvaTemplateArea">
+      <div class="loading" style="padding:20px"><div class="spinner"></div>加载模板中...</div>
+    </div>
+    <button class="canva-btn" id="canvaGenBtn" disabled>请先选择模板</button>
+    <div class="canva-status" id="canvaStatus"></div>
+  `;
+
+  document.querySelectorAll('input[name="canvaTitle"]').forEach(r => {
+    r.addEventListener('change', e => canvaSelectedTitle = e.target.value);
+  });
+  $('canvaGenBtn').addEventListener('click', generateCover);
+
+  // 异步加载模板
+  try {
+    const templates = await loadCanvaTemplates();
+    const area = $('canvaTemplateArea');
+    if (!templates.length) {
+      area.innerHTML = `<div class="error" style="font-size:13px">未找到 Canva 模板。请管理员先在 Canva Pro 里创建至少一个品牌模板(含 title 和 product_image 占位符)。</div>`;
+      return;
+    }
+    area.innerHTML = `
+      <div class="template-grid">
+        ${templates.map(t => `
+          <div class="template-card" data-id="${t.id}">
+            ${t.thumbnail ? `<img src="${t.thumbnail}" alt="${escapeHtml(t.title || '')}">` : `<div style="aspect-ratio:3/4;background:#eee;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px">无预览图</div>`}
+            <div class="name">${escapeHtml(t.title || t.id)}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    document.querySelectorAll('.template-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.template-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        canvaSelectedTemplate = card.dataset.id;
+        const btn = $('canvaGenBtn');
+        btn.disabled = false;
+        btn.textContent = '🎨 生成封面并跳转 Canva';
+      });
+    });
+  } catch (e) {
+    const msg = String(e.message || e);
+    $('canvaTemplateArea').innerHTML = `<div class="error" style="font-size:13px">
+      Canva 模板加载失败:${escapeHtml(msg)}<br>
+      <small>常见原因:管理员还没完成首次授权,或 Vercel 上没配置 CANVA_REFRESH_TOKEN。访问 <a href="/api/canva-auth">/api/canva-auth</a> 走一次授权。</small>
+    </div>`;
+  }
+}
+
+async function generateCover() {
+  if (!canvaSelectedTemplate) return showToast('请先选模板');
+  if (!canvaSelectedTitle) return showToast('请先选标题');
+  if (!brandSel.value || !productSel.value) return showToast('品牌产品信息丢失');
+
+  const btn = $('canvaGenBtn');
+  const status = $('canvaStatus');
+  btn.disabled = true;
+  btn.textContent = '生成中...';
+  status.className = 'canva-status loading show';
+  status.textContent = '正在调用 Canva,上传图片 + 填充模板中,约 10-30 秒...';
+
+  try {
+    const resp = await fetch('/api/canva-make-cover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        brand: brandSel.value,
+        product: productSel.value,
+        template_id: canvaSelectedTemplate,
+        title: canvaSelectedTitle,
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      status.className = 'canva-status error show';
+      status.textContent = '失败:' + (data.error || '未知错误');
+      btn.disabled = false;
+      btn.textContent = '🔁 重试';
+      return;
+    }
+    status.className = 'canva-status success show';
+    status.innerHTML = `✅ 已生成,正在打开 Canva...如果浏览器拦截了新标签页,<a href="${data.edit_url}" target="_blank">点这里手动打开</a>`;
+    window.open(data.edit_url, '_blank');
+    btn.disabled = false;
+    btn.textContent = '🎨 再做一张';
+  } catch (e) {
+    status.className = 'canva-status error show';
+    status.textContent = '网络错误: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = '🔁 重试';
+  }
+}
 </script>
 </body>
 </html>
