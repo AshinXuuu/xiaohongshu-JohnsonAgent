@@ -43,7 +43,9 @@ DOUBAO_URL = "https://ark.cn-beijing.volces.com/api/v3/images/generations"
 DOUBAO_MODEL = os.environ.get("DOUBAO_MODEL", "doubao-seedream-5-0-lite-260128")
 
 # 3:4 比例(小红书封面)
-SIZE = "768x1024"
+# Seedream 5.0 lite 要求 ≥ 3,686,400 像素(368.64 万);1920×2560 = 4,915,200,刚好覆盖
+# 1920/2560 = 3/4 = 小红书封面标准比例
+SIZE = os.environ.get("DOUBAO_IMAGE_SIZE", "1920x2560")
 
 MAX_PHOTO_BYTES = 4 * 1024 * 1024  # 4MB
 
