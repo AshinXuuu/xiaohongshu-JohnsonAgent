@@ -244,7 +244,7 @@
   .canva-title-pick {
     display: grid;
     gap: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 18px;
   }
   .canva-title-pick label {
     display: flex;
@@ -257,117 +257,48 @@
     border: 1px solid transparent;
     font-size: 14px;
   }
-  .canva-title-pick label:hover { background: #f0f0f0; }
+  .canva-title-pick label:hover { background: #f5f5f5; }
+  .canva-title-pick label:has(input:checked) {
+    background: var(--primary-light);
+    border-color: var(--primary);
+  }
   .canva-title-pick input[type="radio"]:checked + span {
     font-weight: 600;
     color: var(--primary);
   }
   .template-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-bottom: 14px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
-  @media (max-width: 600px) { .template-grid { grid-template-columns: repeat(2, 1fr); } }
-  .template-card {
-    cursor: pointer;
-    border-radius: 10px;
-    overflow: hidden;
-    border: 2px solid #e5e5e5;
-    transition: all 0.15s;
-    background: #fafafa;
-    position: relative;
-  }
-  .template-card:hover { border-color: var(--primary); }
-  .template-card.active { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
-  .template-card img {
-    width: 100%;
-    aspect-ratio: 3/4;
-    object-fit: cover;
-    display: block;
-  }
-  .template-card .name {
-    padding: 6px 8px;
-    font-size: 12px;
-    color: #555;
-    text-align: center;
-    background: white;
-  }
-  .canva-btn {
-    width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, #00C4CC, #7D2AE8);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    margin-top: 8px;
-  }
-  .canva-btn:disabled { background: #ccc; cursor: not-allowed; }
-  .canva-status {
-    margin-top: 14px;
-    padding: 12px 14px;
-    border-radius: 8px;
-    font-size: 13px;
-    display: none;
-  }
-  .canva-status.show { display: block; }
-  .canva-status.loading { background: #f0f9ff; color: #0369a1; border-left: 3px solid #0369a1; }
-  .canva-status.success { background: #f0fdf4; color: #166534; border-left: 3px solid #16a34a; }
-  .canva-status.error { background: #fef2f2; color: #991b1b; border-left: 3px solid #dc2626; }
-  /* 上传区 */
-  .upload-zone {
-    border: 2px dashed #ccc;
-    border-radius: 10px;
-    padding: 24px;
-    text-align: center;
-    margin-bottom: 14px;
+  .template-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 16px 18px;
+    background: linear-gradient(135deg, #fdfdff 0%, #f5f3ff 100%);
+    border: 1px solid #ddd;
+    border-radius: 12px;
     cursor: pointer;
     transition: all 0.15s;
-    background: #fafafa;
+    text-decoration: none;
+    color: var(--text);
   }
-  .upload-zone:hover, .upload-zone.dragging {
+  .template-tile:hover {
     border-color: var(--primary);
+    box-shadow: 0 4px 14px rgba(255, 39, 65, 0.12);
+    transform: translateY(-1px);
+  }
+  .template-tile .name { font-size: 15px; font-weight: 600; }
+  .template-tile .desc { font-size: 12px; color: var(--muted); }
+  .template-tile .category {
+    display: inline-block;
+    padding: 2px 8px;
     background: var(--primary-light);
-  }
-  .upload-zone input[type="file"] { display: none; }
-  .upload-zone .hint { color: var(--muted); font-size: 13px; margin: 0; }
-  .upload-zone .icon { font-size: 36px; margin-bottom: 6px; opacity: 0.6; }
-  .photo-preview {
-    position: relative;
-    margin-bottom: 14px;
+    color: var(--primary);
     border-radius: 10px;
-    overflow: hidden;
-    background: #f0f0f0;
-  }
-  .photo-preview img {
-    width: 100%;
-    max-height: 360px;
-    object-fit: contain;
-    display: block;
-  }
-  .photo-preview .remove {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    background: rgba(0,0,0,0.7);
-    color: white;
-    border: none;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-  }
-  .photo-info {
-    padding: 8px 12px;
-    font-size: 12px;
-    color: var(--muted);
-    background: white;
-    text-align: center;
+    font-size: 11px;
   }
 </style>
 </head>
@@ -574,55 +505,36 @@ function escapeHtml(s) {
 window.copy = copy;
 loadProducts();
 
-// ─── Canva 集成 ───
+// ─── Canva 简化集成(复制金句 + 跳转模板)───
 const canvaSectionEl = $('canvaSection');
 let canvaTemplates = null;
-let canvaSelectedTemplate = null;
 let canvaSelectedTitle = '';
-let canvaPhotoBase64 = '';   // 业务上传的封面原图(data URL)
-let canvaPhotoName = '';
 
 async function loadCanvaTemplates() {
   if (canvaTemplates !== null) return canvaTemplates;
   try {
-    const resp = await fetch('/api/canva-templates');
+    const resp = await fetch('/canva_templates.json');
     const data = await resp.json();
-    if (!resp.ok || data.error) {
-      throw new Error(data.error || 'unknown');
-    }
-    canvaTemplates = data.templates || [];
-    return canvaTemplates;
+    canvaTemplates = (data.templates || []).filter(t => t.url);
   } catch (e) {
     canvaTemplates = [];
-    throw e;
   }
+  return canvaTemplates;
 }
 
 async function renderCanvaSection(data) {
   const titles = data.titles || [];
   canvaSelectedTitle = titles[0] || '';
-  canvaPhotoBase64 = '';
-  canvaPhotoName = '';
-  canvaSelectedTemplate = null;
 
   canvaSectionEl.classList.add('visible');
   canvaSectionEl.innerHTML = `
-    <div class="section-title">🎨 一键去 Canva 做封面</div>
-    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
-      上传你拍好的产品照 + 选标题 + 选模板,系统会自动把图和字塞进 Canva 模板,跳过去就能微调导出。
+    <div class="section-title">🎨 去 Canva 做封面</div>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 16px;">
+      选一个金句 + 点一个模板,系统自动把金句复制到剪贴板 + 在新标签页打开 Canva 模板。
+      到了 Canva 里 <b>Ctrl/Cmd + V</b> 粘贴金句、拖入你拍的产品图,几分钟搞定。
     </p>
 
-    <label style="font-size:13px;color:var(--muted);">1. 上传产品照(JPG / PNG,3MB 以内)</label>
-    <div id="canvaUploadArea">
-      <div class="upload-zone" id="uploadZone">
-        <div class="icon">📷</div>
-        <div><strong>点击或拖拽图片到这里</strong></div>
-        <p class="hint">建议 3:4 比例(900x1200 / 1080x1440),适配小红书封面</p>
-        <input type="file" id="photoInput" accept="image/jpeg,image/png" />
-      </div>
-    </div>
-
-    <label style="font-size:13px;color:var(--muted);">2. 选择封面主标题</label>
+    <label style="font-size:13px;color:var(--muted);">1. 选金句(系统会复制这一条到剪贴板)</label>
     <div class="canva-title-pick" id="canvaTitlePick">
       ${titles.map((t, i) => `
         <label>
@@ -632,174 +544,50 @@ async function renderCanvaSection(data) {
       `).join('')}
     </div>
 
-    <label style="font-size:13px;color:var(--muted);">3. 选择模板</label>
+    <label style="font-size:13px;color:var(--muted);">2. 选模板,点了直接跳转</label>
     <div id="canvaTemplateArea">
       <div class="loading" style="padding:20px"><div class="spinner"></div>加载模板中...</div>
     </div>
-
-    <button class="canva-btn" id="canvaGenBtn" disabled>请先完成上传 + 选模板</button>
-    <div class="canva-status" id="canvaStatus"></div>
   `;
 
   document.querySelectorAll('input[name="canvaTitle"]').forEach(r => {
     r.addEventListener('change', e => canvaSelectedTitle = e.target.value);
   });
-  $('canvaGenBtn').addEventListener('click', generateCover);
 
-  // 上传区交互
-  setupPhotoUpload();
-
-  // 异步加载模板
-  try {
-    const templates = await loadCanvaTemplates();
-    const area = $('canvaTemplateArea');
-    if (!templates.length) {
-      area.innerHTML = `<div class="error" style="font-size:13px">未找到 Canva 模板。请管理员先在 Canva Pro 里创建至少一个品牌模板(含 title 和 product_image 占位符)。</div>`;
-      return;
-    }
-    area.innerHTML = `
-      <div class="template-grid">
-        ${templates.map(t => `
-          <div class="template-card" data-id="${t.id}">
-            ${t.thumbnail ? `<img src="${t.thumbnail}" alt="${escapeHtml(t.title || '')}">` : `<div style="aspect-ratio:3/4;background:#eee;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px">无预览图</div>`}
-            <div class="name">${escapeHtml(t.title || t.id)}</div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-    document.querySelectorAll('.template-card').forEach(card => {
-      card.addEventListener('click', () => {
-        document.querySelectorAll('.template-card').forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-        canvaSelectedTemplate = card.dataset.id;
-        updateGenBtnState();
-      });
-    });
-  } catch (e) {
-    const msg = String(e.message || e);
-    $('canvaTemplateArea').innerHTML = `<div class="error" style="font-size:13px">
-      Canva 模板加载失败:${escapeHtml(msg)}<br>
-      <small>常见原因:管理员还没完成首次授权,或 Vercel 上没配置 CANVA_REFRESH_TOKEN。访问 <a href="/api/canva-auth">/api/canva-auth</a> 走一次授权。</small>
+  // 加载模板列表
+  const templates = await loadCanvaTemplates();
+  const area = $('canvaTemplateArea');
+  if (!templates.length) {
+    area.innerHTML = `<div class="error" style="font-size:13px">
+      还没有配置 Canva 模板。请管理员编辑 <code>public/canva_templates.json</code>,把你们在 Canva 设计好的模板分享链接填进去。
     </div>`;
+    return;
   }
-}
-
-function setupPhotoUpload() {
-  const zone = $('uploadZone');
-  const input = $('photoInput');
-  if (!zone || !input) return;
-
-  zone.addEventListener('click', () => input.click());
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragging'); });
-  zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
-  zone.addEventListener('drop', e => {
-    e.preventDefault();
-    zone.classList.remove('dragging');
-    if (e.dataTransfer.files.length) handlePhotoFile(e.dataTransfer.files[0]);
-  });
-  input.addEventListener('change', e => {
-    if (e.target.files.length) handlePhotoFile(e.target.files[0]);
+  area.innerHTML = `
+    <div class="template-grid">
+      ${templates.map(t => `
+        <a class="template-tile" data-url="${escapeHtml(t.url)}">
+          <span class="category">${escapeHtml(t.category || '通用')}</span>
+          <span class="name">${escapeHtml(t.name || t.id)}</span>
+          ${t.desc ? `<span class="desc">${escapeHtml(t.desc)}</span>` : ''}
+        </a>
+      `).join('')}
+    </div>
+  `;
+  document.querySelectorAll('.template-tile').forEach(tile => {
+    tile.addEventListener('click', () => goToCanvaTemplate(tile.dataset.url));
   });
 }
 
-function handlePhotoFile(file) {
-  if (!file.type.startsWith('image/')) return showToast('只能上传图片');
-  if (file.size > 3 * 1024 * 1024) return showToast('图片过大,请压缩到 3MB 以内');
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    canvaPhotoBase64 = e.target.result;
-    canvaPhotoName = file.name;
-    renderPhotoPreview(file);
-    updateGenBtnState();
-  };
-  reader.readAsDataURL(file);
-}
-
-function renderPhotoPreview(file) {
-  const area = $('canvaUploadArea');
-  const sizeKB = (file.size / 1024).toFixed(0);
-  area.innerHTML = `
-    <div class="photo-preview">
-      <img src="${canvaPhotoBase64}" alt="预览" />
-      <button class="remove" onclick="removePhoto()">×</button>
-      <div class="photo-info">${escapeHtml(file.name)} · ${sizeKB} KB</div>
-    </div>
-  `;
-}
-
-function removePhoto() {
-  canvaPhotoBase64 = '';
-  canvaPhotoName = '';
-  const area = $('canvaUploadArea');
-  area.innerHTML = `
-    <div class="upload-zone" id="uploadZone">
-      <div class="icon">📷</div>
-      <div><strong>点击或拖拽图片到这里</strong></div>
-      <p class="hint">建议 3:4 比例(900x1200 / 1080x1440),适配小红书封面</p>
-      <input type="file" id="photoInput" accept="image/jpeg,image/png" />
-    </div>
-  `;
-  setupPhotoUpload();
-  updateGenBtnState();
-}
-window.removePhoto = removePhoto;
-
-function updateGenBtnState() {
-  const btn = $('canvaGenBtn');
-  if (!btn) return;
-  if (canvaPhotoBase64 && canvaSelectedTemplate) {
-    btn.disabled = false;
-    btn.textContent = '🎨 生成封面并跳转 Canva';
-  } else {
-    btn.disabled = true;
-    if (!canvaPhotoBase64) btn.textContent = '请先上传产品照';
-    else if (!canvaSelectedTemplate) btn.textContent = '请选一个模板';
-  }
-}
-
-async function generateCover() {
-  if (!canvaPhotoBase64) return showToast('请先上传产品照');
-  if (!canvaSelectedTemplate) return showToast('请先选模板');
-  if (!canvaSelectedTitle) return showToast('请先选标题');
-
-  const btn = $('canvaGenBtn');
-  const status = $('canvaStatus');
-  btn.disabled = true;
-  btn.textContent = '生成中...';
-  status.className = 'canva-status loading show';
-  status.textContent = '正在调用 Canva,上传图片 + 填充模板中,约 10-30 秒...';
-
+async function goToCanvaTemplate(url) {
+  if (!canvaSelectedTitle) return showToast('请先选一个金句');
   try {
-    const resp = await fetch('/api/canva-make-cover', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        template_id: canvaSelectedTemplate,
-        title: canvaSelectedTitle,
-        photo_base64: canvaPhotoBase64,
-        photo_name: canvaPhotoName,
-      })
-    });
-    const data = await resp.json();
-    if (!resp.ok || data.error) {
-      status.className = 'canva-status error show';
-      status.textContent = '失败:' + (data.error || '未知错误');
-      btn.disabled = false;
-      btn.textContent = '🔁 重试';
-      return;
-    }
-    status.className = 'canva-status success show';
-    status.innerHTML = `✅ 已生成,正在打开 Canva...如果浏览器拦截了新标签页,<a href="${data.edit_url}" target="_blank">点这里手动打开</a>`;
-    window.open(data.edit_url, '_blank');
-    btn.disabled = false;
-    btn.textContent = '🎨 再做一张';
-  } catch (e) {
-    status.className = 'canva-status error show';
-    status.textContent = '网络错误: ' + e.message;
-    btn.disabled = false;
-    btn.textContent = '🔁 重试';
+    await navigator.clipboard.writeText(canvaSelectedTitle);
+    showToast('✓ 金句已复制,Canva 里 Ctrl/Cmd+V 粘贴');
+  } catch (_) {
+    // 剪贴板写入失败也不阻塞跳转
   }
+  window.open(url, '_blank');
 }
 </script>
 </body>
