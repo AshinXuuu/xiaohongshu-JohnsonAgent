@@ -1,0 +1,41 @@
+{
+  "_comment": "管理员维护这个文件:把你们设计好的 Canva 模板的'分享链接'填到 url 里。业务点哪个,会自动复制金句到剪贴板 + 在新标签页打开对应模板。",
+  "_how_to_get_url": "在 Canva 里打开你设计好的模板 → 右上角 Share → Template link → Copy link",
+  "templates": [
+    {
+      "id": "default-search",
+      "name": "📚 浏览全部模板",
+      "category": "通用",
+      "url": "https://www.canva.com/templates/?query=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E5%B0%81%E9%9D%A2",
+      "desc": "去 Canva 模板库挑选,管理员未配置专属模板时的兜底入口"
+    },
+    {
+      "id": "demo-zhongcao",
+      "name": "🌱 种草测评(示例)",
+      "category": "种草",
+      "url": "https://www.canva.com/templates/?query=%E7%A7%8D%E8%8D%89+%E5%B0%8F%E7%BA%A2%E4%B9%A6",
+      "desc": "管理员请把 url 替换为你设计好的真实模板分享链接"
+    },
+    {
+      "id": "demo-ganhuo",
+      "name": "📖 干货教程(示例)",
+      "category": "干货",
+      "url": "https://www.canva.com/templates/?query=%E5%B0%8F%E7%BA%A2%E4%B9%A6+%E5%B9%B2%E8%B4%A7",
+      "desc": "管理员请把 url 替换为你设计好的真实模板分享链接"
+    },
+    {
+      "id": "demo-cuxiao",
+      "name": "🔥 促销活动(示例)",
+      "category": "促销",
+      "url": "https://www.canva.com/templates/?query=%E5%B0%8F%E7%BA%A2%E4%B9%A6+%E4%BF%83%E9%94%80",
+      "desc": "管理员请把 url 替换为你设计好的真实模板分享链接"
+    },
+    {
+      "id": "demo-chanping",
+      "name": "✨ 简洁产品(示例)",
+      "category": "通用",
+      "url": "https://www.canva.com/templates/?query=%E5%B0%8F%E7%BA%A2%E4%B9%A6+%E4%BA%A7%E5%93%81",
+      "desc": "管理员请把 url 替换为你设计好的真实模板分享链接"
+    }
+  ]
+}
