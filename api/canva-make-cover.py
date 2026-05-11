@@ -82,12 +82,6 @@ class handler(BaseHTTPRequestHandler):
                     "error": f"图片过大({len(photo_bytes)//1024//1024}MB),请压缩到 3MB 以内"
                 })
 
-            refresh = os.environ.get("CANVA_REFRESH_TOKEN", "")
-            if not refresh:
-                return self._json(503, {
-                    "error": "Canva 集成尚未完成首次授权,请管理员访问 /api/canva-auth"
-                })
-
             # 拼 autofill 文字数据(模板里有的字段才会被填)
             autofill_text = {"title": title}
             if subtitle:
@@ -96,24 +90,17 @@ class handler(BaseHTTPRequestHandler):
                 autofill_text["tag"] = tag
 
             result = make_cover(
-                refresh_token=refresh,
                 template_id=template_id,
                 autofill_text=autofill_text,
                 photo_bytes=photo_bytes,
                 photo_name=photo_name,
             )
 
-            response = {
+            self._json(200, {
                 "edit_url": result["edit_url"],
                 "view_url": result["view_url"],
                 "design_id": result["design_id"],
-            }
-            if result.get("new_refresh_token"):
-                response["_admin_note"] = (
-                    f"Canva 返回了新的 refresh_token,建议管理员更新 Vercel env: {result['new_refresh_token']}"
-                )
-
-            self._json(200, response)
+            })
 
         except Exception as e:
             self._json(500, {"error": str(e)})

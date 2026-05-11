@@ -10,23 +10,14 @@ import sys
 import json
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from cover.canva_client import refresh_access_token, list_brand_templates
+from cover.canva_client import get_access_token, list_brand_templates
 
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        client_id = os.environ.get("CANVA_CLIENT_ID", "")
-        client_secret = os.environ.get("CANVA_CLIENT_SECRET", "")
-        refresh = os.environ.get("CANVA_REFRESH_TOKEN", "")
-
-        if not refresh:
-            return self._json(503, {
-                "error": "Canva 集成尚未完成首次授权,请先访问 /api/canva-auth 走一次 OAuth"
-            })
-
         try:
-            token = refresh_access_token(client_id, client_secret, refresh)
-            templates = list_brand_templates(token["access_token"])
+            access_token = get_access_token()
+            templates = list_brand_templates(access_token)
         except Exception as e:
             return self._json(500, {"error": f"获取模板失败: {e}"})
 
