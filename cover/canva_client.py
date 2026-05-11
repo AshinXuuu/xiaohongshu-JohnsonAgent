@@ -24,6 +24,12 @@ from pathlib import Path
 CANVA_API_BASE = "https://api.canva.com/rest/v1"
 CANVA_AUTH_BASE = "https://www.canva.com/api/oauth"
 
+# KV 里存 token 用的 key
+KV_ACCESS_TOKEN = "canva:access_token"
+KV_REFRESH_TOKEN = "canva:refresh_token"
+# access_token 实际有效期 1 小时,缓存 50 分钟提前刷新,留 10 分钟容错
+ACCESS_TOKEN_TTL = 50 * 60
+
 # OAuth 授权时申请的权限范围
 SCOPES = [
     "asset:read",
@@ -215,35 +221,73 @@ def wait_for_autofill(access_token, job_id, timeout=120):
 
 # ─────────── 高级封装:一站式生成封面 ───────────
 
-def make_cover(refresh_token, template_id, autofill_text, photo_bytes, photo_name="cover.jpg"):
+def get_access_token():
+    """
+    获取一个有效的 access_token。
+
+    策略:
+      1. 优先从 KV 缓存里读(50 分钟内有效)
+      2. 缓存没了 → 用 refresh_token 调 Canva 换新的
+      3. Canva 会返回新的 refresh_token,立即覆盖写回 KV
+         (refresh_token 是单次使用的,这一步必须做)
+
+    引发:
+      RuntimeError — 如果 refresh_token 不存在或已失效,提示重新走 OAuth
+    """
+    from cover.kv_store import kv_get, kv_set
+
+    cached = kv_get(KV_ACCESS_TOKEN)
+    if cached:
+        return cached
+
+    refresh = kv_get(KV_REFRESH_TOKEN)
+    if not refresh:
+        # 兼容首次部署时管理员可能临时塞到 env 里的情况
+        refresh = os.environ.get("CANVA_REFRESH_TOKEN", "")
+    if not refresh:
+        raise RuntimeError("Canva refresh_token 不存在,请管理员访问 /api/canva-auth 走一次 OAuth")
+
+    client_id = os.environ["CANVA_CLIENT_ID"]
+    client_secret = os.environ["CANVA_CLIENT_SECRET"]
+    token = refresh_access_token(client_id, client_secret, refresh)
+
+    access = token["access_token"]
+    new_refresh = token.get("refresh_token", refresh)
+
+    # 立即把新 refresh_token 写回 KV(关键!Canva 单次使用)
+    if new_refresh and new_refresh != refresh:
+        kv_set(KV_REFRESH_TOKEN, new_refresh)
+    # access_token 短期缓存,大幅减少 refresh 频率
+    kv_set(KV_ACCESS_TOKEN, access, ttl_seconds=ACCESS_TOKEN_TTL)
+
+    return access
+
+
+def save_initial_refresh_token(refresh_token: str):
+    """首次 OAuth 回调后,把 refresh_token 写进 KV(后续系统自管理)"""
+    from cover.kv_store import kv_set, kv_del
+    kv_set(KV_REFRESH_TOKEN, refresh_token)
+    # 清掉旧的 access_token 缓存(可能是上一轮 OAuth 产生的)
+    try:
+        kv_del(KV_ACCESS_TOKEN)
+    except Exception:
+        pass
+
+
+def make_cover(template_id, autofill_text, photo_bytes, photo_name="cover.jpg"):
     """
     一站式调用:
-    1. 用 refresh_token 换 access_token
+    1. 拿(或刷)access_token
     2. 上传业务现场上传的产品照片 → 拿 asset_id
     3. 调 autofill 把照片和文字塞进模板
     4. 返回设计的编辑 URL
-
-    参数:
-        photo_bytes: 图片二进制内容(业务从网页上传)
-        photo_name : 文件名(只是 Canva 资产库里的显示名)
-
-    autofill_text 形如:
-        {"title": "客厅多了它", "subtitle": "30+ 真香", ...}
     """
-    client_id = os.environ["CANVA_CLIENT_ID"]
-    client_secret = os.environ["CANVA_CLIENT_SECRET"]
+    access_token = get_access_token()
 
-    # 1. 刷新 access_token
-    token = refresh_access_token(client_id, client_secret, refresh_token)
-    access_token = token["access_token"]
-    new_refresh = token.get("refresh_token", refresh_token)
-
-    # 2. 上传图片
     upload = upload_asset(access_token, photo_name, photo_bytes)
     asset = wait_for_asset_upload(access_token, upload["job"]["id"])
     asset_id = asset["id"]
 
-    # 3. 拼 autofill 数据
     data = {k: {"type": "text", "text": v} for k, v in autofill_text.items()}
     data["product_image"] = {"type": "image", "asset_id": asset_id}
 
@@ -254,5 +298,4 @@ def make_cover(refresh_token, template_id, autofill_text, photo_bytes, photo_nam
         "edit_url": design["urls"]["edit_url"],
         "view_url": design["urls"]["view_url"],
         "design_id": design["id"],
-        "new_refresh_token": new_refresh if new_refresh != refresh_token else None,
     }
