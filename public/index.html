@@ -234,11 +234,121 @@
     z-index: 100;
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-  .footer-hint {
-    text-align: center;
-    color: var(--muted);
-    font-size: 12px;
-    margin-top: 30px;
+  /* ── 登录覆盖层 ── */
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #fff4f5 0%, #fff 60%, #ffe4e7 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+  }
+  .login-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+    padding: 40px 32px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .login-card h1 { font-size: 22px; margin: 0 0 6px; text-align: center; }
+  .login-hint { color: var(--muted); text-align: center; margin: 0 0 24px; font-size: 13px; }
+  .login-card label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; margin-top: 14px; }
+  .login-card label:first-of-type { margin-top: 0; }
+  .login-card select, .login-card input {
+    width: 100%; padding: 11px 12px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px; font-family: inherit; background: #fff;
+  }
+  .login-card select:focus, .login-card input:focus { outline: none; border-color: var(--primary); }
+  .login-submit {
+    width: 100%; padding: 14px; margin-top: 20px;
+    background: var(--primary); color: white; border: none;
+    border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .login-submit:hover { opacity: 0.92; }
+  .login-error {
+    margin-top: 14px; padding: 10px 14px; background: #fef2f2;
+    color: #991b1b; font-size: 13px; border-radius: 8px;
+    display: none;
+  }
+  .login-error.show { display: block; }
+  /* ── 顶部用户栏 ── */
+  .user-bar {
+    display: flex; align-items: center; gap: 10px;
+    background: white; padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .user-bar .user-info { flex: 1; color: var(--text); font-weight: 500; }
+  .user-bar button {
+    padding: 6px 12px; border: 1px solid var(--border);
+    border-radius: 16px; background: white; cursor: pointer; font-size: 12px;
+  }
+  .user-bar button:hover { background: #f5f5f5; }
+  .user-bar .user-logout { color: var(--muted); }
+  .user-bar .user-admin {
+    background: linear-gradient(135deg, #fde68a, #fbbf24);
+    border-color: #fbbf24; color: #78350f; font-weight: 600;
+  }
+  /* ── 模态框(历史 / 管理员)── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; align-items: flex-start; justify-content: center;
+    z-index: 1500; padding: 30px 20px; overflow-y: auto;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-card {
+    background: white; border-radius: 14px;
+    max-width: 900px; width: 100%; max-height: calc(100vh - 60px);
+    display: flex; flex-direction: column;
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px; border-bottom: 1px solid var(--border);
+  }
+  .modal-header h2 { margin: 0; font-size: 18px; }
+  .modal-close {
+    background: transparent; border: none; font-size: 24px; cursor: pointer; color: var(--muted);
+    width: 32px; height: 32px; line-height: 1;
+  }
+  .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+  /* 历史 grid */
+  .history-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  }
+  @media (max-width: 600px) { .history-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } }
+  .history-card {
+    border-radius: 8px; overflow: hidden; border: 1px solid var(--border);
+    cursor: pointer; background: white;
+  }
+  .history-card img {
+    width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block;
+  }
+  .history-card .meta { padding: 6px 8px; font-size: 11px; color: var(--muted); }
+  .history-card .meta .title { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .history-empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+  /* ── 移动端适配 ── */
+  @media (max-width: 600px) {
+    .container { padding: 20px 14px 60px; }
+    header h1 { font-size: 22px; }
+    header { margin-bottom: 24px; }
+    .card { padding: 18px 16px; }
+    .login-card { padding: 30px 22px; }
+    .user-bar { padding: 8px 14px; }
+    .user-bar .user-info { font-size: 12px; }
+    /* 关键:3 张生成结果在手机上也是 3 列 */
+    .cover-results { grid-template-columns: 1fr 1fr 1fr !important; gap: 6px; }
+    .cover-result-card .actions a { padding: 6px 4px; font-size: 11px; }
+    /* 风格选择器 2 列就行 */
+    .style-picker { grid-template-columns: 1fr 1fr; }
+    .style-card { padding: 10px; }
+    .style-card .style-name { font-size: 13px; }
+    .style-card .style-desc { font-size: 10px; }
+    /* 3 个字段输入框在手机上变成 1 列 */
+    .cover-grid-3 { grid-template-columns: 1fr; }
   }
   /* 左右按钮 */
   .result-actions {
@@ -510,6 +620,57 @@
 </style>
 </head>
 <body>
+
+<!-- 登录覆盖层(未登录时显示) -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <h1>小红书文案 / 封面生成助手</h1>
+    <p class="login-hint">请使用工号登录后使用</p>
+    <label>部门</label>
+    <select id="loginDept">
+      <option value="">请选择部门</option>
+    </select>
+    <label>姓名</label>
+    <select id="loginName" disabled>
+      <option value="">请先选部门</option>
+    </select>
+    <label>工号</label>
+    <input type="text" id="loginEmpId" placeholder="请输入工号(纯数字)" autocomplete="off" />
+    <button class="login-submit" id="loginSubmit">进入</button>
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
+
+<!-- 顶部用户栏 -->
+<div class="user-bar" id="userBar" style="display:none">
+  <span class="user-info" id="userInfoLabel"></span>
+  <button class="user-history" id="userHistoryBtn" onclick="openHistoryModal()">📂 历史记录</button>
+  <button class="user-admin" id="userAdminBtn" onclick="openAdminPanel()" style="display:none">🛡️ 管理员</button>
+  <button class="user-logout" onclick="logout()">退出</button>
+</div>
+
+<!-- 历史记录弹窗 -->
+<div class="modal-overlay" id="historyModal" onclick="closeHistoryModal(event)">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>📂 我的历史记录</h2>
+      <button class="modal-close" onclick="closeHistoryModal()">×</button>
+    </div>
+    <div class="modal-body" id="historyBody"></div>
+  </div>
+</div>
+
+<!-- 管理员面板弹窗 -->
+<div class="modal-overlay" id="adminModal" onclick="closeAdminPanel(event)">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>🛡️ 管理员后台</h2>
+      <button class="modal-close" onclick="closeAdminPanel()">×</button>
+    </div>
+    <div class="modal-body" id="adminBody"></div>
+  </div>
+</div>
+
 <div class="container">
 
   <header>
@@ -559,7 +720,6 @@
     <!-- AI 封面生成结果(3 张图) -->
   </div>
 
-  <p class="footer-hint">生成结果仅供参考,发布前请人工把关一遍内容真实性 · 文案: DeepSeek · 封面: 豆包 SeedEdit</p>
 
 </div>
 
@@ -732,7 +892,241 @@ function escapeHtml(s) {
 }
 
 window.copy = copy;
-loadProducts();
+
+// ─────────── 登录 / 用户系统 ───────────
+const USER_KEY = 'xhsAgent:user';
+const HISTORY_KEY = 'xhsAgent:history';
+let currentUser = null;       // {department, name, emp_id, is_admin}
+let usersByDept = {};         // {dept: [{name}]} 给登录下拉用
+
+function getCurrentUser() {
+  try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); }
+  catch (_) { return null; }
+}
+
+async function initAuth() {
+  currentUser = getCurrentUser();
+  if (currentUser && currentUser.emp_id) {
+    showApp();
+  } else {
+    await loadDepartments();
+    showLogin();
+  }
+}
+
+async function loadDepartments() {
+  try {
+    const resp = await fetch('/api/login');
+    const data = await resp.json();
+    usersByDept = data.users_by_dept || {};
+    const deptSel = $('loginDept');
+    deptSel.innerHTML = '<option value="">请选择部门</option>' +
+      (data.departments || []).map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+  } catch (e) {
+    console.error('加载部门失败', e);
+  }
+}
+
+function showLogin() {
+  $('loginOverlay').style.display = 'flex';
+  $('userBar').style.display = 'none';
+  document.querySelector('.container').style.display = 'none';
+}
+
+function showApp() {
+  $('loginOverlay').style.display = 'none';
+  $('userBar').style.display = 'flex';
+  document.querySelector('.container').style.display = 'block';
+  $('userInfoLabel').textContent =
+    `${currentUser.department} · ${currentUser.name}（工号 ${currentUser.emp_id}）`;
+  if (currentUser.is_admin) $('userAdminBtn').style.display = '';
+  // 真正去加载产品
+  loadProducts();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initAuth();
+
+  // 部门联动姓名下拉
+  $('loginDept').addEventListener('change', e => {
+    const nameSel = $('loginName');
+    const users = usersByDept[e.target.value] || [];
+    if (!users.length) {
+      nameSel.disabled = true;
+      nameSel.innerHTML = '<option value="">请先选部门</option>';
+      return;
+    }
+    nameSel.disabled = false;
+    nameSel.innerHTML = '<option value="">请选择姓名</option>' +
+      users.map(u => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('');
+  });
+
+  $('loginSubmit').addEventListener('click', doLogin);
+  $('loginEmpId').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
+});
+
+async function doLogin() {
+  const dept = $('loginDept').value;
+  const name = $('loginName').value;
+  const empId = $('loginEmpId').value.trim();
+  const err = $('loginError');
+  err.classList.remove('show');
+  if (!dept || !name || !empId) {
+    err.textContent = '请把部门、姓名、工号都填完整';
+    err.classList.add('show');
+    return;
+  }
+  $('loginSubmit').disabled = true;
+  $('loginSubmit').textContent = '验证中...';
+  try {
+    const resp = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ department: dept, name, emp_id: empId })
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      err.textContent = data.error || '登录失败';
+      err.classList.add('show');
+      return;
+    }
+    currentUser = data.user;
+    localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+    showApp();
+  } catch (e) {
+    err.textContent = '网络错误:' + e.message;
+    err.classList.add('show');
+  } finally {
+    $('loginSubmit').disabled = false;
+    $('loginSubmit').textContent = '进入';
+  }
+}
+
+function logout() {
+  if (!confirm('确定要退出登录吗?')) return;
+  localStorage.removeItem(USER_KEY);
+  currentUser = null;
+  loadDepartments().then(showLogin);
+}
+window.logout = logout;
+
+// 给所有 fetch 请求自动注入 user(包装在 _user 字段)
+const _origFetch = window.fetch;
+window.fetch = function(url, opts) {
+  // 只对 POST + JSON 的请求注入,GET 不处理
+  if (currentUser && opts && opts.method === 'POST' && opts.body) {
+    try {
+      const data = JSON.parse(opts.body);
+      data._user = {
+        department: currentUser.department,
+        name: currentUser.name,
+        emp_id: currentUser.emp_id,
+      };
+      opts.body = JSON.stringify(data);
+    } catch (_) { /* 不是 JSON 就放过 */ }
+  }
+  return _origFetch(url, opts);
+};
+
+// ─────────── 历史记录(localStorage)───────────
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch (_) { return []; }
+}
+
+function saveToHistory(record) {
+  const list = getHistory();
+  list.unshift(record);  // 最新的在前
+  // 限制 50 条,避免 localStorage 撑爆
+  if (list.length > 50) list.length = 50;
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+}
+
+function openHistoryModal() {
+  const list = getHistory();
+  const body = $('historyBody');
+  if (!list.length) {
+    body.innerHTML = '<div class="history-empty">还没有生成过封面图<br><small>点页面下方"生成封面图"开始</small></div>';
+  } else {
+    const allImages = [];
+    list.forEach(rec => {
+      (rec.images || []).forEach(url => allImages.push({ url, rec }));
+    });
+    body.innerHTML = `
+      <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">
+        共 ${list.length} 次生成 · ${allImages.length} 张图(只保留最近 50 次记录,清浏览器会丢)
+      </p>
+      <div class="history-grid">
+        ${allImages.map(({ url, rec }) => `
+          <div class="history-card" onclick="openLightbox('${escapeHtml(url)}')">
+            <img src="${escapeHtml(url)}" alt="" loading="lazy" />
+            <div class="meta">
+              <div class="title">${escapeHtml(rec.main_title || '')}</div>
+              <div>${escapeHtml(rec.style || '')} · ${escapeHtml(new Date(rec.timestamp).toLocaleString('zh-CN'))}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+  $('historyModal').classList.add('show');
+}
+window.openHistoryModal = openHistoryModal;
+
+function closeHistoryModal(e) {
+  if (e && e.target.id !== 'historyModal' && e.target.classList && !e.target.classList.contains('modal-close')) return;
+  $('historyModal').classList.remove('show');
+}
+window.closeHistoryModal = closeHistoryModal;
+
+// ─────────── 管理员后台 ───────────
+function openAdminPanel() {
+  const history = getHistory();
+  const todayCount = history.filter(r => isToday(r.timestamp)).length;
+  const thisMonthCount = history.filter(r => isThisMonth(r.timestamp)).length;
+  $('adminBody').innerHTML = `
+    <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">
+      <strong>当前管理员视角的限制说明:</strong>受限于"无后端数据库",目前只能看到本机浏览器里的历史数据(就是当前管理员本人在这台电脑生成过的封面)。要看全公司其他人的用量,需要后端接 Vercel KV(已经预留接口,通知开发者加上 KV 即可)。
+    </p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">
+      <div style="padding:14px;background:#f0f9ff;border-radius:8px;text-align:center">
+        <div style="font-size:22px;font-weight:600;color:#0369a1">${todayCount}</div>
+        <div style="font-size:12px;color:#475569">今日生成次数(本机)</div>
+      </div>
+      <div style="padding:14px;background:#f0fdf4;border-radius:8px;text-align:center">
+        <div style="font-size:22px;font-weight:600;color:#166534">${thisMonthCount}</div>
+        <div style="font-size:12px;color:#475569">本月生成次数(本机)</div>
+      </div>
+      <div style="padding:14px;background:#fef3c7;border-radius:8px;text-align:center">
+        <div style="font-size:22px;font-weight:600;color:#92400e">${history.length}</div>
+        <div style="font-size:12px;color:#475569">累计(最近 50)</div>
+      </div>
+    </div>
+    <h3 style="font-size:14px;margin:18px 0 10px">查看全公司用量(去 Vercel Logs)</h3>
+    <p style="font-size:13px;color:var(--muted)">
+      所有用户的登录和生成操作,都已通过 <code style="background:#eef;padding:1px 5px;border-radius:3px">[USAGE]</code> / <code style="background:#eef;padding:1px 5px;border-radius:3px">[LOGIN]</code> 标记打入服务器日志。
+      管理员去 <a href="https://vercel.com/dashboard" target="_blank" style="color:var(--primary)">Vercel Dashboard</a>
+      → 项目 → <b>Logs / Observability</b> 标签,搜 <code style="background:#eef;padding:1px 5px;border-radius:3px">USAGE</code> 即可看到所有用户的操作记录。
+    </p>
+  `;
+  $('adminModal').classList.add('show');
+}
+window.openAdminPanel = openAdminPanel;
+
+function closeAdminPanel(e) {
+  if (e && e.target.id !== 'adminModal' && e.target.classList && !e.target.classList.contains('modal-close')) return;
+  $('adminModal').classList.remove('show');
+}
+window.closeAdminPanel = closeAdminPanel;
+
+function isToday(ts) {
+  const d = new Date(ts); const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+function isThisMonth(ts) {
+  const d = new Date(ts); const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+}
 
 // ─── AI 封面生成(豆包 SeedEdit)───
 const coverSectionEl = $('coverSection');
@@ -983,6 +1377,20 @@ async function generateCovers() {
     status.className = 'cover-status success show';
     status.textContent = statusMsg;
 
+    // 存到历史(localStorage)
+    if (images.length) {
+      saveToHistory({
+        timestamp: Date.now(),
+        user: currentUser ? `${currentUser.name}(${currentUser.emp_id})` : '',
+        product: brandSel.value + ' / ' + productSel.value,
+        style: coverStyle,
+        main_title: main,
+        subtitle: sub,
+        hua_text: hua,
+        images: images,
+      });
+    }
+
     renderCoverResults(images);
     btn.disabled = false;
     btn.textContent = '🔁 再生成 3 张';
@@ -1011,9 +1419,11 @@ function renderCoverResults(images) {
       `).join('')}
     </div>
     <p style="color:var(--muted);font-size:12px;margin:14px 0 0;">
-      💡 AI 生图对中文文字识别仍不完美,可能出现错字。如果 3 张都不理想,点上方"再生成 3 张"重试,
-      或者用<b>程序化兜底</b>(下一版本会加)。
+      💡 AI 生图对中文文字识别仍不完美,可能出现错字。如果 3 张都不理想,点上方"再生成 3 张"重试。
     </p>
+    <button class="submit-btn ghost" style="margin-top:14px" onclick="openHistoryModal()">
+      📂 查看全部生成结果
+    </button>
   `;
   coverResultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
