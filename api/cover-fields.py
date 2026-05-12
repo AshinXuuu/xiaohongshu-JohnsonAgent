@@ -49,7 +49,7 @@ def call_deepseek(system_prompt, user_prompt):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "temperature": 0.85,
+        "temperature": 1.0,   # 提高温度,让每次"一键导入"结果更多样
         "max_tokens": 500,
         "response_format": {"type": "json_object"},
     }
@@ -97,6 +97,10 @@ class handler(BaseHTTPRequestHandler):
             product_name = (req.get("product") or "").strip()
             copy_type = (req.get("copy_type") or "").strip()
             extra = (req.get("extra") or "").strip()
+            # 上一次生成的文案上下文(可选,有的话作为素材给模型)
+            existing_titles = req.get("titles") or []
+            existing_body = (req.get("body") or "").strip()
+            existing_tags = req.get("tags") or []
 
             if not brand_name or not product_name:
                 return self._error(400, "缺少 brand / product")
@@ -111,11 +115,24 @@ class handler(BaseHTTPRequestHandler):
                 f"【品牌】{brand_name}",
                 f"【产品】{product_name}",
                 f"【文案类型】{copy_type or '通用'}",
-                f"\n【产品资料】\n{product['content']}",
+                f"\n【产品资料(基础信息)】\n{product['content']}",
             ]
+            # 把已生成的文案做为额外素材给模型
+            if existing_titles:
+                titles_text = "\n".join(f"  - {t}" for t in existing_titles[:5])
+                user_msg_parts.append(f"\n【已生成的 5 个候选标题(可借鉴/改写)】\n{titles_text}")
+            if existing_body:
+                # 正文截断 800 字以内,避免超 token
+                snippet = existing_body[:800] + ("..." if len(existing_body) > 800 else "")
+                user_msg_parts.append(f"\n【已生成的笔记正文(可萃取场景/情绪/数据点)】\n{snippet}")
+            if existing_tags:
+                user_msg_parts.append(f"\n【话题标签】\n{' '.join(existing_tags)}")
             if extra:
                 user_msg_parts.append(f"\n【业务补充】{extra}")
-            user_msg_parts.append("\n请严格按 JSON 格式输出 3 个字段。")
+            user_msg_parts.append(
+                "\n请综合以上所有素材,提炼 3 个**互不重复**的封面字段。"
+                "每次请求都要给出和之前不同的结果,不要重复套路。严格按 JSON 输出。"
+            )
             user_prompt = "\n".join(user_msg_parts)
 
             raw = call_deepseek(system_prompt, user_prompt)
