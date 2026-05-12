@@ -419,6 +419,34 @@
     cursor: pointer;
     font-size: 20px;
   }
+  /* 风格选择卡片 */
+  .style-picker {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 600px) { .style-picker { grid-template-columns: 1fr; } }
+  .style-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 2px solid #e5e5e5;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: #fafafa;
+  }
+  .style-card:hover { border-color: var(--primary); background: #fff; }
+  .style-card.active {
+    border-color: var(--primary);
+    background: var(--primary-light);
+    box-shadow: 0 0 0 3px rgba(255, 39, 65, 0.1);
+  }
+  .style-card .style-icon { font-size: 22px; }
+  .style-card .style-name { font-weight: 600; font-size: 14px; }
+  .style-card .style-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
   /* 旧 Canva 样式保留为引用 */
   .canva-title-pick {
     display: grid;
@@ -633,6 +661,8 @@ async function generate() {
       copy_type: activeType,
       extra: $('extra').value.trim(),
       titles: data.titles || [],
+      body: data.body || '',
+      tags: data.tags || [],
     };
     renderResult(data);
   } catch (e) {
@@ -710,6 +740,14 @@ const coverResultEl = $('coverResultSection');
 let lastGenContext = null;     // 上一次生成的文案上下文,给"一键导入"用
 let coverPhotoBase64 = '';
 let coverPhotoName = '';
+let coverStyle = '种草氛围';   // 当前选中的封面风格
+
+const COVER_STYLES = [
+  { id: '种草氛围', icon: '🌸', desc: '柔和高级、像真实分享,适合种草/生活类' },
+  { id: '干货教程', icon: '📚', desc: '白底黑字+黄高亮,信息密度高,适合干货/避雷' },
+  { id: '促销爆款', icon: '🔥', desc: '红黄高饱和+紧迫感,适合大促/上新' },
+  { id: '运动潮感', icon: '💪', desc: '高对比+动感,适合健身器材专属调性' },
+];
 
 function openCoverPanel() {
   coverPhotoBase64 = '';
@@ -733,12 +771,12 @@ function openCoverPanel() {
         <input type="text" id="mainTitle" placeholder="如:客厅多了它" maxlength="20" />
       </div>
       <div class="cover-input">
-        <label style="font-size:13px;color:var(--muted);">副标题 <small>(4-8 字)</small></label>
-        <input type="text" id="subtitle" placeholder="如:30+ 真香" maxlength="12" />
+        <label style="font-size:13px;color:var(--muted);">副标题 <small>(4-10 字)</small></label>
+        <input type="text" id="subtitle" placeholder="如:30+ 真香" maxlength="14" />
       </div>
       <div class="cover-input">
-        <label style="font-size:13px;color:var(--muted);">花字 <small>(3-6 字)</small></label>
-        <input type="text" id="huaText" placeholder="如:亲测✓" maxlength="10" />
+        <label style="font-size:13px;color:var(--muted);">花字 <small>(6-20 字,可多行)</small></label>
+        <input type="text" id="huaText" placeholder="如:亲测好用 三个月不踩坑" maxlength="22" />
       </div>
     </div>
 
@@ -752,6 +790,17 @@ function openCoverPanel() {
       </div>
     </div>
 
+    <label style="font-size:13px;color:var(--muted);">选择封面风格(决定 AI 出图的视觉调性)</label>
+    <div class="style-picker" id="stylePicker">
+      ${COVER_STYLES.map(s => `
+        <div class="style-card${s.id === coverStyle ? ' active' : ''}" data-style="${escapeHtml(s.id)}">
+          <span class="style-icon">${s.icon}</span>
+          <span class="style-name">${escapeHtml(s.id)}</span>
+          <span class="style-desc">${escapeHtml(s.desc)}</span>
+        </div>
+      `).join('')}
+    </div>
+
     <button class="gen-btn" id="coverGenBtn" disabled>请上传照片 + 填主标题</button>
     <div class="cover-status" id="coverStatus"></div>
   `;
@@ -760,11 +809,22 @@ function openCoverPanel() {
     $(id).addEventListener('input', updateGenBtnState);
   });
   setupPhotoUpload();
+  setupStylePicker();
   updateGenBtnState();
   // 滚到这块
   coverSectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 window.openCoverPanel = openCoverPanel;
+
+function setupStylePicker() {
+  document.querySelectorAll('.style-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.style-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      coverStyle = card.dataset.style;
+    });
+  });
+}
 
 async function aiImportFields() {
   if (!lastGenContext) return showToast('请先生成一次文案');
@@ -780,6 +840,10 @@ async function aiImportFields() {
         product: lastGenContext.product,
         copy_type: lastGenContext.copy_type,
         extra: lastGenContext.extra,
+        // 把已生成的文案上下文也带上,让 DeepSeek 有更多素材
+        titles: lastGenContext.titles,
+        body: lastGenContext.body,
+        tags: lastGenContext.tags,
       })
     });
     const data = await resp.json();
@@ -898,6 +962,7 @@ async function generateCovers() {
         main_title: main,
         subtitle: sub,
         hua_text: hua,
+        style: coverStyle,
       })
     });
     const data = await resp.json();
