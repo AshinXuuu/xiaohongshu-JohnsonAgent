@@ -253,6 +253,9 @@ class handler(BaseHTTPRequestHandler):
             hua_text = (req.get("hua_text") or "").strip()
             style = (req.get("style") or "").strip() or DEFAULT_STYLE
 
+            user = req.get("_user") or {}
+            print(f"[USAGE] action=cover_generate user={user.get('emp_id')}/{user.get('name')}/{user.get('department')} style={style} title={main_title[:30]}", flush=True)
+
             if not photo_b64:
                 return self._json(400, {"error": "请上传产品照片"})
             if not main_title:

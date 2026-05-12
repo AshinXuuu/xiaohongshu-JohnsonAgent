@@ -97,6 +97,10 @@ class handler(BaseHTTPRequestHandler):
             product_name = (req.get("product") or "").strip()
             copy_type = (req.get("copy_type") or "").strip()
             extra = (req.get("extra") or "").strip()
+
+            user = req.get("_user") or {}
+            print(f"[USAGE] action=cover_fields user={user.get('emp_id')}/{user.get('name')}/{user.get('department')} brand={brand_name} product={product_name}", flush=True)
+
             # 上一次生成的文案上下文(可选,有的话作为素材给模型)
             existing_titles = req.get("titles") or []
             existing_body = (req.get("body") or "").strip()

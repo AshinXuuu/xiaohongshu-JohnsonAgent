@@ -151,6 +151,10 @@ class handler(BaseHTTPRequestHandler):
             copy_type = (req.get("copy_type") or "").strip()
             extra = (req.get("extra") or "").strip()
 
+            # 打日志,Vercel Logs 可见,管理员追溯用量用
+            user = req.get("_user") or {}
+            print(f"[USAGE] action=generate user={user.get('emp_id')}/{user.get('name')}/{user.get('department')} brand={brand_name} product={product_name} type={copy_type}", flush=True)
+
             if not brand_name or not product_name:
                 return self._error(400, "请选择品牌和产品")
             if copy_type not in ALLOWED_TYPES:
