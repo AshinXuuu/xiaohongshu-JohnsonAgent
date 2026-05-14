@@ -151,6 +151,20 @@ class handler(BaseHTTPRequestHandler):
             copy_type = (req.get("copy_type") or "").strip()
             extra = (req.get("extra") or "").strip()
 
+            # 用户信息(给 Vercel Logs + KV 双重写入)
+            user = req.get("_user") or {}
+            print(f"[USAGE] action=generate user={user.get('emp_id')}/{user.get('name')}/{user.get('department')} brand={brand_name} product={product_name} type={copy_type}", flush=True)
+            try:
+                import sys as _sys
+                from pathlib import Path as _Path
+                _sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+                from lib.kv_store import log_event
+                log_event('generate', user, {
+                    'brand': brand_name, 'product': product_name, 'copy_type': copy_type,
+                })
+            except Exception:
+                pass  # KV 写入失败不影响主流程
+
             if not brand_name or not product_name:
                 return self._error(400, "请选择品牌和产品")
             if copy_type not in ALLOWED_TYPES:
