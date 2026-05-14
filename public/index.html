@@ -234,17 +234,376 @@
     z-index: 100;
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-  .footer-hint {
-    text-align: center;
-    color: var(--muted);
-    font-size: 12px;
-    margin-top: 30px;
+  /* ── 登录覆盖层 ── */
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #fff4f5 0%, #fff 60%, #ffe4e7 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
   }
-  /* Canva 模块样式 */
+  .login-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+    padding: 40px 32px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .login-card h1 { font-size: 22px; margin: 0 0 6px; text-align: center; }
+  .login-hint { color: var(--muted); text-align: center; margin: 0 0 24px; font-size: 13px; }
+  .login-card label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; margin-top: 14px; }
+  .login-card label:first-of-type { margin-top: 0; }
+  .login-card select, .login-card input {
+    width: 100%; padding: 11px 12px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px; font-family: inherit; background: #fff;
+  }
+  .login-card select:focus, .login-card input:focus { outline: none; border-color: var(--primary); }
+  .login-submit {
+    width: 100%; padding: 14px; margin-top: 20px;
+    background: var(--primary); color: white; border: none;
+    border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .login-submit:hover { opacity: 0.92; }
+  .login-error {
+    margin-top: 14px; padding: 10px 14px; background: #fef2f2;
+    color: #991b1b; font-size: 13px; border-radius: 8px;
+    display: none;
+  }
+  .login-error.show { display: block; }
+  /* ── 顶部用户栏 ── */
+  .user-bar {
+    display: flex; align-items: center; gap: 10px;
+    background: white; padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .user-bar .user-info { flex: 1; color: var(--text); font-weight: 500; }
+  .user-bar button {
+    padding: 6px 12px; border: 1px solid var(--border);
+    border-radius: 16px; background: white; cursor: pointer; font-size: 12px;
+  }
+  .user-bar button:hover { background: #f5f5f5; }
+  .user-bar .user-logout { color: var(--muted); }
+  .user-bar .user-admin {
+    background: linear-gradient(135deg, #fde68a, #fbbf24);
+    border-color: #fbbf24; color: #78350f; font-weight: 600;
+  }
+  /* ── 模态框(历史 / 管理员)── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; align-items: flex-start; justify-content: center;
+    z-index: 1500; padding: 30px 20px; overflow-y: auto;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-card {
+    background: white; border-radius: 14px;
+    max-width: 900px; width: 100%; max-height: calc(100vh - 60px);
+    display: flex; flex-direction: column;
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px; border-bottom: 1px solid var(--border);
+  }
+  .modal-header h2 { margin: 0; font-size: 18px; }
+  .modal-close {
+    background: transparent; border: none; font-size: 24px; cursor: pointer; color: var(--muted);
+    width: 32px; height: 32px; line-height: 1;
+  }
+  .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+  /* 管理员后台样式 */
+  .admin-stats-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 600px) { .admin-stats-grid { grid-template-columns: repeat(2, 1fr); } }
+  .admin-stat {
+    padding: 16px; border-radius: 10px; text-align: center;
+  }
+  .admin-stat-num { font-size: 26px; font-weight: 700; }
+  .admin-stat-label { font-size: 12px; margin-top: 4px; opacity: 0.85; }
+  .admin-h3 {
+    font-size: 14px; font-weight: 600; margin: 24px 0 10px;
+    color: var(--text); display: flex; align-items: center; gap: 6px;
+  }
+  .admin-bars { display: flex; flex-direction: column; gap: 6px; }
+  .admin-bar-row {
+    display: flex; align-items: center; gap: 10px; font-size: 13px;
+  }
+  .admin-bar-label {
+    flex-shrink: 0; width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .admin-bar-label small { font-size: 11px; }
+  .admin-bar-count { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 30px; text-align: right; }
+  .admin-recent {
+    border: 1px solid var(--border); border-radius: 8px;
+    max-height: 360px; overflow-y: auto;
+  }
+  .admin-recent-row {
+    display: grid; grid-template-columns: 140px 80px 130px 1fr;
+    gap: 8px; padding: 8px 12px; font-size: 12px;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  .admin-recent-row:last-child { border-bottom: none; }
+  .admin-time { color: var(--muted); }
+  .admin-action { color: var(--primary); font-weight: 500; }
+  .admin-who { color: var(--text); }
+  .admin-detail { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 600px) {
+    .admin-bar-label { width: 90px; font-size: 11px; }
+    .admin-recent-row { grid-template-columns: 1fr; gap: 2px; padding: 8px; }
+  }
+  /* 历史 grid */
+  .history-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  }
+  @media (max-width: 600px) { .history-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } }
+  .history-card {
+    border-radius: 8px; overflow: hidden; border: 1px solid var(--border);
+    cursor: pointer; background: white;
+  }
+  .history-card img {
+    width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block;
+  }
+  .history-card .meta { padding: 6px 8px; font-size: 11px; color: var(--muted); }
+  .history-card .meta .title { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .history-empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+  /* ── 移动端适配 ── */
+  @media (max-width: 600px) {
+    .container { padding: 20px 14px 60px; }
+    header h1 { font-size: 22px; }
+    header { margin-bottom: 24px; }
+    .card { padding: 18px 16px; }
+    .login-card { padding: 30px 22px; }
+    .user-bar { padding: 8px 14px; }
+    .user-bar .user-info { font-size: 12px; }
+    /* 关键:3 张生成结果在手机上也是 3 列 */
+    .cover-results { grid-template-columns: 1fr 1fr 1fr !important; gap: 6px; }
+    .cover-result-card .actions a { padding: 6px 4px; font-size: 11px; }
+    /* 风格选择器 2 列就行 */
+    .style-picker { grid-template-columns: 1fr 1fr; }
+    .style-card { padding: 10px; }
+    .style-card .style-name { font-size: 13px; }
+    .style-card .style-desc { font-size: 10px; }
+    /* 3 个字段输入框在手机上变成 1 列 */
+    .cover-grid-3 { grid-template-columns: 1fr; }
+  }
+  /* 左右按钮 */
+  .result-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 24px;
+  }
+  .submit-btn.ghost {
+    background: #fff;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+  }
+  /* 封面生成面板 */
+  .cover-grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 600px) { .cover-grid-3 { grid-template-columns: 1fr; } }
+  .cover-input {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .cover-input small { color: var(--muted); font-size: 11px; }
+  .ai-import-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    background: linear-gradient(135deg, #6e8efb, #a777e3);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .ai-import-btn:hover { opacity: 0.92; }
+  .ai-import-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* 上传区 */
+  .upload-zone {
+    border: 2px dashed #ccc;
+    border-radius: 10px;
+    padding: 26px;
+    text-align: center;
+    margin-bottom: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: #fafafa;
+  }
+  .upload-zone:hover, .upload-zone.dragging {
+    border-color: var(--primary);
+    background: var(--primary-light);
+  }
+  .upload-zone input[type="file"] { display: none; }
+  .upload-zone .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+  .upload-zone .icon { font-size: 32px; margin-bottom: 4px; opacity: 0.6; }
+  .photo-preview {
+    position: relative;
+    margin-bottom: 14px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #f0f0f0;
+  }
+  .photo-preview img {
+    width: 100%;
+    max-height: 320px;
+    object-fit: contain;
+    display: block;
+  }
+  .photo-preview .remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+  }
+  .photo-info {
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--muted);
+    background: white;
+    text-align: center;
+  }
+  .gen-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #ff6b6b, #ff2741);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  .gen-btn:disabled { background: #ccc; cursor: not-allowed; }
+  .cover-status {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: none;
+  }
+  .cover-status.show { display: block; }
+  .cover-status.loading { background: #f0f9ff; color: #0369a1; border-left: 3px solid #0369a1; }
+  .cover-status.success { background: #f0fdf4; color: #166534; border-left: 3px solid #16a34a; }
+  .cover-status.error { background: #fef2f2; color: #991b1b; border-left: 3px solid #dc2626; }
+  /* 结果图 */
+  .cover-results {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+  }
+  @media (max-width: 600px) { .cover-results { grid-template-columns: 1fr 1fr; } }
+  .cover-result-card {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: white;
+    position: relative;
+  }
+  .cover-result-card img {
+    width: 100%;
+    aspect-ratio: 3/4;
+    object-fit: cover;
+    display: block;
+    cursor: zoom-in;
+  }
+  .cover-result-card .actions {
+    display: flex;
+    border-top: 1px solid var(--border);
+  }
+  .cover-result-card .actions a {
+    flex: 1;
+    padding: 8px;
+    text-align: center;
+    text-decoration: none;
+    color: var(--primary);
+    font-size: 13px;
+    font-weight: 500;
+    background: white;
+  }
+  .cover-result-card .actions a:hover { background: var(--primary-light); }
+  /* 大图 lightbox */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  .lightbox.show { display: flex; }
+  .lightbox img { max-width: 100%; max-height: 90vh; border-radius: 8px; }
+  .lightbox .close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+  }
+  /* 风格选择卡片 */
+  .style-picker {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 600px) { .style-picker { grid-template-columns: 1fr; } }
+  .style-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 2px solid #e5e5e5;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: #fafafa;
+  }
+  .style-card:hover { border-color: var(--primary); background: #fff; }
+  .style-card.active {
+    border-color: var(--primary);
+    background: var(--primary-light);
+    box-shadow: 0 0 0 3px rgba(255, 39, 65, 0.1);
+  }
+  .style-card .style-icon { font-size: 22px; }
+  .style-card .style-name { font-weight: 600; font-size: 14px; }
+  .style-card .style-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+  /* 旧 Canva 样式保留为引用 */
   .canva-title-pick {
     display: grid;
     gap: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 18px;
   }
   .canva-title-pick label {
     display: flex;
@@ -257,69 +616,103 @@
     border: 1px solid transparent;
     font-size: 14px;
   }
-  .canva-title-pick label:hover { background: #f0f0f0; }
+  .canva-title-pick label:hover { background: #f5f5f5; }
+  .canva-title-pick label:has(input:checked) {
+    background: var(--primary-light);
+    border-color: var(--primary);
+  }
   .canva-title-pick input[type="radio"]:checked + span {
     font-weight: 600;
     color: var(--primary);
   }
   .template-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-bottom: 14px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
-  @media (max-width: 600px) { .template-grid { grid-template-columns: repeat(2, 1fr); } }
-  .template-card {
+  .template-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 16px 18px;
+    background: linear-gradient(135deg, #fdfdff 0%, #f5f3ff 100%);
+    border: 1px solid #ddd;
+    border-radius: 12px;
     cursor: pointer;
-    border-radius: 10px;
-    overflow: hidden;
-    border: 2px solid #e5e5e5;
     transition: all 0.15s;
-    background: #fafafa;
-    position: relative;
+    text-decoration: none;
+    color: var(--text);
   }
-  .template-card:hover { border-color: var(--primary); }
-  .template-card.active { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
-  .template-card img {
-    width: 100%;
-    aspect-ratio: 3/4;
-    object-fit: cover;
-    display: block;
+  .template-tile:hover {
+    border-color: var(--primary);
+    box-shadow: 0 4px 14px rgba(255, 39, 65, 0.12);
+    transform: translateY(-1px);
   }
-  .template-card .name {
-    padding: 6px 8px;
-    font-size: 12px;
-    color: #555;
-    text-align: center;
-    background: white;
-  }
-  .canva-btn {
-    width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, #00C4CC, #7D2AE8);
-    color: white;
-    border: none;
+  .template-tile .name { font-size: 15px; font-weight: 600; }
+  .template-tile .desc { font-size: 12px; color: var(--muted); }
+  .template-tile .category {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--primary-light);
+    color: var(--primary);
     border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    margin-top: 8px;
+    font-size: 11px;
   }
-  .canva-btn:disabled { background: #ccc; cursor: not-allowed; }
-  .canva-status {
-    margin-top: 14px;
-    padding: 12px 14px;
-    border-radius: 8px;
-    font-size: 13px;
-    display: none;
-  }
-  .canva-status.show { display: block; }
-  .canva-status.loading { background: #f0f9ff; color: #0369a1; border-left: 3px solid #0369a1; }
-  .canva-status.success { background: #f0fdf4; color: #166534; border-left: 3px solid #16a34a; }
-  .canva-status.error { background: #fef2f2; color: #991b1b; border-left: 3px solid #dc2626; }
 </style>
 </head>
 <body>
+
+<!-- 登录覆盖层(未登录时显示) -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <h1>小红书文案 / 封面生成助手</h1>
+    <p class="login-hint">请使用工号登录后使用</p>
+    <label>部门</label>
+    <select id="loginDept">
+      <option value="">请选择部门</option>
+    </select>
+    <label>姓名</label>
+    <select id="loginName" disabled>
+      <option value="">请先选部门</option>
+    </select>
+    <label>工号</label>
+    <input type="text" id="loginEmpId" placeholder="请输入工号(纯数字)" autocomplete="off" />
+    <button class="login-submit" id="loginSubmit">进入</button>
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
+
+<!-- 顶部用户栏 -->
+<div class="user-bar" id="userBar" style="display:none">
+  <span class="user-info" id="userInfoLabel"></span>
+  <button class="user-history" id="userHistoryBtn" onclick="openHistoryModal()">📂 历史记录</button>
+  <button class="user-admin" id="userAdminBtn" onclick="openAdminPanel()" style="display:none">🛡️ 管理员</button>
+  <button class="user-logout" onclick="logout()">退出</button>
+</div>
+
+<!-- 历史记录弹窗 -->
+<div class="modal-overlay" id="historyModal" onclick="closeHistoryModal(event)">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>📂 我的历史记录</h2>
+      <button class="modal-close" onclick="closeHistoryModal()">×</button>
+    </div>
+    <div class="modal-body" id="historyBody"></div>
+  </div>
+</div>
+
+<!-- 管理员面板弹窗 -->
+<div class="modal-overlay" id="adminModal" onclick="closeAdminPanel(event)">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>🛡️ 管理员后台</h2>
+      <button class="modal-close" onclick="closeAdminPanel()">×</button>
+    </div>
+    <div class="modal-body" id="adminBody"></div>
+  </div>
+</div>
+
 <div class="container">
 
   <header>
@@ -361,15 +754,23 @@
     <!-- 结果区动态填充 -->
   </div>
 
-  <div class="card result-section" id="canvaSection">
-    <!-- Canva 模块动态填充 -->
+  <div class="card result-section" id="coverSection">
+    <!-- AI 封面生成模块动态填充 -->
   </div>
 
-  <p class="footer-hint">生成结果仅供参考,发布前请人工把关一遍内容真实性 · 模型: DeepSeek · 封面: Canva</p>
+  <div class="card result-section" id="coverResultSection">
+    <!-- AI 封面生成结果(3 张图) -->
+  </div>
+
 
 </div>
 
 <div class="toast" id="toast">已复制</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="close" onclick="closeLightbox()">×</button>
+  <img id="lightboxImg" src="" alt="" />
+</div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -389,7 +790,38 @@ function showToast(msg) {
 }
 
 function copy(text) {
-  navigator.clipboard.writeText(text).then(() => showToast('已复制'));
+  // 优先用现代剪贴板 API(HTTPS 才能用)
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('已复制'))
+      .catch(() => fallbackCopy(text));
+    return;
+  }
+  // HTTP / 不支持的浏览器,降级到老式 execCommand
+  fallbackCopy(text);
+}
+
+function fallbackCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    ta.style.left = '-9999px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (ok) {
+      showToast('已复制');
+    } else {
+      showToast('复制失败,请手动选中复制');
+    }
+  } catch (e) {
+    showToast('复制失败: ' + e.message);
+  }
 }
 
 // 加载产品列表
@@ -456,8 +888,16 @@ async function generate() {
       resultEl.innerHTML = `<div class="error">⚠️ 生成失败:${data.error || '未知错误'}</div>`;
       return;
     }
+    lastGenContext = {
+      brand: brandSel.value,
+      product: productSel.value,
+      copy_type: activeType,
+      extra: $('extra').value.trim(),
+      titles: data.titles || [],
+      body: data.body || '',
+      tags: data.tags || [],
+    };
     renderResult(data);
-    renderCanvaSection(data);
   } catch (e) {
     resultEl.innerHTML = `<div class="error">⚠️ 网络错误:${e.message}</div>`;
   } finally {
@@ -501,9 +941,14 @@ function renderResult(data) {
       ${tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}
     </div>
 
-    <button class="submit-btn" style="margin-top:24px;background:#fff;color:var(--primary);border:1px solid var(--primary);" onclick='document.getElementById("submit").click()'>
-      🔄 重新生成一版
-    </button>
+    <div class="result-actions">
+      <button class="submit-btn ghost" onclick='document.getElementById("submit").click()'>
+        🔄 重新生成一版
+      </button>
+      <button class="submit-btn" onclick='openCoverPanel()'>
+        🎨 生成封面图
+      </button>
+    </div>
   `;
   // 把工具函数暴露到全局供 onclick 用
   window.copy = copy;
@@ -520,141 +965,715 @@ function escapeHtml(s) {
 }
 
 window.copy = copy;
-loadProducts();
 
-// ─── Canva 集成 ───
-const canvaSectionEl = $('canvaSection');
-let canvaTemplates = null;
-let canvaSelectedTemplate = null;
-let canvaSelectedTitle = '';
+// ─────────── 登录 / 用户系统 ───────────
+const USER_KEY = 'xhsAgent:user';
+const HISTORY_KEY = 'xhsAgent:history';
+let currentUser = null;       // {department, name, emp_id, is_admin}
+let usersByDept = {};         // {dept: [{name}]} 给登录下拉用
 
-async function loadCanvaTemplates() {
-  if (canvaTemplates !== null) return canvaTemplates;
-  try {
-    const resp = await fetch('/api/canva-templates');
-    const data = await resp.json();
-    if (!resp.ok || data.error) {
-      throw new Error(data.error || 'unknown');
-    }
-    canvaTemplates = data.templates || [];
-    return canvaTemplates;
-  } catch (e) {
-    canvaTemplates = [];
-    throw e;
+function getCurrentUser() {
+  try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); }
+  catch (_) { return null; }
+}
+
+async function initAuth() {
+  currentUser = getCurrentUser();
+  if (currentUser && currentUser.emp_id) {
+    showApp();
+  } else {
+    await loadDepartments();
+    showLogin();
   }
 }
 
-async function renderCanvaSection(data) {
-  const titles = data.titles || [];
-  canvaSelectedTitle = titles[0] || '';
-  canvaSectionEl.classList.add('visible');
-  canvaSectionEl.innerHTML = `
-    <div class="section-title">🎨 一键去 Canva 做封面</div>
-    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
-      系统会自动把你选的标题和产品图填进 Canva 模板,跳转过去就能直接调整导出。
-    </p>
-    <label style="font-size:13px;color:var(--muted);">选择封面主标题</label>
-    <div class="canva-title-pick" id="canvaTitlePick">
-      ${titles.map((t, i) => `
-        <label>
-          <input type="radio" name="canvaTitle" value="${escapeHtml(t)}" ${i === 0 ? 'checked' : ''} />
-          <span>${escapeHtml(t)}</span>
-        </label>
-      `).join('')}
-    </div>
-    <label style="font-size:13px;color:var(--muted);">选择模板</label>
-    <div id="canvaTemplateArea">
-      <div class="loading" style="padding:20px"><div class="spinner"></div>加载模板中...</div>
-    </div>
-    <button class="canva-btn" id="canvaGenBtn" disabled>请先选择模板</button>
-    <div class="canva-status" id="canvaStatus"></div>
-  `;
-
-  document.querySelectorAll('input[name="canvaTitle"]').forEach(r => {
-    r.addEventListener('change', e => canvaSelectedTitle = e.target.value);
-  });
-  $('canvaGenBtn').addEventListener('click', generateCover);
-
-  // 异步加载模板
+async function loadDepartments() {
   try {
-    const templates = await loadCanvaTemplates();
-    const area = $('canvaTemplateArea');
-    if (!templates.length) {
-      area.innerHTML = `<div class="error" style="font-size:13px">未找到 Canva 模板。请管理员先在 Canva Pro 里创建至少一个品牌模板(含 title 和 product_image 占位符)。</div>`;
+    const resp = await fetch('/api/login');
+    const data = await resp.json();
+    usersByDept = data.users_by_dept || {};
+    const deptSel = $('loginDept');
+    deptSel.innerHTML = '<option value="">请选择部门</option>' +
+      (data.departments || []).map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+  } catch (e) {
+    console.error('加载部门失败', e);
+  }
+}
+
+function showLogin() {
+  $('loginOverlay').style.display = 'flex';
+  $('userBar').style.display = 'none';
+  document.querySelector('.container').style.display = 'none';
+}
+
+function showApp() {
+  $('loginOverlay').style.display = 'none';
+  $('userBar').style.display = 'flex';
+  document.querySelector('.container').style.display = 'block';
+  $('userInfoLabel').textContent =
+    `${currentUser.department} · ${currentUser.name}（工号 ${currentUser.emp_id}）`;
+  if (currentUser.is_admin) $('userAdminBtn').style.display = '';
+  // 真正去加载产品
+  loadProducts();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initAuth();
+
+  // 部门联动姓名下拉
+  $('loginDept').addEventListener('change', e => {
+    const nameSel = $('loginName');
+    const users = usersByDept[e.target.value] || [];
+    if (!users.length) {
+      nameSel.disabled = true;
+      nameSel.innerHTML = '<option value="">请先选部门</option>';
       return;
     }
-    area.innerHTML = `
-      <div class="template-grid">
-        ${templates.map(t => `
-          <div class="template-card" data-id="${t.id}">
-            ${t.thumbnail ? `<img src="${t.thumbnail}" alt="${escapeHtml(t.title || '')}">` : `<div style="aspect-ratio:3/4;background:#eee;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px">无预览图</div>`}
-            <div class="name">${escapeHtml(t.title || t.id)}</div>
+    nameSel.disabled = false;
+    nameSel.innerHTML = '<option value="">请选择姓名</option>' +
+      users.map(u => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('');
+  });
+
+  $('loginSubmit').addEventListener('click', doLogin);
+  $('loginEmpId').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
+});
+
+async function doLogin() {
+  const dept = $('loginDept').value;
+  const name = $('loginName').value;
+  const empId = $('loginEmpId').value.trim();
+  const err = $('loginError');
+  err.classList.remove('show');
+  if (!dept || !name || !empId) {
+    err.textContent = '请把部门、姓名、工号都填完整';
+    err.classList.add('show');
+    return;
+  }
+  $('loginSubmit').disabled = true;
+  $('loginSubmit').textContent = '验证中...';
+  try {
+    const resp = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ department: dept, name, emp_id: empId })
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      err.textContent = data.error || '登录失败';
+      err.classList.add('show');
+      return;
+    }
+    currentUser = data.user;
+    localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+    showApp();
+  } catch (e) {
+    err.textContent = '网络错误:' + e.message;
+    err.classList.add('show');
+  } finally {
+    $('loginSubmit').disabled = false;
+    $('loginSubmit').textContent = '进入';
+  }
+}
+
+function logout() {
+  if (!confirm('确定要退出登录吗?')) return;
+  localStorage.removeItem(USER_KEY);
+  currentUser = null;
+  loadDepartments().then(showLogin);
+}
+window.logout = logout;
+
+// 给所有 fetch 请求自动注入 user(包装在 _user 字段)
+const _origFetch = window.fetch;
+window.fetch = function(url, opts) {
+  // 只对 POST + JSON 的请求注入,GET 不处理
+  if (currentUser && opts && opts.method === 'POST' && opts.body) {
+    try {
+      const data = JSON.parse(opts.body);
+      data._user = {
+        department: currentUser.department,
+        name: currentUser.name,
+        emp_id: currentUser.emp_id,
+      };
+      opts.body = JSON.stringify(data);
+    } catch (_) { /* 不是 JSON 就放过 */ }
+  }
+  return _origFetch(url, opts);
+};
+
+// ─────────── 历史记录(localStorage)───────────
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch (_) { return []; }
+}
+
+function saveToHistory(record) {
+  const list = getHistory();
+  list.unshift(record);  // 最新的在前
+  // 限制 50 条,避免 localStorage 撑爆
+  if (list.length > 50) list.length = 50;
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+}
+
+function openHistoryModal() {
+  const list = getHistory();
+  const body = $('historyBody');
+  if (!list.length) {
+    body.innerHTML = '<div class="history-empty">还没有生成过封面图<br><small>点页面下方"生成封面图"开始</small></div>';
+  } else {
+    const allImages = [];
+    list.forEach(rec => {
+      (rec.images || []).forEach(url => allImages.push({ url, rec }));
+    });
+    body.innerHTML = `
+      <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">
+        共 ${list.length} 次生成 · ${allImages.length} 张图(只保留最近 50 次记录,清浏览器会丢)
+      </p>
+      <div class="history-grid">
+        ${allImages.map(({ url, rec }) => `
+          <div class="history-card" onclick="openLightbox('${escapeHtml(url)}')">
+            <img src="${escapeHtml(url)}" alt="" loading="lazy" />
+            <div class="meta">
+              <div class="title">${escapeHtml(rec.main_title || '')}</div>
+              <div>${escapeHtml(rec.style || '')} · ${escapeHtml(new Date(rec.timestamp).toLocaleString('zh-CN'))}</div>
+            </div>
           </div>
         `).join('')}
       </div>
     `;
-    document.querySelectorAll('.template-card').forEach(card => {
-      card.addEventListener('click', () => {
-        document.querySelectorAll('.template-card').forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-        canvaSelectedTemplate = card.dataset.id;
-        const btn = $('canvaGenBtn');
-        btn.disabled = false;
-        btn.textContent = '🎨 生成封面并跳转 Canva';
-      });
-    });
-  } catch (e) {
-    const msg = String(e.message || e);
-    $('canvaTemplateArea').innerHTML = `<div class="error" style="font-size:13px">
-      Canva 模板加载失败:${escapeHtml(msg)}<br>
-      <small>常见原因:管理员还没完成首次授权,或 Vercel 上没配置 CANVA_REFRESH_TOKEN。访问 <a href="/api/canva-auth">/api/canva-auth</a> 走一次授权。</small>
-    </div>`;
   }
+  $('historyModal').classList.add('show');
 }
+window.openHistoryModal = openHistoryModal;
 
-async function generateCover() {
-  if (!canvaSelectedTemplate) return showToast('请先选模板');
-  if (!canvaSelectedTitle) return showToast('请先选标题');
-  if (!brandSel.value || !productSel.value) return showToast('品牌产品信息丢失');
+function closeHistoryModal(e) {
+  if (e && e.target.id !== 'historyModal' && e.target.classList && !e.target.classList.contains('modal-close')) return;
+  $('historyModal').classList.remove('show');
+}
+window.closeHistoryModal = closeHistoryModal;
 
-  const btn = $('canvaGenBtn');
-  const status = $('canvaStatus');
-  btn.disabled = true;
-  btn.textContent = '生成中...';
-  status.className = 'canva-status loading show';
-  status.textContent = '正在调用 Canva,上传图片 + 填充模板中,约 10-30 秒...';
+// ─────────── 管理员后台 ───────────
+async function openAdminPanel() {
+  $('adminBody').innerHTML = '<div class="loading" style="padding:30px"><div class="spinner"></div>正在从 KV 拉取全公司用量数据...</div>';
+  $('adminModal').classList.add('show');
 
   try {
-    const resp = await fetch('/api/canva-make-cover', {
+    const resp = await fetch('/api/admin-stats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})  // _user 会被 fetch 拦截器自动注入
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      $('adminBody').innerHTML = `<div class="error">⚠️ ${escapeHtml(data.error || '未知错误')}</div>`;
+      return;
+    }
+    if (data.kv_configured === false) {
+      $('adminBody').innerHTML = `
+        <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:16px;border-radius:6px;font-size:13px;color:#92400e">
+          <strong>⚠️ Vercel KV 还未配置</strong><br><br>
+          ${escapeHtml(data.message || '')}<br><br>
+          配置步骤:
+          <ol style="margin:8px 0 0 16px;padding:0">
+            <li>Vercel Dashboard → 项目 → <b>Storage</b> → <b>Connect Database</b> → 选 <b>Upstash</b> → <b>Redis(Free)</b></li>
+            <li>命名 agent-kv,Region 选 HKG,创建</li>
+            <li>选 <b>Connect Project</b>,勾选 3 个环境 → Connect</li>
+            <li>回 Deployments → Redeploy(不勾 cache)</li>
+            <li>等部署完,刷新本页面即可看到数据</li>
+          </ol>
+        </div>
+      `;
+      return;
+    }
+    renderAdminStats(data);
+  } catch (e) {
+    $('adminBody').innerHTML = `<div class="error">网络错误:${escapeHtml(e.message)}</div>`;
+  }
+}
+window.openAdminPanel = openAdminPanel;
+
+function renderAdminStats(d) {
+  const actionName = { generate: '文案', cover_fields: '一键导入', cover_generate: '封面图', login: '登录' };
+  const bar = (count, max, color) => {
+    const pct = max > 0 ? Math.max(2, (count / max) * 100) : 0;
+    return `<div style="background:${color};height:18px;width:${pct}%;border-radius:3px;display:inline-block;vertical-align:middle"></div>`;
+  };
+
+  const maxUser = Math.max(1, ...(d.by_user || []).map(x => x.count));
+  const maxDept = Math.max(1, ...(d.by_dept || []).map(x => x.count));
+  const maxDay = Math.max(1, ...(d.by_daily || []).map(x => x.count));
+  const maxStyle = Math.max(1, ...(d.by_style || []).map(x => x.count));
+
+  $('adminBody').innerHTML = `
+    <!-- 顶部 4 个核心数字 -->
+    <div class="admin-stats-grid">
+      <div class="admin-stat" style="background:#fef2f2;color:#991b1b">
+        <div class="admin-stat-num">${d.total || 0}</div>
+        <div class="admin-stat-label">累计操作总数</div>
+      </div>
+      <div class="admin-stat" style="background:#f0f9ff;color:#0369a1">
+        <div class="admin-stat-num">${d.today || 0}</div>
+        <div class="admin-stat-label">今日操作</div>
+      </div>
+      <div class="admin-stat" style="background:#f0fdf4;color:#166534">
+        <div class="admin-stat-num">${d.this_month || 0}</div>
+        <div class="admin-stat-label">本月操作</div>
+      </div>
+      <div class="admin-stat" style="background:#fef3c7;color:#92400e">
+        <div class="admin-stat-num">${(d.by_user || []).length}</div>
+        <div class="admin-stat-label">活跃用户数</div>
+      </div>
+    </div>
+
+    <!-- 各部门排行 -->
+    <h3 class="admin-h3">📊 部门排行</h3>
+    <div class="admin-bars">
+      ${(d.by_dept || []).map(x => `
+        <div class="admin-bar-row">
+          <span class="admin-bar-label">${escapeHtml(x.key)}</span>
+          ${bar(x.count, maxDept, '#3b82f6')}
+          <span class="admin-bar-count">${x.count}</span>
+        </div>
+      `).join('') || '<div style="color:var(--muted);padding:10px">暂无数据</div>'}
+    </div>
+
+    <!-- 各人排行(top 15)-->
+    <h3 class="admin-h3">👤 个人用量 Top 15</h3>
+    <div class="admin-bars">
+      ${(d.by_user || []).slice(0, 15).map(x => `
+        <div class="admin-bar-row">
+          <span class="admin-bar-label">${escapeHtml(x.name)}<small style="color:var(--muted)"> · ${escapeHtml(x.department)}</small></span>
+          ${bar(x.count, maxUser, '#10b981')}
+          <span class="admin-bar-count">${x.count}</span>
+        </div>
+      `).join('') || '<div style="color:var(--muted);padding:10px">暂无数据</div>'}
+    </div>
+
+    <!-- 各操作类型 -->
+    <h3 class="admin-h3">⚙️ 操作类型分布</h3>
+    <div class="admin-bars">
+      ${(d.by_action || []).map(x => `
+        <div class="admin-bar-row">
+          <span class="admin-bar-label">${escapeHtml(actionName[x.key] || x.key)}</span>
+          ${bar(x.count, d.total || 1, '#a855f7')}
+          <span class="admin-bar-count">${x.count}</span>
+        </div>
+      `).join('') || '<div style="color:var(--muted);padding:10px">暂无数据</div>'}
+    </div>
+
+    <!-- 风格偏好 -->
+    ${(d.by_style || []).length ? `
+    <h3 class="admin-h3">🎨 封面风格选择分布</h3>
+    <div class="admin-bars">
+      ${(d.by_style || []).map(x => `
+        <div class="admin-bar-row">
+          <span class="admin-bar-label">${escapeHtml(x.key)}</span>
+          ${bar(x.count, maxStyle, '#ec4899')}
+          <span class="admin-bar-count">${x.count}</span>
+        </div>
+      `).join('')}
+    </div>` : ''}
+
+    <!-- 每日趋势(最近 14 天)-->
+    <h3 class="admin-h3">📅 最近 14 天每日操作量</h3>
+    <div class="admin-bars">
+      ${(d.by_daily || []).slice(0, 14).reverse().map(x => `
+        <div class="admin-bar-row">
+          <span class="admin-bar-label" style="width:90px">${escapeHtml(x.key)}</span>
+          ${bar(x.count, maxDay, '#f97316')}
+          <span class="admin-bar-count">${x.count}</span>
+        </div>
+      `).join('') || '<div style="color:var(--muted);padding:10px">暂无数据</div>'}
+    </div>
+
+    <!-- 最近活动 -->
+    <h3 class="admin-h3">📝 最近 30 条操作记录</h3>
+    <div class="admin-recent">
+      ${(d.recent || []).slice(0, 30).map(e => `
+        <div class="admin-recent-row">
+          <span class="admin-time">${new Date(e.time).toLocaleString('zh-CN')}</span>
+          <span class="admin-action">${escapeHtml(actionName[e.action] || e.action)}</span>
+          <span class="admin-who">${escapeHtml((e.user && e.user.name) || '?')} <small>${escapeHtml((e.user && e.user.department) || '')}</small></span>
+          <span class="admin-detail">${escapeHtml(formatEventDetail(e))}</span>
+        </div>
+      `).join('') || '<div style="color:var(--muted);padding:10px">暂无数据</div>'}
+    </div>
+  `;
+}
+
+function formatEventDetail(e) {
+  const d = e.details || {};
+  const parts = [];
+  if (d.brand) parts.push(d.brand);
+  if (d.product) parts.push(d.product);
+  if (d.style) parts.push(d.style);
+  if (d.title) parts.push(d.title);
+  if (d.copy_type) parts.push(d.copy_type);
+  return parts.join(' · ');
+}
+
+function closeAdminPanel(e) {
+  if (e && e.target.id !== 'adminModal' && e.target.classList && !e.target.classList.contains('modal-close')) return;
+  $('adminModal').classList.remove('show');
+}
+window.closeAdminPanel = closeAdminPanel;
+
+function isToday(ts) {
+  const d = new Date(ts); const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+function isThisMonth(ts) {
+  const d = new Date(ts); const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+}
+
+// ─── AI 封面生成(豆包 SeedEdit)───
+const coverSectionEl = $('coverSection');
+const coverResultEl = $('coverResultSection');
+let lastGenContext = null;     // 上一次生成的文案上下文,给"一键导入"用
+let coverPhotoBase64 = '';
+let coverPhotoName = '';
+let coverStyle = '种草氛围';   // 当前选中的封面风格
+
+const COVER_STYLES = [
+  { id: '种草氛围', icon: '🌸', desc: '柔和高级、像真实分享,适合种草/生活类' },
+  { id: '干货教程', icon: '📚', desc: '白底黑字+黄高亮,信息密度高,适合干货/避雷' },
+  { id: '促销爆款', icon: '🔥', desc: '红黄高饱和+紧迫感,适合大促/上新' },
+];
+
+function openCoverPanel() {
+  coverPhotoBase64 = '';
+  coverPhotoName = '';
+  coverResultEl.classList.remove('visible');
+
+  coverSectionEl.classList.add('visible');
+  coverSectionEl.innerHTML = `
+    <div class="section-title">
+      🎨 生成封面图
+      <button class="ai-import-btn" onclick="aiImportFields()">✨ 一键导入</button>
+    </div>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      上传一张你拍好的产品照,填 3 个文字字段,豆包 AI 会一次生成 3 张候选封面(3:4 比例,无水印)。
+      点"一键导入"会基于刚才生成的文案,自动填好 3 个字段。
+    </p>
+
+    <div class="cover-grid-3">
+      <div class="cover-input">
+        <label style="font-size:13px;color:var(--muted);">主标题 <small>(8-14 字)</small></label>
+        <input type="text" id="mainTitle" placeholder="如:客厅多了它" maxlength="20" />
+      </div>
+      <div class="cover-input">
+        <label style="font-size:13px;color:var(--muted);">副标题 <small>(4-10 字)</small></label>
+        <input type="text" id="subtitle" placeholder="如:30+ 真香" maxlength="14" />
+      </div>
+      <div class="cover-input">
+        <label style="font-size:13px;color:var(--muted);">花字 <small>(6-20 字,可多行)</small></label>
+        <input type="text" id="huaText" placeholder="如:亲测好用 三个月不踩坑" maxlength="22" />
+      </div>
+    </div>
+
+    <label style="font-size:13px;color:var(--muted);">上传产品照(JPG / PNG,3MB 内,3:4 比例最佳)</label>
+    <div id="coverUploadArea">
+      <div class="upload-zone" id="uploadZone">
+        <div class="icon">📷</div>
+        <div><strong>点击或拖拽图片到这里</strong></div>
+        <p class="hint">建议 3:4 比例(如 900x1200 / 1080x1440)</p>
+        <input type="file" id="photoInput" accept="image/jpeg,image/png" />
+      </div>
+    </div>
+
+    <label style="font-size:13px;color:var(--muted);">选择封面风格(决定 AI 出图的视觉调性)</label>
+    <div class="style-picker" id="stylePicker">
+      ${COVER_STYLES.map(s => `
+        <div class="style-card${s.id === coverStyle ? ' active' : ''}" data-style="${escapeHtml(s.id)}">
+          <span class="style-icon">${s.icon}</span>
+          <span class="style-name">${escapeHtml(s.id)}</span>
+          <span class="style-desc">${escapeHtml(s.desc)}</span>
+        </div>
+      `).join('')}
+    </div>
+
+    <button class="gen-btn" id="coverGenBtn" disabled>请上传照片 + 填主标题</button>
+    <div class="cover-status" id="coverStatus"></div>
+  `;
+  $('coverGenBtn').addEventListener('click', generateCovers);
+  ['mainTitle', 'subtitle', 'huaText'].forEach(id => {
+    $(id).addEventListener('input', updateGenBtnState);
+  });
+  setupPhotoUpload();
+  setupStylePicker();
+  updateGenBtnState();
+  // 滚到这块
+  coverSectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+window.openCoverPanel = openCoverPanel;
+
+function setupStylePicker() {
+  document.querySelectorAll('.style-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.style-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      coverStyle = card.dataset.style;
+    });
+  });
+}
+
+async function aiImportFields() {
+  if (!lastGenContext) return showToast('请先生成一次文案');
+  const btn = document.querySelector('.ai-import-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 生成中...';
+  try {
+    const resp = await fetch('/api/cover-fields', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        brand: brandSel.value,
-        product: productSel.value,
-        template_id: canvaSelectedTemplate,
-        title: canvaSelectedTitle,
+        brand: lastGenContext.brand,
+        product: lastGenContext.product,
+        copy_type: lastGenContext.copy_type,
+        extra: lastGenContext.extra,
+        // 把已生成的文案上下文也带上,让 DeepSeek 有更多素材
+        titles: lastGenContext.titles,
+        body: lastGenContext.body,
+        tags: lastGenContext.tags,
       })
     });
     const data = await resp.json();
     if (!resp.ok || data.error) {
-      status.className = 'canva-status error show';
-      status.textContent = '失败:' + (data.error || '未知错误');
+      showToast('导入失败:' + (data.error || '未知'));
+      return;
+    }
+    $('mainTitle').value = data.main_title || '';
+    $('subtitle').value = data.subtitle || '';
+    $('huaText').value = data.hua_text || '';
+    updateGenBtnState();
+    showToast('✓ 已自动填充');
+  } catch (e) {
+    showToast('网络错误:' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ 一键导入';
+  }
+}
+window.aiImportFields = aiImportFields;
+
+function setupPhotoUpload() {
+  const zone = $('uploadZone');
+  const input = $('photoInput');
+  if (!zone || !input) return;
+  zone.addEventListener('click', () => input.click());
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragging'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragging');
+    if (e.dataTransfer.files.length) handlePhotoFile(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change', e => {
+    if (e.target.files.length) handlePhotoFile(e.target.files[0]);
+  });
+}
+
+function handlePhotoFile(file) {
+  if (!file.type.startsWith('image/')) return showToast('只能上传图片');
+  if (file.size > 10 * 1024 * 1024) return showToast('图片过大(>10MB),换张小点的');
+  showToast('正在压缩图片...');
+  compressImage(file).then(({ dataUrl, sizeKB }) => {
+    coverPhotoBase64 = dataUrl;
+    coverPhotoName = file.name;
+    renderPhotoPreview(file, sizeKB);
+    updateGenBtnState();
+  }).catch(err => {
+    showToast('压缩失败:' + err.message);
+  });
+}
+
+// 浏览器端压缩图片到 1200px 最长边 / JPEG 0.85
+// 把 2-5 MB 的原图压到 200-500 KB,大幅降低跨国上传超时
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onerror = () => reject(new Error('图片读取失败'));
+    img.onload = () => {
+      const MAX_DIM = 1200;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > MAX_DIM || h > MAX_DIM) {
+        if (w >= h) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+        else        { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      // 高质量缩放
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        if (!blob) return reject(new Error('canvas 转 blob 失败'));
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('读取压缩结果失败'));
+        reader.onload = e => resolve({
+          dataUrl: e.target.result,
+          sizeKB: Math.round(blob.size / 1024),
+        });
+        reader.readAsDataURL(blob);
+      }, 'image/jpeg', 0.85);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function renderPhotoPreview(file, compressedKB) {
+  const area = $('coverUploadArea');
+  const origKB = (file.size / 1024).toFixed(0);
+  const info = compressedKB && compressedKB < origKB
+    ? `${escapeHtml(file.name)} · 原图 ${origKB} KB → 压缩后 ${compressedKB} KB(已优化上传速度)`
+    : `${escapeHtml(file.name)} · ${origKB} KB`;
+  area.innerHTML = `
+    <div class="photo-preview">
+      <img src="${coverPhotoBase64}" alt="预览" />
+      <button class="remove" onclick="removeCoverPhoto()">×</button>
+      <div class="photo-info">${info}</div>
+    </div>
+  `;
+}
+
+function removeCoverPhoto() {
+  coverPhotoBase64 = '';
+  coverPhotoName = '';
+  const area = $('coverUploadArea');
+  area.innerHTML = `
+    <div class="upload-zone" id="uploadZone">
+      <div class="icon">📷</div>
+      <div><strong>点击或拖拽图片到这里</strong></div>
+      <p class="hint">建议 3:4 比例(如 900x1200 / 1080x1440)</p>
+      <input type="file" id="photoInput" accept="image/jpeg,image/png" />
+    </div>
+  `;
+  setupPhotoUpload();
+  updateGenBtnState();
+}
+window.removeCoverPhoto = removeCoverPhoto;
+
+function updateGenBtnState() {
+  const btn = $('coverGenBtn');
+  if (!btn) return;
+  const main = ($('mainTitle')?.value || '').trim();
+  if (coverPhotoBase64 && main) {
+    btn.disabled = false;
+    btn.textContent = '✨ 生成 3 张候选封面';
+  } else {
+    btn.disabled = true;
+    if (!coverPhotoBase64) btn.textContent = '请先上传产品照';
+    else btn.textContent = '请填写主标题';
+  }
+}
+
+async function generateCovers() {
+  const main = $('mainTitle').value.trim();
+  const sub = $('subtitle').value.trim();
+  const hua = $('huaText').value.trim();
+  if (!coverPhotoBase64) return showToast('请先上传产品照');
+  if (!main) return showToast('请填主标题');
+
+  const btn = $('coverGenBtn');
+  const status = $('coverStatus');
+  btn.disabled = true;
+  btn.textContent = '生成中...';
+  status.className = 'cover-status loading show';
+  status.textContent = '豆包正在并行生成 3 张候选封面,约 20-50 秒,请耐心等待...';
+  coverResultEl.classList.remove('visible');
+
+  try {
+    const resp = await fetch('/api/cover-generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        photo_base64: coverPhotoBase64,
+        main_title: main,
+        subtitle: sub,
+        hua_text: hua,
+        style: coverStyle,
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      status.className = 'cover-status error show';
+      status.innerHTML = '失败:' + escapeHtml(data.error || '未知错误') +
+        (data.details ? '<br><small>' + escapeHtml(JSON.stringify(data.details)) + '</small>' : '');
       btn.disabled = false;
       btn.textContent = '🔁 重试';
       return;
     }
-    status.className = 'canva-status success show';
-    status.innerHTML = `✅ 已生成,正在打开 Canva...如果浏览器拦截了新标签页,<a href="${data.edit_url}" target="_blank">点这里手动打开</a>`;
-    window.open(data.edit_url, '_blank');
+
+    const images = data.images || [];
+    const errs = data.errors || [];
+
+    let statusMsg = `✅ 成功生成 ${images.length} 张`;
+    if (errs.length) statusMsg += `,${errs.length} 张失败(已忽略)`;
+    status.className = 'cover-status success show';
+    status.textContent = statusMsg;
+
+    // 存到历史(localStorage)
+    if (images.length) {
+      saveToHistory({
+        timestamp: Date.now(),
+        user: currentUser ? `${currentUser.name}(${currentUser.emp_id})` : '',
+        product: brandSel.value + ' / ' + productSel.value,
+        style: coverStyle,
+        main_title: main,
+        subtitle: sub,
+        hua_text: hua,
+        images: images,
+      });
+    }
+
+    renderCoverResults(images);
     btn.disabled = false;
-    btn.textContent = '🎨 再做一张';
+    btn.textContent = '🔁 再生成 3 张';
   } catch (e) {
-    status.className = 'canva-status error show';
+    status.className = 'cover-status error show';
     status.textContent = '网络错误: ' + e.message;
     btn.disabled = false;
     btn.textContent = '🔁 重试';
   }
 }
+
+function renderCoverResults(images) {
+  if (!images.length) return;
+  coverResultEl.classList.add('visible');
+  coverResultEl.innerHTML = `
+    <div class="section-title">🖼️ 生成结果(点缩略图看大图,点"下载"保存)</div>
+    <div class="cover-results">
+      ${images.map((url, i) => `
+        <div class="cover-result-card">
+          <img src="${escapeHtml(url)}" alt="封面候选 ${i+1}" onclick="openLightbox('${escapeHtml(url)}')" />
+          <div class="actions">
+            <a href="${escapeHtml(url)}" download="cover_${i+1}.png" target="_blank">⬇ 下载</a>
+            <a href="${escapeHtml(url)}" target="_blank">🔍 大图</a>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin:14px 0 0;">
+      💡 AI 生图对中文文字识别仍不完美,可能出现错字。如果 3 张都不理想,点上方"再生成 3 张"重试。
+    </p>
+    <button class="submit-btn ghost" style="margin-top:14px" onclick="openHistoryModal()">
+      📂 查看全部生成结果
+    </button>
+  `;
+  coverResultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function openLightbox(url) {
+  const lb = $('lightbox');
+  $('lightboxImg').src = url;
+  lb.classList.add('show');
+}
+window.openLightbox = openLightbox;
+function closeLightbox() { $('lightbox').classList.remove('show'); }
+window.closeLightbox = closeLightbox;
 </script>
 </body>
 </html>
