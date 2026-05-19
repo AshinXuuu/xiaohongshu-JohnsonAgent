@@ -103,7 +103,7 @@ class handler(BaseHTTPRequestHandler):
             if not _kv_available():
                 return self._json(200, {
                     "kv_configured": False,
-                    "message": "KV 还未配置,目前没有累积数据。请在 Vercel 项目接入 Upstash Redis,然后刷新即可看到数据。",
+                    "message": "本地 SQLite 数据库初始化失败,请检查 data/ 目录权限。",
                 })
 
             stats = get_stats()

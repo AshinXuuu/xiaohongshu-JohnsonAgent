@@ -10,3 +10,8 @@ DOUBAO_SETUP产品库/
 封面demo/
 产品库/
 封面demo/
+
+# 本地 SQLite 用量数据库(服务器本地数据,不进 git)
+data/usage.db
+data/usage.db-shm
+data/usage.db-wal

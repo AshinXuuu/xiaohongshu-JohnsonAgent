@@ -1,49 +1,90 @@
-"""Vercel KV (Upstash Redis) 用量日志存储。
+"""本地 SQLite 用量日志存储。
 
-Vercel 接入 Upstash Redis 后,会自动注入 2 个环境变量:
-  - KV_REST_API_URL
-  - KV_REST_API_TOKEN
+此前用 Upstash(Vercel KV)走 HTTPS,现已切换到本机 SQLite。
+数据库文件默认放在 <项目根>/data/usage.db,可通过环境变量 USAGE_DB_PATH 覆盖。
 
-代码无需任何配置,导入即用。如果 KV 未配置,所有写入都会**静默 no-op**,
-不影响主流程的请求处理。
+API 签名跟旧版 Upstash 实现完全一致:
+  - log_event(action, user, details)   写入
+  - get_recent_logs(n)                 取最近事件
+  - get_stats()                        汇总各维度
+  - _kv_available()                    是否可用(SQLite 几乎总是可用)
+
+设计要点:
+  • 单表 events,所有事件追加写入,统计用 SQL GROUP BY 聚合
+    (好处:不用维护一堆 counter,SQL 支持任意时间范围筛选)
+  • WAL 模式开启,允许并发读 + 单写,适合 systemd 服务多线程场景
+  • 写入失败静默(打日志),不影响主业务流程
 """
 import os
 import json
 import time
 import datetime
-import urllib.request
-import urllib.parse
-import urllib.error
+import sqlite3
+import threading
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parent.parent
+DB_PATH = Path(os.environ.get('USAGE_DB_PATH', str(_ROOT / 'data' / 'usage.db')))
+
+_db_lock = threading.Lock()       # 写操作串行,避免 SQLite "database is locked"
+_schema_initialized = False
+
+
+def _get_conn():
+    """打开一个 SQLite 连接(默认开 WAL 模式 + 行级超时)"""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH), timeout=10, check_same_thread=False)
+    conn.execute('PRAGMA journal_mode=WAL')      # 并发读写更稳
+    conn.execute('PRAGMA synchronous=NORMAL')    # 折衷点:持久化 vs 性能
+    return conn
+
+
+def _init_schema():
+    """幂等创建 events 表 + 索引"""
+    global _schema_initialized
+    if _schema_initialized:
+        return
+    with _db_lock:
+        if _schema_initialized:
+            return
+        conn = _get_conn()
+        try:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS events (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    time_ms       INTEGER NOT NULL,
+                    action        TEXT NOT NULL,
+                    emp_id        TEXT,
+                    user_name     TEXT,
+                    department    TEXT,
+                    details_json  TEXT,
+                    day           TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_events_day    ON events(day);
+                CREATE INDEX IF NOT EXISTS idx_events_action ON events(action);
+                CREATE INDEX IF NOT EXISTS idx_events_emp    ON events(emp_id);
+                CREATE INDEX IF NOT EXISTS idx_events_time   ON events(time_ms DESC);
+            """)
+            conn.commit()
+            _schema_initialized = True
+        finally:
+            conn.close()
+
+
+# 模块导入时建表
+try:
+    _init_schema()
+except Exception as e:
+    print(f"[kv_store] 初始化失败:{e}", flush=True)
 
 
 def _kv_available() -> bool:
-    return bool(
-        os.environ.get('KV_REST_API_URL')
-        and os.environ.get('KV_REST_API_TOKEN')
-    )
-
-
-def _kv_req(method: str, path: str, body=None, timeout: int = 5):
-    """通用 KV REST 调用。失败返回 None,不抛异常(避免影响主流程)。"""
-    base = os.environ.get('KV_REST_API_URL', '').rstrip('/')
-    token = os.environ.get('KV_REST_API_TOKEN', '')
-    if not base or not token:
-        return None
-    url = f'{base}{path}'
-    headers = {'Authorization': f'Bearer {token}'}
-    data = None
-    if body is not None:
-        if isinstance(body, str):
-            data = body.encode('utf-8')
-        else:
-            data = json.dumps(body).encode('utf-8')
-            headers['Content-Type'] = 'application/json'
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    """SQLite 几乎总是可用 — 只要文件能创建。
+    保留这个函数名是为了不动 /api/admin-stats.py 等调用方。"""
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode('utf-8'))
+        return DB_PATH.parent.exists() or DB_PATH.parent.parent.exists()
     except Exception:
-        return None
+        return False
 
 
 def log_event(action: str, user: dict, details: dict = None):
@@ -51,126 +92,141 @@ def log_event(action: str, user: dict, details: dict = None):
 
     action:  'login' / 'generate' / 'cover_fields' / 'cover_generate'
     user:    {'emp_id', 'name', 'department'}
-    details: 自由附加信息,如 {'brand': 'XX', 'style': 'XX', 'title': 'XX'}
+    details: 自由附加信息,如 {'brand': 'XX', 'style': 'XX', 'copy_type': 'XX'}
 
-    一次性写入(pipeline):
-      1. event 详情塞到 list usage:logs
-      2. 各项 counter 同步 +1
+    失败静默 — 不抛异常、不阻塞业务请求。
     """
-    if not _kv_available():
-        return
+    try:
+        u = user or {}
+        emp_id = (u.get('emp_id') or 'unknown').strip() or 'unknown'
+        name = (u.get('name') or '').strip()
+        dept = (u.get('department') or 'unknown').strip() or 'unknown'
+        details_json = json.dumps(details or {}, ensure_ascii=False)
+        now = datetime.datetime.now()
+        time_ms = int(now.timestamp() * 1000)
+        day = now.strftime('%Y-%m-%d')
 
-    event = {
-        'time': int(time.time() * 1000),
-        'action': action,
-        'user': user or {},
-        'details': details or {},
-    }
-
-    emp_id = (user or {}).get('emp_id') or 'unknown'
-    dept = (user or {}).get('department') or 'unknown'
-    today = datetime.datetime.now().strftime('%Y-%m-%d')
-
-    # 用 pipeline 一次发,降低延迟
-    commands = [
-        ['LPUSH', 'usage:logs', json.dumps(event, ensure_ascii=False)],
-        ['LTRIM', 'usage:logs', '0', '999'],
-        ['INCR', 'usage:total'],
-        ['INCR', f'usage:user:{emp_id}'],
-        ['INCR', f'usage:dept:{dept}'],
-        ['INCR', f'usage:action:{action}'],
-        ['INCR', f'usage:daily:{today}'],
-    ]
-    # 加细粒度计数(风格/产品)
-    style = (details or {}).get('style')
-    if style:
-        commands.append(['INCR', f'usage:style:{style}'])
-    brand = (details or {}).get('brand')
-    if brand:
-        commands.append(['INCR', f'usage:brand:{brand}'])
-
-    _kv_req('POST', '/pipeline', body=commands, timeout=3)
+        with _db_lock:
+            conn = _get_conn()
+            try:
+                conn.execute(
+                    "INSERT INTO events (time_ms, action, emp_id, user_name, "
+                    "department, details_json, day) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (time_ms, action, emp_id, name, dept, details_json, day)
+                )
+                conn.commit()
+            finally:
+                conn.close()
+    except Exception as e:
+        print(f"[kv_store] log_event 失败:{e}", flush=True)
 
 
 def get_recent_logs(n: int = 100):
     """取最近 N 条事件(新→旧)"""
-    if not _kv_available():
-        return []
-    res = _kv_req('GET', f'/lrange/usage:logs/0/{n-1}')
-    if not res:
-        return []
-    items = res.get('result') or []
-    parsed = []
-    for x in items:
+    try:
+        conn = _get_conn()
         try:
-            parsed.append(json.loads(x))
-        except Exception:
-            continue
-    return parsed
-
-
-def _list_counters_by_prefix(prefix: str) -> dict:
-    """枚举所有 usage:xxx:* 计数器并取值,返回 {key: int}"""
-    if not _kv_available():
-        return {}
-    pattern = f'{prefix}*'
-    res = _kv_req('GET', f'/keys/{urllib.parse.quote(pattern)}')
-    if not res:
-        return {}
-    keys = res.get('result') or []
-    if not keys:
-        return {}
-    # 一次性 MGET
-    path = '/mget/' + '/'.join(urllib.parse.quote(k) for k in keys)
-    res2 = _kv_req('GET', path)
-    if not res2:
-        return {}
-    values = res2.get('result') or []
-    out = {}
-    for k, v in zip(keys, values):
-        try:
-            out[k] = int(v) if v is not None else 0
-        except (TypeError, ValueError):
-            out[k] = 0
-    return out
+            rows = conn.execute(
+                "SELECT time_ms, action, emp_id, user_name, department, details_json "
+                "FROM events ORDER BY time_ms DESC LIMIT ?",
+                (max(1, min(n, 1000)),)
+            ).fetchall()
+        finally:
+            conn.close()
+        return [
+            {
+                'time': r[0],
+                'action': r[1],
+                'user': {'emp_id': r[2], 'name': r[3], 'department': r[4]},
+                'details': json.loads(r[5]) if r[5] else {},
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        print(f"[kv_store] get_recent_logs 失败:{e}", flush=True)
+        return []
 
 
 def get_counter(key: str) -> int:
-    if not _kv_available():
-        return 0
-    res = _kv_req('GET', f'/get/{urllib.parse.quote(key)}')
-    if not res:
-        return 0
-    val = res.get('result')
-    try:
-        return int(val) if val is not None else 0
-    except (TypeError, ValueError):
-        return 0
+    """兼容旧 API — 但 SQLite 改用聚合查询,本函数已不被内部使用。
+    保留是为了向后兼容外部调用(如果有的话)。"""
+    return 0
 
 
 def get_stats():
-    """聚合所有维度数据,供 /api/admin-stats 返回"""
-    if not _kv_available():
+    """聚合所有维度数据,供 /api/admin-stats 返回。
+
+    返回结构跟旧 Upstash 实现完全一致,前端不用改。
+    """
+    try:
+        conn = _get_conn()
+        try:
+            total = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+
+            # 按员工 ID 分组
+            by_user_raw = [
+                {'key': r[0] or 'unknown', 'count': r[1]}
+                for r in conn.execute(
+                    "SELECT emp_id, COUNT(*) FROM events GROUP BY emp_id"
+                ).fetchall()
+            ]
+
+            # 按部门
+            by_dept = sorted([
+                {'key': r[0] or 'unknown', 'count': r[1]}
+                for r in conn.execute(
+                    "SELECT department, COUNT(*) FROM events GROUP BY department"
+                ).fetchall()
+            ], key=lambda x: -x['count'])
+
+            # 按动作
+            by_action = sorted([
+                {'key': r[0], 'count': r[1]}
+                for r in conn.execute(
+                    "SELECT action, COUNT(*) FROM events GROUP BY action"
+                ).fetchall()
+            ], key=lambda x: -x['count'])
+
+            # 按天(最近 30 天)
+            by_daily = [
+                {'key': r[0], 'count': r[1]}
+                for r in conn.execute(
+                    "SELECT day, COUNT(*) FROM events "
+                    "GROUP BY day ORDER BY day DESC LIMIT 30"
+                ).fetchall()
+            ]
+
+            # 从 details_json 抽取 style / brand 字段做分组
+            by_style = sorted([
+                {'key': r[0], 'count': r[1]}
+                for r in conn.execute(
+                    "SELECT json_extract(details_json, '$.style') AS s, COUNT(*) "
+                    "FROM events WHERE s IS NOT NULL AND s != '' "
+                    "GROUP BY s"
+                ).fetchall()
+            ], key=lambda x: -x['count'])
+
+            by_brand = sorted([
+                {'key': r[0], 'count': r[1]}
+                for r in conn.execute(
+                    "SELECT json_extract(details_json, '$.brand') AS b, COUNT(*) "
+                    "FROM events WHERE b IS NOT NULL AND b != '' "
+                    "GROUP BY b"
+                ).fetchall()
+            ], key=lambda x: -x['count'])
+        finally:
+            conn.close()
+
+        return {
+            'total': total,
+            'by_user_raw': by_user_raw,
+            'by_dept': by_dept,
+            'by_action': by_action,
+            'by_style': by_style,
+            'by_brand': by_brand,
+            'by_daily': by_daily,
+            'recent': get_recent_logs(100),
+        }
+    except Exception as e:
+        print(f"[kv_store] get_stats 失败:{e}", flush=True)
         return None
-
-    total = get_counter('usage:total')
-    by_user = _list_counters_by_prefix('usage:user:')
-    by_dept = _list_counters_by_prefix('usage:dept:')
-    by_action = _list_counters_by_prefix('usage:action:')
-    by_style = _list_counters_by_prefix('usage:style:')
-    by_brand = _list_counters_by_prefix('usage:brand:')
-    by_daily = _list_counters_by_prefix('usage:daily:')
-
-    def _strip_prefix(d, prefix):
-        return [{'key': k[len(prefix):], 'count': v} for k, v in d.items()]
-
-    return {
-        'total': total,
-        'by_user_raw': _strip_prefix(by_user, 'usage:user:'),
-        'by_dept': sorted(_strip_prefix(by_dept, 'usage:dept:'), key=lambda x: -x['count']),
-        'by_action': sorted(_strip_prefix(by_action, 'usage:action:'), key=lambda x: -x['count']),
-        'by_style': sorted(_strip_prefix(by_style, 'usage:style:'), key=lambda x: -x['count']),
-        'by_brand': sorted(_strip_prefix(by_brand, 'usage:brand:'), key=lambda x: -x['count']),
-        'by_daily': sorted(_strip_prefix(by_daily, 'usage:daily:'), key=lambda x: x['key'], reverse=True)[:30],
-        'recent': get_recent_logs(100),
-    }
