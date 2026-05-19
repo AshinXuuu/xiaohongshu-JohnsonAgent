@@ -736,10 +736,8 @@
     <div class="types" id="types">
       <button class="type-btn active" data-type="种草">种草测评</button>
       <button class="type-btn" data-type="场景">场景化</button>
-      <button class="type-btn" data-type="生活">生活方式</button>
-      <button class="type-btn" data-type="促销">促销活动</button>
       <button class="type-btn" data-type="干货">干货教程</button>
-      <button class="type-btn" data-type="封面金句">封面金句</button>
+      <button class="type-btn" data-type="促销">促销活动</button>
     </div>
 
     <div style="margin-top:14px;">
@@ -1327,19 +1325,16 @@ function isThisMonth(ts) {
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
 }
 
-// ─── AI 封面生成(豆包 SeedEdit)───
+// ─── AI 封面生成(豆包 Seedream)───
+// 封面风格不再由用户选择 —— 直接由文案类型(activeType)自动映射:
+//   种草 / 场景 → 种草氛围
+//   干货         → 干货教程
+//   促销         → 促销爆款
 const coverSectionEl = $('coverSection');
 const coverResultEl = $('coverResultSection');
 let lastGenContext = null;     // 上一次生成的文案上下文,给"一键导入"用
 let coverPhotoBase64 = '';
 let coverPhotoName = '';
-let coverStyle = '种草氛围';   // 当前选中的封面风格
-
-const COVER_STYLES = [
-  { id: '种草氛围', icon: '🌸', desc: '柔和高级、像真实分享,适合种草/生活类' },
-  { id: '干货教程', icon: '📚', desc: '白底黑字+黄高亮,信息密度高,适合干货/避雷' },
-  { id: '促销爆款', icon: '🔥', desc: '红黄高饱和+紧迫感,适合大促/上新' },
-];
 
 function openCoverPanel() {
   coverPhotoBase64 = '';
@@ -1382,17 +1377,6 @@ function openCoverPanel() {
       </div>
     </div>
 
-    <label style="font-size:13px;color:var(--muted);">选择封面风格(决定 AI 出图的视觉调性)</label>
-    <div class="style-picker" id="stylePicker">
-      ${COVER_STYLES.map(s => `
-        <div class="style-card${s.id === coverStyle ? ' active' : ''}" data-style="${escapeHtml(s.id)}">
-          <span class="style-icon">${s.icon}</span>
-          <span class="style-name">${escapeHtml(s.id)}</span>
-          <span class="style-desc">${escapeHtml(s.desc)}</span>
-        </div>
-      `).join('')}
-    </div>
-
     <button class="gen-btn" id="coverGenBtn" disabled>请上传照片 + 填主标题</button>
     <div class="cover-status" id="coverStatus"></div>
   `;
@@ -1401,22 +1385,11 @@ function openCoverPanel() {
     $(id).addEventListener('input', updateGenBtnState);
   });
   setupPhotoUpload();
-  setupStylePicker();
   updateGenBtnState();
   // 滚到这块
   coverSectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 window.openCoverPanel = openCoverPanel;
-
-function setupStylePicker() {
-  document.querySelectorAll('.style-card').forEach(card => {
-    card.addEventListener('click', () => {
-      document.querySelectorAll('.style-card').forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
-      coverStyle = card.dataset.style;
-    });
-  });
-}
 
 async function aiImportFields() {
   if (!lastGenContext) return showToast('请先生成一次文案');
@@ -1594,7 +1567,7 @@ async function generateCovers() {
         main_title: main,
         subtitle: sub,
         hua_text: hua,
-        style: coverStyle,
+        copy_type: activeType,   // 用文案类型自动锁封面风格池
       })
     });
     const data = await resp.json();
@@ -1621,7 +1594,7 @@ async function generateCovers() {
         timestamp: Date.now(),
         user: currentUser ? `${currentUser.name}(${currentUser.emp_id})` : '',
         product: brandSel.value + ' / ' + productSel.value,
-        style: coverStyle,
+        copy_type: activeType,
         main_title: main,
         subtitle: sub,
         hua_text: hua,

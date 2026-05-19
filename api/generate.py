@@ -26,7 +26,7 @@ import urllib.error
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ALLOWED_TYPES = {"种草", "场景", "生活", "促销", "干货", "封面金句"}
+ALLOWED_TYPES = {"种草", "场景", "促销", "干货"}
 
 
 def load_products():
