@@ -132,6 +132,46 @@ def parse_model_output(raw):
     return json.loads(text)
 
 
+def normalize_body(s):
+    """把模型偶尔输出的【字面量转义符】和【markdown 标记】清理成
+    可以直接粘贴到小红书的纯文本。
+
+    解决两类显示异常:
+      1. 模型把换行写成两个字符 "\\n"(而不是真实回车),前端就会原样显示
+         反斜杠 + n,没有真正换行 —— 这就是"有格式符但排版没生效"。
+      2. 小红书不渲染 markdown,**加粗** / # 标题 / - 列表 会原样出现星号井号。
+    """
+    if not isinstance(s, str):
+        return s
+    # 1) 字面量转义符 → 真实字符
+    s = (s.replace("\\r\\n", "\n")
+           .replace("\\n", "\n")
+           .replace("\\r", "\n")
+           .replace("\\t", "  "))
+    # 2) markdown 加粗 / 斜体  **x** / __x__ → x
+    s = re.sub(r"\*\*(.+?)\*\*", r"\1", s)
+    s = re.sub(r"__(.+?)__", r"\1", s)
+    # 3) 行首 markdown 标题 / 引用 / 列表符去掉
+    s = re.sub(r"(?m)^[ \t]*#{1,6}[ \t]*", "", s)     # # 标题
+    s = re.sub(r"(?m)^[ \t]*>[ \t]?", "", s)           # > 引用
+    s = re.sub(r"(?m)^[ \t]*[-*+][ \t]+", "", s)       # - / * / + 列表
+    # 4) 残留的成对星号去掉(小红书不渲染)
+    s = s.replace("**", "")
+    # 5) 行尾空白清掉,折叠 3+ 连续空行为最多 2 行
+    s = re.sub(r"[ \t]+\n", "\n", s)
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    return s.strip()
+
+
+def clean_inline(s):
+    """标题 / 标签用的轻量清理:去掉转义符与加粗,但保留 # 等正常字符"""
+    if not isinstance(s, str):
+        return s
+    s = s.replace("\\n", " ").replace("\\r", " ").replace("\\t", " ")
+    s = re.sub(r"\*\*(.+?)\*\*", r"\1", s).replace("**", "")
+    return s.strip()
+
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
@@ -185,6 +225,11 @@ class handler(BaseHTTPRequestHandler):
             parsed.setdefault("titles", [])
             parsed.setdefault("body", "")
             parsed.setdefault("tags", [])
+
+            # 规范化:清掉字面量 \n 转义符 + markdown 标记,保证小红书可直接粘贴
+            parsed["body"] = normalize_body(parsed.get("body", ""))
+            parsed["titles"] = [clean_inline(t) for t in parsed.get("titles", []) if isinstance(t, str)]
+            parsed["tags"] = [clean_inline(t) for t in parsed.get("tags", []) if isinstance(t, str)]
 
             # 强制注入品牌和产品标签到最前面(去重 + 保序)
             parsed["tags"] = enforce_brand_product_tags(

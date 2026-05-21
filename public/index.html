@@ -958,10 +958,31 @@ async function generate() {
   }
 }
 
+// 兜底清洗:把模型偶尔输出的字面量 \n 转义符 + markdown 标记清掉,
+// 保证即使服务器还没重新部署,前端也能正常显示排版(小红书不渲染 markdown)
+function cleanCopyText(s) {
+  if (typeof s !== 'string') return s;
+  s = s.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n')
+       .replace(/\\r/g, '\n').replace(/\\t/g, '  ');
+  s = s.replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1');
+  s = s.replace(/^[ \t]*#{1,6}[ \t]*/gm, '');   // # 标题
+  s = s.replace(/^[ \t]*>[ \t]?/gm, '');         // > 引用
+  s = s.replace(/^[ \t]*[-*+][ \t]+/gm, '');     // - / * / + 列表
+  s = s.replace(/\*\*/g, '');
+  s = s.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+  return s.trim();
+}
+function cleanInline(s) {
+  if (typeof s !== 'string') return s;
+  s = s.replace(/\\n/g, ' ').replace(/\\r/g, ' ').replace(/\\t/g, ' ');
+  s = s.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*\*/g, '');
+  return s.trim();
+}
+
 function renderResult(data) {
-  const titles = data.titles || [];
-  const body = data.body || '';
-  const tags = data.tags || [];
+  const titles = (data.titles || []).map(cleanInline);
+  const body = cleanCopyText(data.body || '');
+  const tags = (data.tags || []).map(cleanInline);
   const tagsText = tags.join(' ');
   const fullText = (titles[0] || '') + '\n\n' + body + '\n\n' + tagsText;
 
