@@ -315,6 +315,47 @@
     width: 32px; height: 32px; line-height: 1;
   }
   .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+  /* ── 版本徽章 + 更新公告 ── */
+  .version-badge {
+    display: inline-block; margin-left: 8px; padding: 2px 10px;
+    font-size: 12px; font-weight: 600; line-height: 1.6;
+    color: #fff; background: linear-gradient(135deg, #ff5a7a, #ff8a5a);
+    border: none; border-radius: 999px; cursor: pointer;
+    vertical-align: middle; box-shadow: 0 2px 6px rgba(255,90,122,0.35);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .version-badge:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(255,90,122,0.45); }
+  .ver-block { margin-bottom: 28px; }
+  .ver-block:last-child { margin-bottom: 0; }
+  .ver-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .ver-num {
+    font-size: 18px; font-weight: 700; color: var(--primary);
+    background: #fff0f3; padding: 2px 12px; border-radius: 8px;
+  }
+  .ver-num.old { color: var(--muted); background: #f3f3f3; }
+  .ver-date { font-size: 12px; color: var(--muted); }
+  .ver-title { font-size: 15px; font-weight: 600; color: var(--text); margin: 8px 0 4px; }
+  .ver-intro { font-size: 13px; color: var(--muted); margin: 0 0 14px; line-height: 1.6; }
+  .ver-hl { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+  .ver-hl:first-of-type { border-top: none; }
+  .ver-hl-icon { font-size: 22px; flex-shrink: 0; width: 28px; text-align: center; }
+  .ver-hl-body { flex: 1; }
+  .ver-hl-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .ver-hl-desc { font-size: 13px; color: var(--muted); line-height: 1.55; }
+  .ver-tech {
+    margin-top: 14px; background: #fafafa; border: 1px solid var(--border);
+    border-radius: 10px; padding: 4px 0;
+  }
+  .ver-tech summary {
+    cursor: pointer; padding: 10px 14px; font-size: 13px;
+    font-weight: 600; color: var(--muted); list-style: none;
+  }
+  .ver-tech summary::-webkit-details-marker { display: none; }
+  .ver-tech summary::before { content: '▸ '; }
+  .ver-tech[open] summary::before { content: '▾ '; }
+  .ver-tech ul { margin: 0; padding: 0 18px 12px 34px; }
+  .ver-tech li { font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .ver-divider { border: none; border-top: 1px dashed var(--border); margin: 0 0 24px; }
   /* 管理员后台样式 */
   .admin-stats-grid {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
@@ -713,11 +754,24 @@
   </div>
 </div>
 
+<!-- 版本更新公告弹窗 -->
+<div class="modal-overlay" id="versionModal" onclick="closeVersionModal(event)">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>🎉 更新公告</h2>
+      <button class="modal-close" onclick="closeVersionModal()">×</button>
+    </div>
+    <div class="modal-body" id="versionBody"></div>
+  </div>
+</div>
+
 <div class="container">
 
   <header>
     <h1>小红书<span>文案生成</span>助手</h1>
-    <p>选产品 · 选类型 · 一键生成 · 复制即用</p>
+    <p>选产品 · 选类型 · 一键生成 · 复制即用
+      <button class="version-badge" id="versionBadge" onclick="openVersionModal()">🎉 v1.10 新</button>
+    </p>
   </header>
 
   <div class="card">
@@ -967,6 +1021,103 @@ window.copy = copy;
 // ─────────── 登录 / 用户系统 ───────────
 const USER_KEY = 'xhsAgent:user';
 const HISTORY_KEY = 'xhsAgent:history';
+const SEEN_VERSION_KEY = 'xhsAgent:seenVersion';
+
+// ─────────── 版本更新公告 ───────────
+const APP_VERSION = 'v1.10';
+const CHANGELOG = [
+  {
+    version: 'v1.10',
+    date: '2026-05-21',
+    title: '产品库扩充 · 封面更稳 · 数据本地化',
+    intro: '这次更新让产品更全、封面更可靠、系统更省心,核心是把"封面别乱改产品图"和"少点几下"做到位。',
+    highlights: [
+      { icon: '📦', title: '产品库扩充到 25 款', desc: '新增「十字星 Schwinn」品牌,乔山补齐 11 款产品卖点,现在 25 款产品都能一键出文案。' },
+      { icon: '🎯', title: '封面风格自动匹配', desc: '不用再手动选封面风格了——选了文案类型,系统自动配最搭的封面调性,少点一步。' },
+      { icon: '🖼️', title: '封面款式翻倍(30 套)', desc: '从 15 套版式扩到 30 套配色,一次生成 3 张张张不重样,挑选空间更大。' },
+      { icon: '🛡️', title: '封面不再乱改产品图', desc: '产品细节、logo、角度原样保留,不再被 AI 改变形;生成失败会自动重试一次,3 张更稳。' },
+      { icon: '✂️', title: '文案类型精简为 4 类', desc: '聚焦最常用的 种草 / 场景 / 干货 / 促销,选起来更快。' },
+    ],
+    tech: [
+      '产品库:25 个 SKU(乔山 15 + 搏飞 9 + 十字星 1),全部结构化卖点 docx',
+      '封面 prompt 重写:强制锁定原图(禁止改产品 / logo / 角度),删除诱导重画的配色构图描述',
+      '封面禁止 AI 渲染品牌 logo / 型号字 / 英文水印(易出错)',
+      '封面风格自动映射:文案类型 → 封面风格池(种草·场景→种草氛围,干货→干货教程,促销→促销爆款)',
+      '封面模板池 15 → 30(每套版式 +1 配色变体)',
+      '封面接口超时 55s → 90s,快速失败自动换 seed 重试 1 次',
+      '文案类型 6 → 4(下线 生活 / 封面金句)',
+      '用量数据从 Upstash 迁移到本地 SQLite,数据全本地化 + 每日自动备份',
+    ],
+  },
+  {
+    version: 'v1.0',
+    date: '2026-05',
+    title: '首个版本上线',
+    intro: '小红书文案生成助手正式上线,业务团队可以自助生成文案和封面,告别求人写稿。',
+    highlights: [
+      { icon: '✍️', title: '一键生成小红书文案', desc: '选品牌、选产品、选文案类型,AI 自动产出标题、正文、话题标签,复制即用。' },
+      { icon: '🎨', title: 'AI 封面生成', desc: '上传产品照,自动生成小红书风格封面图。' },
+      { icon: '🔑', title: '工号登录 + 历史记录', desc: '部门 / 姓名 / 工号登录,生成记录自动留档,随时回看。' },
+      { icon: '📊', title: '管理员用量后台', desc: '管理员可查看各部门、各成员的使用情况。' },
+    ],
+    tech: [
+      'DeepSeek 文案生成 + 豆包 Seedream 封面生成',
+      '产品库:乔山 Johnson + 搏飞 BowFlex',
+      '用户白名单登录 + 用量统计',
+      '部署:Vercel Serverless(后迁移到腾讯云 Lighthouse 自托管)',
+    ],
+  },
+];
+
+function renderVersionBody() {
+  const html = CHANGELOG.map((v, idx) => {
+    const hl = (v.highlights || []).map(h => `
+      <div class="ver-hl">
+        <div class="ver-hl-icon">${h.icon || '•'}</div>
+        <div class="ver-hl-body">
+          <div class="ver-hl-title">${escapeHtml(h.title)}</div>
+          <div class="ver-hl-desc">${escapeHtml(h.desc)}</div>
+        </div>
+      </div>`).join('');
+    const tech = (v.tech || []).map(t => `<li>${escapeHtml(t)}</li>`).join('');
+    return `
+      ${idx > 0 ? '<hr class="ver-divider">' : ''}
+      <div class="ver-block">
+        <div class="ver-head">
+          <span class="ver-num${idx > 0 ? ' old' : ''}">${escapeHtml(v.version)}</span>
+          <span class="ver-date">${escapeHtml(v.date)}</span>
+        </div>
+        <div class="ver-title">${escapeHtml(v.title)}</div>
+        <p class="ver-intro">${escapeHtml(v.intro)}</p>
+        ${hl}
+        ${tech ? `<details class="ver-tech"><summary>技术明细(给好奇的同学)</summary><ul>${tech}</ul></details>` : ''}
+      </div>`;
+  }).join('');
+  $('versionBody').innerHTML = html;
+}
+
+function openVersionModal() {
+  renderVersionBody();
+  $('versionModal').classList.add('show');
+  // 看过就记下当前版本号,下次不再自动弹
+  try { localStorage.setItem(SEEN_VERSION_KEY, APP_VERSION); } catch (_) {}
+}
+window.openVersionModal = openVersionModal;
+
+function closeVersionModal(e) {
+  if (e && e.target.id !== 'versionModal' && e.target.classList && !e.target.classList.contains('modal-close')) return;
+  $('versionModal').classList.remove('show');
+}
+window.closeVersionModal = closeVersionModal;
+
+function maybeShowVersionModal() {
+  let seen = null;
+  try { seen = localStorage.getItem(SEEN_VERSION_KEY); } catch (_) {}
+  if (seen !== APP_VERSION) {
+    // 登录后稍微延迟弹,体验更顺
+    setTimeout(openVersionModal, 600);
+  }
+}
 let currentUser = null;       // {department, name, emp_id, is_admin}
 let usersByDept = {};         // {dept: [{name}]} 给登录下拉用
 
@@ -1013,6 +1164,8 @@ function showApp() {
   if (currentUser.is_admin) $('userAdminBtn').style.display = '';
   // 真正去加载产品
   loadProducts();
+  // 有新版本时首次自动弹更新公告
+  maybeShowVersionModal();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1152,7 +1305,7 @@ window.closeHistoryModal = closeHistoryModal;
 
 // ─────────── 管理员后台 ───────────
 async function openAdminPanel() {
-  $('adminBody').innerHTML = '<div class="loading" style="padding:30px"><div class="spinner"></div>正在从 KV 拉取全公司用量数据...</div>';
+  $('adminBody').innerHTML = '<div class="loading" style="padding:30px"><div class="spinner"></div>正在拉取全公司用量数据...</div>';
   $('adminModal').classList.add('show');
 
   try {
@@ -1555,7 +1708,7 @@ async function generateCovers() {
   btn.disabled = true;
   btn.textContent = '生成中...';
   status.className = 'cover-status loading show';
-  status.textContent = '豆包正在并行生成 3 张候选封面,约 20-50 秒,请耐心等待...';
+  status.textContent = '豆包正在并行生成 3 张候选封面,约 30-90 秒,失败会自动重试一次,请耐心等待...';
   coverResultEl.classList.remove('visible');
 
   try {
