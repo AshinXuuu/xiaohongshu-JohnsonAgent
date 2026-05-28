@@ -240,9 +240,27 @@ class handler(BaseHTTPRequestHandler):
 
             self._json(200, parsed)
         except json.JSONDecodeError as e:
+            self._log_failure(locals(), f"解析模型输出失败:{e}")
             self._error(500, f"解析模型输出失败,请重试一次。原因:{e}")
         except Exception as e:
+            self._log_failure(locals(), str(e))
             self._error(500, str(e))
+
+    def _log_failure(self, ctx, reason):
+        """失败事件也落 KV,管理员后台才能算失败率。失败静默。"""
+        try:
+            import sys as _sys
+            from pathlib import Path as _Path
+            _sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+            from lib.kv_store import log_event
+            log_event('generate_failed', ctx.get('user') or {}, {
+                'brand': ctx.get('brand_name'),
+                'product': ctx.get('product_name'),
+                'copy_type': ctx.get('copy_type'),
+                'reason': str(reason)[:300],
+            })
+        except Exception:
+            pass
 
     def _json(self, code, obj):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")

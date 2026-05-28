@@ -214,6 +214,35 @@ def get_stats():
                     "GROUP BY b"
                 ).fetchall()
             ], key=lambda x: -x['count'])
+
+            # 产品维度(从 details_json 抽取)
+            by_product = sorted([
+                {'key': r[0], 'count': r[1]}
+                for r in conn.execute(
+                    "SELECT json_extract(details_json, '$.product') AS p, COUNT(*) "
+                    "FROM events WHERE p IS NOT NULL AND p != '' "
+                    "GROUP BY p"
+                ).fetchall()
+            ], key=lambda x: -x['count'])
+
+            # 文案类型维度(种草/场景/促销/干货)
+            by_copy_type = sorted([
+                {'key': r[0], 'count': r[1]}
+                for r in conn.execute(
+                    "SELECT json_extract(details_json, '$.copy_type') AS c, COUNT(*) "
+                    "FROM events WHERE c IS NOT NULL AND c != '' "
+                    "GROUP BY c"
+                ).fetchall()
+            ], key=lambda x: -x['count'])
+
+            # 小时分布(0-23)用于热力图
+            by_hour = [
+                {'key': r[0], 'count': r[1]}
+                for r in conn.execute(
+                    "SELECT CAST(strftime('%H', time_ms/1000, 'unixepoch', 'localtime') AS INTEGER) AS h, "
+                    "COUNT(*) FROM events GROUP BY h ORDER BY h"
+                ).fetchall()
+            ]
         finally:
             conn.close()
 
@@ -224,8 +253,11 @@ def get_stats():
             'by_action': by_action,
             'by_style': by_style,
             'by_brand': by_brand,
+            'by_product': by_product,
+            'by_copy_type': by_copy_type,
+            'by_hour': by_hour,
             'by_daily': by_daily,
-            'recent': get_recent_logs(100),
+            'recent': get_recent_logs(200),
         }
     except Exception as e:
         print(f"[kv_store] get_stats 失败:{e}", flush=True)
