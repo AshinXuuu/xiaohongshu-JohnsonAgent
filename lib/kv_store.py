@@ -30,6 +30,22 @@ _db_lock = threading.Lock()       # 写操作串行,避免 SQLite "database is l
 _schema_initialized = False
 
 
+# 产品名别名 → 归一化名(用于早期测试遗留的产品名归并)
+# key 是 details_json 里曾经出现过的"别名",value 是 products.json 里的规范名
+_PRODUCT_ALIASES = {
+    'TX-5智能跑步机': '智能跑步机TX-5',
+    'TX3跑步机':      '智能跑步机TX3',
+    # 如果以后又出现新的命名混乱,在这里加一行即可,不需要改 SQL
+}
+
+
+def _canon_product(name):
+    """把产品名归一化为 products.json 里的规范名。未命中别名表的原样返回。"""
+    if not name:
+        return name
+    return _PRODUCT_ALIASES.get(name, name)
+
+
 def _get_conn():
     """打开一个 SQLite 连接(默认开 WAL 模式 + 行级超时)"""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -133,15 +149,19 @@ def get_recent_logs(n: int = 100):
             ).fetchall()
         finally:
             conn.close()
-        return [
-            {
+        out = []
+        for r in rows:
+            details = json.loads(r[5]) if r[5] else {}
+            # 明细表里的产品名也要归一化,否则会跟聚合维度对不上
+            if details.get('product'):
+                details['product'] = _canon_product(details['product'])
+            out.append({
                 'time': r[0],
                 'action': r[1],
                 'user': {'emp_id': r[2], 'name': r[3], 'department': r[4]},
-                'details': json.loads(r[5]) if r[5] else {},
-            }
-            for r in rows
-        ]
+                'details': details,
+            })
+        return out
     except Exception as e:
         print(f"[kv_store] get_recent_logs 失败:{e}", flush=True)
         return []
@@ -215,15 +235,20 @@ def get_stats():
                 ).fetchall()
             ], key=lambda x: -x['count'])
 
-            # 产品维度(从 details_json 抽取)
-            by_product = sorted([
-                {'key': r[0], 'count': r[1]}
-                for r in conn.execute(
-                    "SELECT json_extract(details_json, '$.product') AS p, COUNT(*) "
-                    "FROM events WHERE p IS NOT NULL AND p != '' "
-                    "GROUP BY p"
-                ).fetchall()
-            ], key=lambda x: -x['count'])
+            # 产品维度(从 details_json 抽取)+ 别名归一化合并
+            raw_products = conn.execute(
+                "SELECT json_extract(details_json, '$.product') AS p, COUNT(*) "
+                "FROM events WHERE p IS NOT NULL AND p != '' "
+                "GROUP BY p"
+            ).fetchall()
+            _merged = {}
+            for name, count in raw_products:
+                canon = _canon_product(name)
+                _merged[canon] = _merged.get(canon, 0) + count
+            by_product = sorted(
+                [{'key': k, 'count': v} for k, v in _merged.items()],
+                key=lambda x: -x['count']
+            )
 
             # 文案类型维度(种草/场景/促销/干货)
             by_copy_type = sorted([

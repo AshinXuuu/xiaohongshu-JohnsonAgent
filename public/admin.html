@@ -6,88 +6,108 @@
 <title>管理员后台 · 小红书文案生成助手</title>
 <style>
   :root {
-    --primary: #ff2741;
-    --primary-light: #ffe7ea;
-    --primary-soft: #fff4f5;
-    --bg: #f6f7f9;
+    /* 主色:深 slate,克制不抢眼 */
+    --primary: #1e293b;
+    --primary-soft: #f1f5f9;
+    --primary-hover: #0f172a;
+
+    /* 背景:暖白(stone-50),比纯白更舒服,比 cool gray 不冰冷 */
+    --bg: #fafaf9;
     --card: #ffffff;
-    --text: #1f2937;
-    --muted: #6b7280;
-    --border: #e5e7eb;
-    --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
-    --shadow-md: 0 4px 16px rgba(0,0,0,0.05);
-    --c-blue: #3b82f6;
-    --c-green: #10b981;
-    --c-amber: #f59e0b;
-    --c-purple: #8b5cf6;
-    --c-pink: #ec4899;
-    --c-rose: #f43f5e;
-    --c-cyan: #06b6d4;
-    --c-indigo: #6366f1;
+
+    /* 文字三级:深、中、浅 */
+    --text: #18181b;
+    --text-soft: #3f3f46;
+    --muted: #71717a;
+
+    /* 边框:两级,几乎不可见 */
+    --border: #e4e4e7;
+    --border-soft: #f4f4f5;
+
+    /* 阴影:两级,都很轻 */
+    --shadow:    0 1px 2px rgba(15,23,42,0.04);
+    --shadow-md: 0 4px 12px rgba(15,23,42,0.05);
+
+    /* 强调色:统一中等饱和,用于图表 / 小色点 */
+    --c-indigo:  #6366f1;
+    --c-emerald: #10b981;
+    --c-amber:   #f59e0b;
+    --c-rose:    #f43f5e;
+    --c-violet:  #8b5cf6;
+    --c-cyan:    #06b6d4;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
     background: var(--bg);
     color: var(--text);
     line-height: 1.5;
-    font-size: 14px;
+    font-size: 13.5px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "tnum" 1, "ss01" 1;
   }
 
   /* 顶部工具栏 */
   .topbar {
-    background: white;
-    border-bottom: 1px solid var(--border);
-    padding: 12px 24px;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 14px 24px;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 14px;
     position: sticky;
     top: 0;
     z-index: 50;
   }
   .topbar h1 {
     margin: 0;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
+    color: var(--text);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+    letter-spacing: -0.01em;
   }
   .topbar h1 .badge {
-    background: linear-gradient(135deg, #fde68a, #fbbf24);
-    color: #78350f;
+    background: var(--primary-soft);
+    color: var(--text-soft);
     font-size: 11px;
     padding: 2px 8px;
-    border-radius: 10px;
-    font-weight: 600;
+    border-radius: 6px;
+    font-weight: 500;
+    letter-spacing: 0;
   }
   .topbar .spacer { flex: 1; }
   .topbar .meta {
     color: var(--muted);
     font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
   .topbar button, .topbar a.btn {
-    padding: 6px 14px;
+    padding: 6px 12px;
     border: 1px solid var(--border);
     background: white;
-    border-radius: 8px;
-    font-size: 13px;
+    border-radius: 7px;
+    font-size: 12.5px;
     cursor: pointer;
-    color: var(--text);
+    color: var(--text-soft);
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    font-weight: 500;
+    transition: all 0.15s;
   }
-  .topbar button:hover, .topbar a.btn:hover { background: #f3f4f6; }
-  .topbar .btn-primary {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
+  .topbar button:hover, .topbar a.btn:hover {
+    background: var(--primary-soft);
+    border-color: var(--border);
+    color: var(--text);
   }
-  .topbar .btn-primary:hover { background: #e6233a; }
 
   .container {
     max-width: 1280px;
@@ -107,53 +127,77 @@
   .kpi {
     background: var(--card);
     border-radius: 10px;
-    padding: 14px 16px;
+    padding: 16px 18px;
+    border: 1px solid var(--border-soft);
     box-shadow: var(--shadow);
-    border-left: 3px solid var(--primary);
+    transition: box-shadow 0.18s, border-color 0.18s, transform 0.18s;
+    position: relative;
   }
-  .kpi.b-blue   { border-left-color: var(--c-blue); }
-  .kpi.b-green  { border-left-color: var(--c-green); }
-  .kpi.b-amber  { border-left-color: var(--c-amber); }
-  .kpi.b-purple { border-left-color: var(--c-purple); }
-  .kpi.b-pink   { border-left-color: var(--c-pink); }
+  .kpi:hover {
+    border-color: var(--border);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+  /* 小色点放右上角,做视觉锚定但不抢戏 */
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 16px; right: 16px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--c-indigo);
+    opacity: 0.85;
+  }
+  .kpi.b-blue::before   { background: var(--c-indigo); }
+  .kpi.b-green::before  { background: var(--c-emerald); }
+  .kpi.b-amber::before  { background: var(--c-amber); }
+  .kpi.b-purple::before { background: var(--c-violet); }
+  .kpi.b-pink::before   { background: var(--c-rose); }
   .kpi-label {
     font-size: 12px;
     color: var(--muted);
-    margin-bottom: 4px;
+    margin-bottom: 6px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
   }
   .kpi-value {
-    font-size: 24px;
-    font-weight: 700;
+    font-size: 26px;
+    font-weight: 600;
     color: var(--text);
     font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
   }
   .kpi-sub {
     font-size: 11px;
     color: var(--muted);
-    margin-top: 2px;
+    margin-top: 6px;
   }
 
   /* 卡片 */
   .card {
     background: var(--card);
     border-radius: 12px;
-    padding: 18px 20px;
+    padding: 20px 22px;
+    border: 1px solid var(--border-soft);
     box-shadow: var(--shadow);
     margin-bottom: 16px;
   }
   .card-title {
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 600;
-    margin: 0 0 14px;
+    margin: 0 0 16px;
     color: var(--text);
     display: flex;
     align-items: center;
     justify-content: space-between;
+    letter-spacing: -0.005em;
   }
   .card-title .hint {
     font-size: 11px;
     color: var(--muted);
     font-weight: 400;
+    letter-spacing: 0;
   }
 
   /* 双栏布局 */
@@ -192,37 +236,40 @@
   }
   .rank-num {
     width: 22px; height: 22px; border-radius: 50%;
-    background: #f3f4f6; color: var(--muted);
+    background: var(--primary-soft); color: var(--muted);
     display: flex; align-items: center; justify-content: center;
     font-size: 11px; font-weight: 600;
   }
-  .rank-row:nth-child(1) .rank-num { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: white; }
-  .rank-row:nth-child(2) .rank-num { background: linear-gradient(135deg, #d1d5db, #9ca3af); color: white; }
-  .rank-row:nth-child(3) .rank-num { background: linear-gradient(135deg, #fdba74, #ea580c); color: white; }
+  /* 前三名:克制的奖牌色,不用渐变,平面更高级 */
+  .rank-row:nth-child(1) .rank-num { background: #18181b; color: #fff; }
+  .rank-row:nth-child(2) .rank-num { background: #52525b; color: #fff; }
+  .rank-row:nth-child(3) .rank-num { background: #a1a1aa; color: #fff; }
   .rank-bar-wrap {
     position: relative;
-    height: 22px;
-    background: #f3f4f6;
-    border-radius: 4px;
+    height: 24px;
+    background: var(--primary-soft);
+    border-radius: 5px;
     overflow: hidden;
   }
   .rank-bar-fill {
     height: 100%;
-    border-radius: 4px;
-    background: linear-gradient(90deg, var(--c-green), #34d399);
-    transition: width 0.4s;
+    border-radius: 5px;
+    /* 用淡靛蓝作为底色,克制不刺眼 */
+    background: linear-gradient(90deg, rgba(99,102,241,0.18), rgba(99,102,241,0.32));
+    transition: width 0.4s ease;
   }
   .rank-bar-text {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
-    padding: 0 10px;
-    font-size: 12px;
+    padding: 0 12px;
+    font-size: 12.5px;
     color: var(--text);
     z-index: 2;
+    font-weight: 500;
   }
-  .rank-bar-text small { color: var(--muted); margin-left: 6px; font-size: 11px; }
+  .rank-bar-text small { color: var(--muted); margin-left: 6px; font-size: 11px; font-weight: 400; }
   .rank-count {
     color: var(--text);
     font-weight: 600;
@@ -235,72 +282,98 @@
   .table-toolbar {
     display: flex;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
     flex-wrap: wrap;
     align-items: center;
   }
   .table-toolbar input, .table-toolbar select {
-    padding: 6px 10px;
+    padding: 7px 10px;
     border: 1px solid var(--border);
-    border-radius: 6px;
-    font-size: 13px;
+    border-radius: 7px;
+    font-size: 12.5px;
     background: white;
     font-family: inherit;
+    color: var(--text);
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
   .table-toolbar input:focus, .table-toolbar select:focus {
     outline: none;
-    border-color: var(--primary);
+    border-color: #a5b4fc;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
   }
   .table-toolbar .count {
     margin-left: auto;
     color: var(--muted);
     font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .export-btn {
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    background: white;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--text-soft);
+    font-weight: 500;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .export-btn:hover {
+    background: var(--primary-soft);
+    border-color: var(--border);
+    color: var(--text);
   }
   .detail-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
   }
-  .detail-table thead {
-    background: #f9fafb;
-  }
+  .detail-table thead { background: var(--primary-soft); }
   .detail-table th {
     text-align: left;
-    padding: 10px 12px;
-    font-size: 12px;
+    padding: 11px 14px;
+    font-size: 11.5px;
     color: var(--muted);
     font-weight: 500;
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
-    background: #f9fafb;
+    background: var(--primary-soft);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
   }
   .detail-table td {
-    padding: 10px 12px;
-    border-bottom: 1px solid #f3f4f6;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border-soft);
     vertical-align: top;
   }
-  .detail-table tr:hover { background: #f9fafb; }
+  .detail-table tr:hover { background: #fafafa; }
+  .detail-table tr:last-child td { border-bottom: none; }
   .pill {
     display: inline-block;
     padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 11px;
-    background: #f3f4f6;
-    color: var(--muted);
+    border-radius: 6px;
+    font-size: 11.5px;
+    background: var(--primary-soft);
+    color: var(--text-soft);
+    font-weight: 500;
+    border: 1px solid var(--border-soft);
   }
-  .pill.generate      { background: #fee2e2; color: #b91c1c; }
-  .pill.cover_generate{ background: #dbeafe; color: #1d4ed8; }
-  .pill.cover_fields  { background: #f3e8ff; color: #6b21a8; }
-  .pill.login         { background: #d1fae5; color: #047857; }
-  .pill.copy          { background: #fef3c7; color: #92400e; }
-  .pill.generate_failed { background: #fee2e2; color: #991b1b; }
+  /* 动作类型 pill 用克制的语义色,饱和度统一 */
+  .pill.generate         { background: #eef2ff; color: #4338ca; border-color: transparent; }
+  .pill.cover_generate   { background: #ecfeff; color: #155e75; border-color: transparent; }
+  .pill.cover_fields     { background: #f5f3ff; color: #6d28d9; border-color: transparent; }
+  .pill.login            { background: #ecfdf5; color: #047857; border-color: transparent; }
+  .pill.copy             { background: #fffbeb; color: #92400e; border-color: transparent; }
+  .pill.generate_failed  { background: #fef2f2; color: #b91c1c; border-color: transparent; }
 
   .table-scroll {
-    max-height: 520px;
+    max-height: 540px;
     overflow-y: auto;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-soft);
     border-radius: 8px;
+    background: white;
   }
 
   /* 状态条 */
@@ -310,9 +383,9 @@
     color: var(--muted);
   }
   .loading .spinner {
-    width: 28px; height: 28px;
-    border: 3px solid var(--primary-light);
-    border-top-color: var(--primary);
+    width: 26px; height: 26px;
+    border: 2.5px solid var(--primary-soft);
+    border-top-color: var(--c-indigo);
     border-radius: 50%;
     animation: spin .8s linear infinite;
     margin: 0 auto 12px;
@@ -587,7 +660,7 @@ function render(d) {
         <select id="filterDept">
           <option value="">全部部门</option>
         </select>
-        <button onclick="exportCSV()" style="padding:6px 14px;border:1px solid var(--border);background:white;border-radius:6px;cursor:pointer;font-size:13px;">⬇️ 导出 CSV</button>
+        <button class="export-btn" onclick="exportCSV()">⬇️ 导出 CSV</button>
         <span class="count" id="rowCount"></span>
       </div>
       <div class="table-scroll">
@@ -658,10 +731,12 @@ function renderRank(id, items) {
 }
 
 // ─── 图表 ────────────────────────────────────────────
-const PALETTE = ['#ff2741', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1', '#84cc16', '#f43f5e'];
-const copyTypePalette = { '种草': '#ff2741', '场景': '#3b82f6', '促销': '#f59e0b', '干货': '#10b981' };
-const actionPalette = ['#ff2741', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#9ca3af'];
-const stylePalette = ['#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f59e0b'];
+// 配色原则:中等饱和度、统一明度、视觉上"成套"
+const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6', '#06b6d4', '#84cc16', '#ec4899', '#0ea5e9', '#d97706'];
+// 文案类型固定语义色:种草=玫红 / 场景=靛蓝 / 干货=翡翠 / 促销=琥珀
+const copyTypePalette = { '种草': '#f43f5e', '场景': '#6366f1', '干货': '#10b981', '促销': '#f59e0b' };
+const actionPalette = ['#6366f1', '#10b981', '#8b5cf6', '#06b6d4', '#f59e0b', '#f43f5e', '#a1a1aa'];
+const stylePalette = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#f43f5e'];
 
 function mapActionLabel(arr) {
   return arr.map(x => ({ ...x, key: ACTION_LABEL[x.key] || x.key }));
@@ -682,13 +757,16 @@ function drawDailyChart(daily) {
       datasets: [{
         label: '操作量',
         data,
-        borderColor: '#ff2741',
-        backgroundColor: 'rgba(255, 39, 65, 0.12)',
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99, 102, 241, 0.10)',
         fill: true,
         tension: 0.35,
-        pointRadius: 3,
+        pointRadius: 2.5,
         pointHoverRadius: 6,
-        pointBackgroundColor: '#ff2741',
+        pointBackgroundColor: '#6366f1',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 1.5,
+        borderWidth: 2,
       }]
     },
     options: chartCommonOptions({ y: { beginAtZero: true, ticks: { precision: 0 } } })
@@ -766,6 +844,7 @@ function drawHourChart(byHour) {
   const buckets = new Array(24).fill(0);
   byHour.forEach(x => { if (x.key >= 0 && x.key < 24) buckets[x.key] = x.count; });
   const el = $('chartHour');
+  const peak = Math.max(...buckets, 1);
   __state.charts.hour = new Chart(el, {
     type: 'bar',
     data: {
@@ -773,7 +852,8 @@ function drawHourChart(byHour) {
       datasets: [{
         label: '操作次数',
         data: buckets,
-        backgroundColor: buckets.map(c => `rgba(255, 39, 65, ${Math.min(1, 0.18 + c / Math.max(...buckets, 1) * 0.8)})`),
+        // 颜色深浅随热度,基色用 indigo(克制不刺眼)
+        backgroundColor: buckets.map(c => `rgba(99, 102, 241, ${Math.min(0.9, 0.15 + c / peak * 0.75)})`),
         borderRadius: 3,
       }]
     },
