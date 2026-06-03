@@ -728,6 +728,7 @@
 <div class="user-bar" id="userBar" style="display:none">
   <span class="user-info" id="userInfoLabel"></span>
   <button class="user-history" id="userHistoryBtn" onclick="openHistoryModal()">📂 历史记录</button>
+  <button class="user-portal" onclick="location.href='/'" title="返回工作台">🏠 工作台</button>
   <button class="user-admin" id="userAdminBtn" onclick="window.open('/admin.html','_blank')" style="display:none">🛡️ 管理员后台</button>
   <button class="user-logout" onclick="logout()">退出</button>
 </div>
@@ -770,7 +771,7 @@
   <header>
     <h1>小红书<span>文案生成</span>助手</h1>
     <p>选产品 · 选类型 · 一键生成 · 复制即用
-      <button class="version-badge" id="versionBadge" onclick="openVersionModal()">🎉 v1.10 新</button>
+      <button class="version-badge" id="versionBadge" onclick="openVersionModal()">🎉 v2.0 新</button>
     </p>
   </header>
 
@@ -1045,8 +1046,35 @@ const HISTORY_KEY = 'xhsAgent:history';
 const SEEN_VERSION_KEY = 'xhsAgent:seenVersion';
 
 // ─────────── 版本更新公告 ───────────
-const APP_VERSION = 'v1.10';
+const APP_VERSION = 'v2.0';
 const CHANGELOG = [
+  {
+    version: 'v2.0',
+    date: '2026-06-03',
+    title: '🚀 销售助手大升级 — 新增问答助手 + 工作台门户',
+    intro: '这次是大版本升级,我们把工具从单一文案生成,扩成完整的「乔山销售助手」。最大的新功能是「售前问答助手」——业务现场被客户问参数、问保养、问售后,直接选产品发问,AI 基于说明书 + 卖点资料严格回答,还附带销售话术建议。',
+    highlights: [
+      { icon: '💬', title: '新增「售前问答助手」', desc: '24 款产品的说明书、单页、卖点资料全部 OCR 入库,选产品 + 提问就秒得答案。严格基于资料回答,资料里没有就明说没有,绝不瞎编。' },
+      { icon: '🏠', title: '工作台门户上线', desc: '登录后看到 2 张大卡片——「问答助手」和「文案生成」自由切换。以后再加新功能也是在这里添入口。' },
+      { icon: '🔐', title: '登录加身份证后 6 位', desc: '工号 + 身份证后 6 位双因子,业务自己的账号自己管,防止误登他人账号。导入了乔山 KOS 全员 73 人名单。' },
+      { icon: '💡', title: '问答自动生成销售话术', desc: '回答主问题后,AI 还会自动出一段「销售话术指引」——比如客户问尺寸,话术会建议你提折叠功能、推荐户型;客户问保养,话术会强调维护简单降低顾虑。直接复制发给客户。' },
+      { icon: '📞', title: '售后热线 / 保修期智能兜底', desc: '问到售后、维修、保养、配件,自动追加 4000480500 热线;问到保修期但资料没写,自动按品牌政策回「整机一年 + 主体框架十年」并附热线。' },
+      { icon: '📊', title: '管理后台按应用分维度', desc: '顶部 3 个 tab(全部 / 文案 / 问答)分别看每个应用的使用情况,失败率 / 用户榜 / 产品热度都跟着切换。' },
+      { icon: '📱', title: '手机端全面适配', desc: '门户、问答、管理后台三个新页面都做了移动端优化,业务一线在手机上用也舒服。' },
+    ],
+    tech: [
+      '产品资料 OCR 入库:65 PDF + 24 docx,共 1146 页 / 110 万字,豆包视觉 OCR 总成本 ¥5.61',
+      '问答 grounding 三层防幻觉:智能选段(卖点 docx 全选 + 单页 + 说明书按问题关键词打分 Top 12 页) + 强 prompt + temperature 0.1',
+      '问答上下文预算:每次最多 24000 字符,自动避免 DeepSeek context 溢出',
+      'API 端点新增:GET /api/qa?action=products(产品列表)、POST /api/qa(问答)',
+      '前端新增:/portal.html(门户)、/qa.html(问答)',
+      '后端 schema 扩展:manuals(逐页内容索引)、manuals_files(已处理文件登记,断点续传)',
+      '管理后台聚合层加 action_filter 支持,从 SQL WHERE IN 走过滤,所有维度统一',
+      '前端门户用 backdrop-filter 毛玻璃 + Linear/Vercel 风格高级感配色',
+      '移动端:iOS 防自动缩放(input font-size 16px)+ touch target ≥44px + 顶栏 flex-wrap 自适应',
+      '导出 / 导入 manuals 工具:scripts/export_manuals.py + scripts/import_manuals.py(SQLite ATTACH 增量合并)',
+    ],
+  },
   {
     version: 'v1.10',
     date: '2026-05-21',
@@ -1152,8 +1180,8 @@ async function initAuth() {
   if (currentUser && currentUser.emp_id) {
     showApp();
   } else {
-    await loadDepartments();
-    showLogin();
+    // 没登录态:跳门户(那边有登录 + 工作台)。不再在主页显示登录卡。
+    location.replace('/');
   }
 }
 

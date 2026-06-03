@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>售前问答 · 乔山销售助手</title>
+<style>
+  :root {
+    --primary: #1e293b;
+    --primary-soft: #f1f5f9;
+    --primary-hover: #0f172a;
+    --bg: #fafaf9;
+    --card: #ffffff;
+    --text: #18181b;
+    --text-soft: #3f3f46;
+    --muted: #71717a;
+    --border: #e4e4e7;
+    --border-soft: #f4f4f5;
+    --shadow:    0 1px 2px rgba(15,23,42,0.04);
+    --shadow-md: 0 4px 12px rgba(15,23,42,0.06);
+    --accent: #6366f1;
+    --accent-soft: #eef2ff;
+    --success: #10b981;
+    --success-soft: #ecfdf5;
+    --warning: #f59e0b;
+    --warning-soft: #fffbeb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "tnum" 1;
+  }
+  /* 顶栏 */
+  .topbar {
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .topbar h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: -0.01em;
+  }
+  .topbar h1 .badge {
+    background: var(--accent-soft);
+    color: #4338ca;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+  .topbar .spacer { flex: 1; }
+  .topbar .me {
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  .topbar a.btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    background: white;
+    border-radius: 7px;
+    font-size: 12.5px;
+    cursor: pointer;
+    color: var(--text-soft);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .topbar a.btn:hover {
+    background: var(--primary-soft);
+    color: var(--text);
+  }
+  .container {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 22px 24px;
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    margin: 0 0 14px;
+    color: var(--text);
+    letter-spacing: -0.005em;
+  }
+  /* 选产品 */
+  .picker {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  @media (max-width: 600px) { .picker { grid-template-columns: 1fr; } }
+
+  /* ─── 移动端专项 ───────────────────────────────────── */
+  @media (max-width: 600px) {
+    body { font-size: 14px; }
+    .topbar { padding: 11px 14px; flex-wrap: wrap; gap: 8px; }
+    .topbar h1 { font-size: 14px; gap: 6px; }
+    .topbar h1 .badge { font-size: 10px; padding: 2px 6px; }
+    .topbar .me { font-size: 11px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .topbar a.btn { padding: 5px 10px; font-size: 12px; }
+
+    .container { padding: 16px 14px; }
+    .card { padding: 16px 14px; border-radius: 10px; }
+    .card-title { font-size: 13px; margin-bottom: 12px; }
+    .picker select { font-size: 16px; padding: 10px 11px; } /* 16px 防 iOS 缩放 */
+
+    /* FAQ chips 在手机上更紧凑 + 可横向滚动 */
+    .faq-chips {
+      gap: 6px;
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      padding-bottom: 4px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .faq-chips::-webkit-scrollbar { display: none; }
+    .faq-chip { padding: 7px 12px; font-size: 12.5px; flex-shrink: 0; white-space: nowrap; }
+
+    /* 输入框 + 按钮在手机上竖排,按钮全宽更好点 */
+    .ask-row {
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ask-input {
+      font-size: 16px; /* 16px 防 iOS 缩放 */
+      padding: 11px 12px;
+      min-height: 48px;
+    }
+    .ask-btn {
+      padding: 12px;
+      font-size: 14.5px;
+      width: 100%;
+    }
+
+    /* 问答历史 */
+    .qa-item { border-radius: 10px; }
+    .qa-q { padding: 10px 14px; font-size: 13.5px; gap: 8px; flex-wrap: wrap; }
+    .qa-q .icon { width: 20px; height: 20px; font-size: 10px; }
+    .qa-meta { font-size: 10.5px; width: 100%; padding-left: 28px; margin-top: 2px; }
+    .qa-a { padding: 13px 14px 11px; }
+    .qa-a .text { font-size: 13.5px; line-height: 1.7; }
+
+    /* 销售话术框 */
+    .sales-tip { padding: 11px 12px 11px 14px; }
+    .sales-tip-title { font-size: 12px; }
+    .sales-tip-body { font-size: 13px; line-height: 1.65; }
+
+    /* 拒绝页 */
+    .deny { padding: 40px 20px; margin: 30px auto; }
+  }
+  .picker label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .picker select {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13.5px;
+    background: white;
+    font-family: inherit;
+    color: var(--text);
+    transition: all 0.15s;
+  }
+  .picker select:focus {
+    outline: none;
+    border-color: #a5b4fc;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+  }
+  .picker select:disabled {
+    background: var(--primary-soft);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+  .product-status {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .product-status.ok { color: var(--success); }
+  /* FAQ 快捷 */
+  .faq-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .faq-chip {
+    padding: 7px 13px;
+    background: var(--accent-soft);
+    color: #4338ca;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-weight: 500;
+    font-family: inherit;
+  }
+  .faq-chip:hover {
+    background: white;
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .faq-chip:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  /* 输入框 */
+  .ask-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .ask-input {
+    flex: 1;
+    padding: 11px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    font-family: inherit;
+    color: var(--text);
+    resize: none;
+    min-height: 44px;
+    transition: all 0.15s;
+  }
+  .ask-input:focus {
+    outline: none;
+    border-color: #a5b4fc;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+  }
+  .ask-btn {
+    padding: 0 22px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .ask-btn:hover { background: var(--primary-hover); }
+  .ask-btn:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+  /* 问答历史 */
+  .qa-list { display: flex; flex-direction: column; gap: 14px; }
+  .qa-empty {
+    text-align: center;
+    padding: 50px 20px;
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+  .qa-item {
+    background: var(--card);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .qa-q {
+    background: var(--primary-soft);
+    padding: 12px 18px;
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .qa-q .icon {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .qa-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .qa-a {
+    padding: 16px 18px 14px;
+  }
+  .qa-a .text {
+    white-space: pre-wrap;
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--text-soft);
+    word-break: break-word;
+  }
+  .qa-a .text strong { color: var(--text); font-weight: 600; }
+  .qa-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .qa-loading .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--primary-soft);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* 销售建议(话术指引) */
+  .sales-tip {
+    margin-top: 14px;
+    padding: 12px 14px 12px 16px;
+    background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1px solid #fde68a;
+    border-radius: 9px;
+    border-left: 3px solid var(--warning);
+  }
+  .sales-tip-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #92400e;
+    margin-bottom: 6px;
+    letter-spacing: 0;
+  }
+  .sales-tip-body {
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: #78350f;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  /* 提示 */
+  .no-data, .warn {
+    margin-top: 12px;
+    padding: 11px 14px;
+    border-radius: 8px;
+    font-size: 12.5px;
+  }
+  .no-data {
+    background: var(--warning-soft);
+    color: #92400e;
+    border: 1px solid #fef3c7;
+  }
+  /* 拒绝 */
+  .deny {
+    text-align: center;
+    padding: 60px 30px;
+    color: #991b1b;
+    background: #fef2f2;
+    border-radius: 12px;
+    margin: 60px auto;
+    max-width: 460px;
+  }
+  .deny h2 { margin: 0 0 8px; font-size: 18px; }
+  .deny a { color: var(--accent); text-decoration: none; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>💬 售前问答 <span class="badge">基于产品资料</span></h1>
+  <div class="spacer"></div>
+  <span class="me" id="meLabel"></span>
+  <a class="btn" href="/">← 返回首页</a>
+</div>
+
+<div class="container" id="main">
+  <div class="card">
+    <div class="card-title">第一步:选择产品</div>
+    <div class="picker">
+      <div>
+        <label for="brand">品牌</label>
+        <select id="brand"><option value="">加载中...</option></select>
+      </div>
+      <div>
+        <label for="product">产品</label>
+        <select id="product" disabled><option value="">先选品牌</option></select>
+      </div>
+    </div>
+    <div class="product-status" id="productStatus"></div>
+  </div>
+
+  <div class="card" id="askCard" style="display:none">
+    <div class="card-title" id="askCardTitle">第二步:问问题</div>
+    <div class="faq-chips" id="faqChips"></div>
+    <div class="ask-row">
+      <textarea class="ask-input" id="questionInput" placeholder="输入问题,比如:跑带宽是多少?最大承重是多少?适合什么人群?" rows="1"></textarea>
+      <button class="ask-btn" id="askBtn" onclick="submitQuestion()">提问</button>
+    </div>
+  </div>
+
+  <div class="qa-list" id="qaList">
+    <div class="qa-empty">选好产品就可以开始问了 ↑</div>
+  </div>
+</div>
+
+<script>
+const USER_KEY = 'xhsAgent:user';
+const $ = id => document.getElementById(id);
+
+const FAQ_PRESETS = [
+  '核心卖点有哪些',
+  '适合什么人群',
+  '产品核心参数有哪些',
+  '日常保养怎么做',
+  '安全注意事项',
+  '常见故障排查',
+  '保修期多久',
+];
+
+function getMe() {
+  try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); }
+  catch (_) { return null; }
+}
+function splitAnswer(answer) {
+  // 把回答按「销售建议:」/「销售建议：」/「销售建议」拆成主回答 + 话术
+  if (!answer) return { main: '', pitch: '' };
+  const m = answer.match(/^([\s\S]*?)(?:\n+|^)(?:销售建议|话术建议|销售话术)[：:]?\s*\n?([\s\S]*)$/m);
+  if (m) {
+    return { main: m[1].trim(), pitch: m[2].trim() };
+  }
+  return { main: answer.trim(), pitch: '' };
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── 鉴权:未登录直接跳门户 ──
+const me = getMe();
+if (!me) {
+  location.replace('/');
+} else {
+  $('meLabel').textContent = `${me.department} · ${me.name}`;
+}
+
+// ── 状态 ──
+let productMap = {};  // {brand: [{name, chunks, chars}, ...]}
+
+// ── 启动:拉产品列表 ──
+async function loadProducts() {
+  try {
+    const resp = await fetch('/api/qa?action=products');
+    const data = await resp.json();
+    productMap = data.products || {};
+    const brandSel = $('brand');
+    brandSel.innerHTML = '<option value="">请选择品牌</option>' +
+      Object.keys(productMap).map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+    brandSel.addEventListener('change', onBrandChange);
+    $('product').addEventListener('change', onProductChange);
+    $('questionInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        submitQuestion();
+      }
+    });
+  } catch (e) {
+    $('productStatus').textContent = '加载产品失败:' + e.message;
+  }
+}
+
+function onBrandChange() {
+  const brand = $('brand').value;
+  const sel = $('product');
+  if (!brand) {
+    sel.disabled = true;
+    sel.innerHTML = '<option value="">先选品牌</option>';
+    $('productStatus').textContent = '';
+    $('askCard').style.display = 'none';
+    return;
+  }
+  const products = productMap[brand] || [];
+  sel.disabled = false;
+  sel.innerHTML = '<option value="">请选择产品</option>' +
+    products.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('');
+  $('productStatus').textContent = '';
+  $('askCard').style.display = 'none';
+}
+
+function onProductChange() {
+  const brand = $('brand').value;
+  const product = $('product').value;
+  if (!brand || !product) {
+    $('askCard').style.display = 'none';
+    $('productStatus').textContent = '';
+    return;
+  }
+  const info = (productMap[brand] || []).find(p => p.name === product);
+  if (info) {
+    $('productStatus').innerHTML =
+      `<span class="ok">✓ 资料就绪</span> · 共 ${info.chunks} 段,${(info.chars/1000).toFixed(1)}k 字`;
+  }
+  $('askCard').style.display = '';
+  $('askCardTitle').textContent = `第二步:问关于「${product}」的问题`;
+  renderFaqChips();
+  $('questionInput').focus();
+}
+
+function renderFaqChips() {
+  $('faqChips').innerHTML = FAQ_PRESETS.map(q =>
+    `<button class="faq-chip" onclick="setQuestion('${escapeHtml(q)}')">${escapeHtml(q)}</button>`
+  ).join('');
+}
+function setQuestion(q) {
+  $('questionInput').value = q;
+  $('questionInput').focus();
+}
+window.setQuestion = setQuestion;
+
+// ── 提问 ──
+async function submitQuestion() {
+  const brand = $('brand').value;
+  const product = $('product').value;
+  const question = $('questionInput').value.trim();
+  if (!brand || !product) { alert('请先选择品牌和产品'); return; }
+  if (!question) { alert('请输入问题'); return; }
+  if (question.length > 500) { alert('问题太长,请精简到 500 字内'); return; }
+
+  const askBtn = $('askBtn');
+  askBtn.disabled = true;
+  askBtn.textContent = '思考中...';
+
+  // 先把 question + loading 占位渲染到顶部
+  const qaListEl = $('qaList');
+  const emptyEl = qaListEl.querySelector('.qa-empty');
+  if (emptyEl) emptyEl.remove();
+
+  const tempId = 'qa_' + Date.now();
+  const item = document.createElement('div');
+  item.className = 'qa-item';
+  item.id = tempId;
+  item.innerHTML = `
+    <div class="qa-q">
+      <span class="icon">Q</span>
+      <span>${escapeHtml(question)}</span>
+      <span class="qa-meta">${escapeHtml(product)}</span>
+    </div>
+    <div class="qa-a">
+      <div class="qa-loading"><div class="spinner"></div>正在查资料并整理答案...</div>
+    </div>
+  `;
+  qaListEl.insertBefore(item, qaListEl.firstChild);
+
+  try {
+    const resp = await fetch('/api/qa', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({brand, product, question})
+    });
+    const data = await resp.json();
+    const aBox = item.querySelector('.qa-a');
+    if (!resp.ok || data.error) {
+      aBox.innerHTML = `<div class="no-data">⚠ ${escapeHtml(data.error || '请求失败')}</div>`;
+    } else if (data.no_data) {
+      aBox.innerHTML = `<div class="no-data">${escapeHtml(data.answer)}</div>`;
+    } else {
+      // 分离主回答 vs 销售建议
+      const { main, pitch } = splitAnswer(data.answer || '');
+      let html = `<div class="text">${escapeHtml(main)}</div>`;
+      if (pitch) {
+        html += `
+          <div class="sales-tip">
+            <div class="sales-tip-title">💡 销售话术指引</div>
+            <div class="sales-tip-body">${escapeHtml(pitch)}</div>
+          </div>
+        `;
+      }
+      aBox.innerHTML = html;
+    }
+  } catch (e) {
+    item.querySelector('.qa-a').innerHTML = `<div class="no-data">⚠ 网络错误:${escapeHtml(e.message)}</div>`;
+  } finally {
+    askBtn.disabled = false;
+    askBtn.textContent = '提问';
+    $('questionInput').value = '';
+  }
+}
+window.submitQuestion = submitQuestion;
+
+// ── 启动 ──
+if (me) loadProducts();
+</script>
+
+</body>
+</html>

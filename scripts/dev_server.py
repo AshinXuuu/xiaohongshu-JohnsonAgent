@@ -138,7 +138,10 @@ class Router(BaseHTTPRequestHandler):
             return self._proxy_to_api(api_file)
 
         # 静态文件
-        if self.path == "/" or self.path == "/index.html":
+        # 根路径 / 走门户 (portal.html);/index.html 直接走文案生成
+        if self.path == "/":
+            return self._serve_static("portal.html")
+        if self.path == "/index.html":
             return self._serve_static("index.html")
         if self.path.startswith("/public/"):
             return self._serve_static(self.path[len("/public/"):])

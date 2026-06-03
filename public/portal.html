@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>乔山销售助手 · 工作台</title>
+<style>
+  :root {
+    --primary: #1e293b;
+    --primary-soft: #f1f5f9;
+    --primary-hover: #0f172a;
+    --bg: #fafaf9;
+    --card: #ffffff;
+    --text: #18181b;
+    --text-soft: #3f3f46;
+    --muted: #71717a;
+    --border: #e4e4e7;
+    --border-soft: #f4f4f5;
+    --shadow:    0 1px 2px rgba(15,23,42,0.04);
+    --shadow-md: 0 4px 12px rgba(15,23,42,0.06);
+    --shadow-lg: 0 16px 48px rgba(15,23,42,0.08);
+    --accent: #6366f1;
+    --accent-soft: #eef2ff;
+    --pink: #ec4899;
+    --pink-soft: #fdf2f8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  /* ─── 登录视图 ─────────────────────────────────── */
+  .login-bg {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #fafaf9 0%, #f1f5f9 50%, #eef2ff 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 100;
+  }
+  .login-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+    padding: 36px 32px 28px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .login-card h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .login-card h1 .brand-mark {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .login-card .hint {
+    color: var(--muted);
+    text-align: center;
+    margin: 0 0 26px;
+    font-size: 13px;
+  }
+  .login-card label {
+    display: block;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: 14px 0 6px;
+    font-weight: 500;
+  }
+  .login-card label:first-of-type { margin-top: 0; }
+  .login-card select, .login-card input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    background: white;
+    color: var(--text);
+    transition: all 0.15s;
+  }
+  .login-card select:focus, .login-card input:focus {
+    outline: none;
+    border-color: #a5b4fc;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+  }
+  .login-submit {
+    width: 100%;
+    padding: 12px;
+    margin-top: 22px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  .login-submit:hover { background: var(--primary-hover); }
+  .login-submit:disabled { background: var(--border); cursor: not-allowed; color: var(--muted); }
+  .login-error {
+    margin-top: 14px; padding: 10px 14px;
+    background: #fef2f2; color: #991b1b;
+    font-size: 13px; border-radius: 8px;
+    border: 1px solid #fecaca;
+    display: none;
+  }
+  .login-error.show { display: block; }
+  .login-foot {
+    text-align: center;
+    margin-top: 18px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  /* ─── 工作台门户视图 ─────────────────────────────── */
+  .portal-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .portal-bar {
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .portal-bar h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .portal-bar h1 .dot { color: var(--accent); }
+  .portal-bar .spacer { flex: 1; }
+  .portal-bar .me {
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  .portal-bar .logout {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    background: white;
+    border-radius: 7px;
+    font-size: 12.5px;
+    cursor: pointer;
+    color: var(--text-soft);
+    font-weight: 500;
+    font-family: inherit;
+  }
+  .portal-bar .logout:hover { background: var(--primary-soft); }
+
+  .portal-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+  }
+  .portal-inner {
+    width: 100%;
+    max-width: 980px;
+    text-align: center;
+  }
+  .portal-greeting {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+  }
+  .portal-greeting .name { color: var(--accent); }
+  .portal-sub {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 0 36px;
+  }
+  .portal-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 720px) { .portal-grid { grid-template-columns: 1fr; } }
+
+  /* ─── 移动端专项 ────────────────────────────── */
+  @media (max-width: 600px) {
+    /* 登录卡片在手机上更紧凑 */
+    .login-bg { padding: 16px; }
+    .login-card { padding: 28px 22px 22px; border-radius: 14px; }
+    .login-card h1 { font-size: 19px; }
+    .login-card .hint { font-size: 12.5px; margin-bottom: 20px; }
+    .login-card label { font-size: 12px; margin: 12px 0 5px; }
+    .login-card select, .login-card input { font-size: 16px; padding: 11px 12px; } /* 16px 防 iOS Safari 缩放 */
+    .login-submit { padding: 13px; font-size: 15px; }
+
+    /* 工作台门户 */
+    .portal-bar { padding: 12px 16px; flex-wrap: wrap; }
+    .portal-bar h1 { font-size: 14px; }
+    .portal-bar .me { font-size: 11.5px; width: 100%; order: 99; padding-top: 4px; }
+    .portal-bar .logout { padding: 5px 10px; font-size: 12px; }
+
+    .portal-main { padding: 24px 16px; }
+    .portal-greeting { font-size: 22px; margin-bottom: 6px; }
+    .portal-sub { font-size: 13px; margin-bottom: 24px; }
+    .portal-grid { gap: 14px; }
+    .portal-card { padding: 24px 22px; border-radius: 14px; }
+    .portal-card .icon-wrap { width: 48px; height: 48px; font-size: 24px; margin-bottom: 14px; }
+    .portal-card .title { font-size: 17px; }
+    .portal-card .desc { font-size: 13px; line-height: 1.55; }
+  }
+
+  .portal-card {
+    background: white;
+    border-radius: 16px;
+    padding: 36px 28px;
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--shadow);
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .portal-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--border);
+  }
+  .portal-card .badge {
+    align-self: flex-start;
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+  .portal-card.qa .badge {
+    background: var(--accent-soft);
+    color: #4338ca;
+  }
+  .portal-card.gen .badge {
+    background: var(--pink-soft);
+    color: #be185d;
+  }
+  .portal-card .icon-wrap {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 18px;
+    font-size: 28px;
+    box-shadow: var(--shadow);
+  }
+  .portal-card.qa .icon-wrap {
+    background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+  }
+  .portal-card.gen .icon-wrap {
+    background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+  }
+  .portal-card .title {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+  .portal-card .desc {
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.65;
+    margin-bottom: 16px;
+    flex: 1;
+  }
+  .portal-card .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: auto;
+  }
+  .portal-card.qa .cta { color: var(--accent); }
+  .portal-card.gen .cta { color: var(--pink); }
+  .portal-card .arrow {
+    transition: transform 0.2s;
+  }
+  .portal-card:hover .arrow { transform: translateX(4px); }
+
+  /* admin 入口低调一些 */
+  .portal-extras {
+    margin-top: 24px;
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    font-size: 12.5px;
+  }
+  .portal-extras a {
+    color: var(--muted);
+    text-decoration: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+  .portal-extras a:hover {
+    color: var(--text);
+    background: var(--primary-soft);
+  }
+</style>
+</head>
+<body>
+
+<!-- 登录视图 -->
+<div class="login-bg" id="loginView" style="display:none">
+  <div class="login-card">
+    <h1><span class="brand-mark">乔山销售助手</span></h1>
+    <p class="hint">请用工号 + 身份证后 6 位登录</p>
+
+    <label for="loginDept">部门</label>
+    <select id="loginDept"><option value="">加载中...</option></select>
+
+    <label for="loginName">姓名</label>
+    <select id="loginName" disabled><option value="">请先选择部门</option></select>
+
+    <label for="loginEmpId">工号</label>
+    <input id="loginEmpId" type="text" inputmode="numeric" autocomplete="off" placeholder="请输入工号" />
+
+    <label for="loginId6">身份证后 6 位</label>
+    <input id="loginId6" type="text" maxlength="6" autocomplete="off" placeholder="例如 123456 或 12345X" />
+
+    <button class="login-submit" id="loginBtn" onclick="doLogin()">登录</button>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-foot">乔山健身内部工具 · 仅限授权员工使用</div>
+  </div>
+</div>
+
+<!-- 工作台门户视图 -->
+<div class="portal-shell" id="portalView" style="display:none">
+  <div class="portal-bar">
+    <h1>乔山销售助手 <span class="dot">·</span> 工作台</h1>
+    <div class="spacer"></div>
+    <span class="me" id="meLabel"></span>
+    <button class="logout" onclick="logout()">退出</button>
+  </div>
+
+  <div class="portal-main">
+    <div class="portal-inner">
+      <h2 class="portal-greeting">您好,<span class="name" id="greetName"></span></h2>
+      <p class="portal-sub">请选择需要的工具开始工作</p>
+
+      <div class="portal-grid">
+        <a class="portal-card qa" href="/qa.html">
+          <span class="badge">售前 / 售后</span>
+          <div class="icon-wrap">💬</div>
+          <div class="title">销售问答助手</div>
+          <div class="desc">基于产品说明书 + 卖点资料的严格问答,业务现场被客户提问时秒查答案,并附带销售话术建议。</div>
+          <div class="cta">进入 <span class="arrow">→</span></div>
+        </a>
+
+        <a class="portal-card gen" href="/index.html">
+          <span class="badge">内容创作</span>
+          <div class="icon-wrap">✨</div>
+          <div class="title">小红书文案生成助手</div>
+          <div class="desc">选品牌、选产品、选类型,一键生成种草 / 场景 / 干货 / 促销文案 + 配套封面图,复制即用。</div>
+          <div class="cta">进入 <span class="arrow">→</span></div>
+        </a>
+      </div>
+
+      <div class="portal-extras" id="extras"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const USER_KEY = 'xhsAgent:user';
+const $ = id => document.getElementById(id);
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function getMe() {
+  try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); }
+  catch (_) { return null; }
+}
+function setMe(u) {
+  localStorage.setItem(USER_KEY, JSON.stringify(u));
+}
+
+// ─────────── 路由:已登录 → 门户,未登录 → 登录 ───────────
+function route() {
+  const me = getMe();
+  if (me && me.emp_id) {
+    showPortal(me);
+  } else {
+    showLogin();
+  }
+}
+
+// ─────────── 登录视图 ───────────
+let usersByDept = {};
+
+async function showLogin() {
+  $('loginView').style.display = '';
+  $('portalView').style.display = 'none';
+  try {
+    const resp = await fetch('/api/login');
+    const data = await resp.json();
+    usersByDept = data.users_by_dept || {};
+    const departments = data.departments || [];
+    const deptSel = $('loginDept');
+    deptSel.innerHTML = '<option value="">请选择部门</option>' +
+      departments.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+    deptSel.addEventListener('change', onDeptChange);
+    $('loginEmpId').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
+    $('loginId6').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
+  } catch (e) {
+    showLoginError('加载部门列表失败:' + e.message);
+  }
+}
+function onDeptChange() {
+  const dept = $('loginDept').value;
+  const sel = $('loginName');
+  if (!dept) {
+    sel.disabled = true;
+    sel.innerHTML = '<option value="">请先选择部门</option>';
+    return;
+  }
+  const users = usersByDept[dept] || [];
+  sel.disabled = false;
+  sel.innerHTML = '<option value="">请选择姓名</option>' +
+    users.map(u => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('');
+}
+function showLoginError(msg) {
+  const err = $('loginError');
+  err.textContent = msg;
+  err.classList.add('show');
+}
+function hideLoginError() {
+  $('loginError').classList.remove('show');
+}
+async function doLogin() {
+  const dept = $('loginDept').value;
+  const name = $('loginName').value;
+  const empId = $('loginEmpId').value.trim();
+  // 身份证最后一位可能是 X(校验位),统一转大写,允许末位 0-9 或 X
+  const id6 = $('loginId6').value.trim().toUpperCase();
+  hideLoginError();
+  if (!dept || !name || !empId) {
+    showLoginError('请把部门、姓名、工号填完整');
+    return;
+  }
+  if (!/^\d{5}[\dX]$/.test(id6)) {
+    showLoginError('请输入身份证后 6 位(末位可为 X)');
+    return;
+  }
+  const btn = $('loginBtn');
+  btn.disabled = true;
+  btn.textContent = '验证中...';
+  try {
+    const resp = await fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({department:dept, name, emp_id:empId, id_last6:id6})
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      showLoginError(data.error || '登录失败');
+      return;
+    }
+    setMe(data.user);
+    showPortal(data.user);
+  } catch (e) {
+    showLoginError('网络错误:' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '登录';
+  }
+}
+window.doLogin = doLogin;
+
+// ─────────── 工作台视图 ───────────
+function showPortal(me) {
+  $('loginView').style.display = 'none';
+  $('portalView').style.display = '';
+  $('greetName').textContent = me.name;
+  $('meLabel').textContent = `${me.department} · 工号 ${me.emp_id}`;
+  // 管理员显示一个低调的后台入口
+  if (me.is_admin) {
+    $('extras').innerHTML = `<a href="/admin.html">🛡️ 管理员后台</a>`;
+  }
+}
+function logout() {
+  if (!confirm('确定要退出登录吗?')) return;
+  localStorage.removeItem(USER_KEY);
+  location.reload();
+}
+window.logout = logout;
+
+// 启动
+route();
+</script>
+
+</body>
+</html>

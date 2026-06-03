@@ -36,22 +36,33 @@ def load_users():
         return json.load(f)
 
 
-def find_user(department, name, emp_id):
-    """白名单校验,匹配返回 user dict,不匹配返回 None"""
+def find_user(department, name, emp_id, id_last6=None):
+    """白名单校验,匹配返回 user dict,不匹配返回 (None, reason)。
+    身份证后 6 位验证:
+        - 若 users.json 里该用户已配置 id_last6 → 必须匹配
+        - 若未配置 → 暂不校验(过渡期,允许 老员工没填的情况下继续登录)
+    """
     data = load_users()
     name = (name or "").strip()
     emp_id = str(emp_id or "").strip()
+    # 身份证末位可能是 X,统一大写比对(防止用户输小写 x)
+    id_last6 = str(id_last6 or "").strip().upper()
     dept_users = data.get("users_by_dept", {}).get(department, [])
     for u in dept_users:
-        # 工号字符串严格匹配
-        if str(u.get("emp_id", "")).strip() == emp_id and u.get("name", "").strip() == name:
+        if (str(u.get("emp_id", "")).strip() == emp_id
+                and u.get("name", "").strip() == name):
+            expect_id6 = str(u.get("id_last6", "")).strip().upper()
+            if expect_id6:
+                if expect_id6 != id_last6:
+                    return None, '身份证后 6 位不正确'
+            # 没配过则跳过校验,但要求请求里至少给了 6 位数字格式(前端会强制)
             return {
                 "department": department,
                 "name": name,
                 "emp_id": emp_id,
                 "is_admin": bool(u.get("is_admin")),
-            }
-    return None
+            }, None
+    return None, '工号或姓名与所选部门不匹配'
 
 
 def log_user_action(req_info: dict):
@@ -93,23 +104,24 @@ class handler(BaseHTTPRequestHandler):
             dept = (req.get("department") or "").strip()
             name = (req.get("name") or "").strip()
             emp_id = str(req.get("emp_id") or "").strip()
+            id_last6 = str(req.get("id_last6") or "").strip()
 
             if not all([dept, name, emp_id]):
                 return self._json(400, {"error": "请填完整:部门 + 姓名 + 工号"})
 
-            user = find_user(dept, name, emp_id)
+            user, err = find_user(dept, name, emp_id, id_last6)
             log_user_action({
                 "action": "login_attempt",
                 "department": dept,
                 "name": name,
                 "emp_id": emp_id,
+                "id6_provided": bool(id_last6),
                 "success": user is not None,
+                "fail_reason": err,
             })
 
             if not user:
-                return self._json(401, {
-                    "error": "工号或姓名与所选部门不匹配,请核对后重试"
-                })
+                return self._json(401, {"error": err or "登录失败"})
 
             # 登录成功才记录到 KV(失败的不记)
             log_event('login', user)

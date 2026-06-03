@@ -15,3 +15,12 @@ DOUBAO_SETUP产品库/
 data/usage.db
 data/usage.db-shm
 data/usage.db-wal
+
+# 中间产物
+out/
+.env.save
+.env.bak
+
+# 项目相关大文件
+封面参考/
+*.pptx
