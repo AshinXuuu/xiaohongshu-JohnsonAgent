@@ -34,6 +34,15 @@ from lib.kv_store import get_stats, _kv_available
 ROOT = Path(__file__).resolve().parent.parent
 
 
+# app → action 名单的映射
+# 'all' 不过滤;'generate' 是文案+封面应用;'qa' 是问答应用
+APP_ACTION_MAP = {
+    'all':      None,  # 不过滤
+    'generate': ['generate', 'generate_failed', 'cover_fields', 'cover_generate'],
+    'qa':       ['qa', 'qa_failed'],
+}
+
+
 def load_users():
     with (ROOT / "data" / "users.json").open("r", encoding="utf-8") as f:
         return json.load(f)
@@ -106,8 +115,15 @@ class handler(BaseHTTPRequestHandler):
                     "message": "本地 SQLite 数据库初始化失败,请检查 data/ 目录权限。",
                 })
 
-            stats = get_stats()
+            # 应用过滤:all / generate / qa
+            app = (req.get('app') or 'all').strip().lower()
+            if app not in APP_ACTION_MAP:
+                app = 'all'
+            action_filter = APP_ACTION_MAP[app]
+
+            stats = get_stats(action_filter=action_filter)
             stats = enrich_user_data(stats)
+            stats['app'] = app
 
             # 算今日/本月汇总
             today_key = datetime.datetime.now().strftime("%Y-%m-%d")

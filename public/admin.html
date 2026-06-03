@@ -217,6 +217,44 @@
     .row-2, .row-3 { grid-template-columns: 1fr; }
   }
 
+  /* ─── 移动端专项 ─── */
+  @media (max-width: 600px) {
+    body { font-size: 13px; }
+    .topbar { padding: 11px 14px; gap: 8px; flex-wrap: wrap; }
+    .topbar h1 { font-size: 14px; }
+    .topbar h1 .badge { font-size: 10px; padding: 1px 6px; }
+    .topbar .meta { font-size: 11px; width: 100%; order: 99; }
+    .topbar button, .topbar a.btn { padding: 5px 10px; font-size: 12px; }
+
+    .container { padding: 14px 12px; }
+    .kpi { padding: 13px 14px; }
+    .kpi-label { font-size: 11px; }
+    .kpi-value { font-size: 20px; }
+    .kpi-sub { font-size: 10.5px; }
+    .kpi::before { top: 13px; right: 13px; }
+
+    .card { padding: 14px 14px; border-radius: 10px; }
+    .card-title { font-size: 13px; margin-bottom: 12px; }
+
+    .chart-box       { height: 220px; }
+    .chart-box.tall  { height: 280px; }
+    .chart-box.short { height: 180px; }
+
+    .rank-row { grid-template-columns: 22px 1fr 42px; gap: 8px; font-size: 12.5px; }
+    .rank-bar-text { font-size: 11.5px; padding: 0 9px; }
+    .rank-bar-text small { display: none; }
+
+    /* 明细表:横向滚动,字段缩窄 */
+    .table-toolbar { gap: 6px; }
+    .table-toolbar input, .table-toolbar select, .export-btn { font-size: 12px; padding: 6px 9px; }
+    .table-toolbar .count { font-size: 11px; }
+    .detail-table { font-size: 12px; }
+    .detail-table th, .detail-table td { padding: 8px 10px; }
+    .detail-table th { font-size: 10.5px; }
+    /* 防止文字撑爆 */
+    .pill { font-size: 10.5px; padding: 1px 6px; }
+  }
+
   /* 图表容器 */
   .chart-box {
     position: relative;
@@ -406,28 +444,41 @@
     font-weight: 500;
   }
 
-  /* Tab 切换:可选 */
-  .tabs {
-    display: flex;
-    gap: 4px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 16px;
+  /* 应用切换 Tab(全部 / 文案助手 / 问答助手)*/
+  .app-tabs {
+    display: inline-flex;
+    gap: 2px;
+    background: var(--primary-soft);
+    border-radius: 9px;
+    padding: 3px;
+    margin-bottom: 18px;
   }
-  .tab {
-    padding: 10px 16px;
+  .app-tab {
+    padding: 7px 16px;
     border: none;
     background: transparent;
     cursor: pointer;
     font-size: 13px;
     color: var(--muted);
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-  }
-  .tab.active {
-    color: var(--primary);
-    border-bottom-color: var(--primary);
+    border-radius: 7px;
     font-weight: 500;
+    transition: all 0.15s;
+    font-family: inherit;
+    white-space: nowrap;
   }
+  .app-tab:hover { color: var(--text-soft); }
+  .app-tab.active {
+    background: white;
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+  .app-tab .count {
+    margin-left: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .app-tab.active .count { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -489,18 +540,34 @@ function fmtFullTime(ms) {
 
 // ─── 鉴权 ─────────────────────────────────────────────
 const me = getCurrentUser();
-if (!me || !me.is_admin) {
+if (!me) {
+  // 没登录直接跳门户
+  location.replace('/');
+} else if (!me.is_admin) {
   document.getElementById('mainArea').innerHTML = `
     <div class="deny">
       <h2>🚫 无权访问</h2>
-      <p>本页面仅向管理员开放。${me ? `当前账号:${escapeHtml(me.name)}` : '请先登录'}。</p>
-      <p><a href="/">← 返回首页</a></p>
+      <p>本页面仅向管理员开放。当前账号:${escapeHtml(me.name)}。</p>
+      <p><a href="/">← 返回工作台</a></p>
     </div>
   `;
 }
 
 // ─── 数据加载 ─────────────────────────────────────────
-let __state = { data: null, charts: {} };
+let __state = { data: null, charts: {}, app: 'all' };
+
+const APP_LABELS = {
+  'all':      { label: '全部',     icon: '📊' },
+  'generate': { label: '文案助手', icon: '📝' },
+  'qa':       { label: '问答助手', icon: '💬' },
+};
+
+function switchApp(app) {
+  if (__state.app === app) return;
+  __state.app = app;
+  loadStats();
+}
+window.switchApp = switchApp;
 
 async function loadStats() {
   if (!me || !me.is_admin) return;
@@ -512,6 +579,7 @@ async function loadStats() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        app: __state.app,
         _user: {
           department: me.department,
           name: me.name,
@@ -542,27 +610,74 @@ function render(d) {
   Object.values(__state.charts).forEach(c => c && c.destroy && c.destroy());
   __state.charts = {};
 
-  // ── KPI ──
-  const totalGenerate = (d.by_action || []).find(x => x.key === 'generate')?.count || 0;
+  const app = __state.app;
+  // ── 各应用下的 KPI 不同 ──
+  // 文案应用核心动作:generate;封面动作:cover_generate;失败:generate_failed
+  // 问答应用核心动作:qa;失败:qa_failed
+  const cnt = a => (d.by_action || []).find(x => x.key === a)?.count || 0;
+  const totalGenerate = cnt('generate');
+  const totalCover    = cnt('cover_generate');
+  const totalQa       = cnt('qa');
+  const failedGen     = cnt('generate_failed');
+  const failedQa      = cnt('qa_failed');
   const activeUsers = (d.by_user || []).length;
   const activeDepts = (d.by_dept || []).length;
-  const failed = (d.by_action || []).find(x => x.key === 'generate_failed')?.count || 0;
-  const failRate = (totalGenerate + failed) > 0
-    ? ((failed / (totalGenerate + failed)) * 100).toFixed(1)
-    : '0.0';
+
+  let failRate, failNumerator, failTotal;
+  if (app === 'qa') {
+    failNumerator = failedQa;  failTotal = totalQa + failedQa;
+  } else if (app === 'generate') {
+    failNumerator = failedGen; failTotal = totalGenerate + failedGen;
+  } else {
+    failNumerator = failedGen + failedQa;
+    failTotal = totalGenerate + totalQa + failedGen + failedQa;
+  }
+  failRate = failTotal > 0 ? ((failNumerator / failTotal) * 100).toFixed(1) : '0.0';
+
+  // 三个 KPI 视图(随 tab 变化)
+  let kpiPrimaryLabel, kpiPrimaryValue, kpiPrimarySub;
+  let kpiSecondaryLabel, kpiSecondaryValue, kpiSecondarySub;
+  if (app === 'qa') {
+    kpiPrimaryLabel = '问答总次数'; kpiPrimaryValue = totalQa;
+    kpiPrimarySub   = '仅 qa 动作';
+    kpiSecondaryLabel = '涉及产品'; kpiSecondaryValue = (d.by_product || []).length;
+    kpiSecondarySub   = `${(d.by_brand || []).length} 个品牌`;
+  } else if (app === 'generate') {
+    kpiPrimaryLabel = '文案生成数'; kpiPrimaryValue = totalGenerate;
+    kpiPrimarySub   = '仅 generate 动作';
+    kpiSecondaryLabel = '封面生成数'; kpiSecondaryValue = totalCover;
+    kpiSecondarySub   = '调豆包视觉次数';
+  } else {
+    kpiPrimaryLabel = '累计操作总数'; kpiPrimaryValue = d.total || 0;
+    kpiPrimarySub   = '所有动作汇总';
+    kpiSecondaryLabel = '文案生成数'; kpiSecondaryValue = totalGenerate;
+    kpiSecondarySub   = '仅 generate 动作';
+  }
+
+  // tab 上显示该应用的总次数
+  const allCount = d.total != null ? d.total : '...';
+  const genCount = (app === 'generate') ? (d.total || 0) : '';
+  const qaCount  = (app === 'qa')       ? (d.total || 0) : '';
 
   $('mainArea').innerHTML = `
+    <!-- 应用切换 -->
+    <div class="app-tabs">
+      <button class="app-tab ${app==='all'?'active':''}"      onclick="switchApp('all')">📊 全部</button>
+      <button class="app-tab ${app==='generate'?'active':''}" onclick="switchApp('generate')">📝 文案助手</button>
+      <button class="app-tab ${app==='qa'?'active':''}"       onclick="switchApp('qa')">💬 问答助手</button>
+    </div>
+
     <!-- KPI 卡片 -->
     <div class="kpi-grid">
       <div class="kpi b-blue">
-        <div class="kpi-label">累计操作总数</div>
-        <div class="kpi-value">${d.total || 0}</div>
-        <div class="kpi-sub">含登录/生成/封面等</div>
+        <div class="kpi-label">${kpiPrimaryLabel}</div>
+        <div class="kpi-value">${kpiPrimaryValue}</div>
+        <div class="kpi-sub">${kpiPrimarySub}</div>
       </div>
       <div class="kpi b-pink">
-        <div class="kpi-label">文案生成数</div>
-        <div class="kpi-value">${totalGenerate}</div>
-        <div class="kpi-sub">仅 generate 动作</div>
+        <div class="kpi-label">${kpiSecondaryLabel}</div>
+        <div class="kpi-value">${kpiSecondaryValue}</div>
+        <div class="kpi-sub">${kpiSecondarySub}</div>
       </div>
       <div class="kpi b-green">
         <div class="kpi-label">今日操作</div>
@@ -580,9 +695,9 @@ function render(d) {
         <div class="kpi-sub">${activeDepts} 个部门</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">生成失败率</div>
+        <div class="kpi-label">失败率</div>
         <div class="kpi-value">${failRate}%</div>
-        <div class="kpi-sub">${failed} 失败 / ${totalGenerate + failed} 尝试</div>
+        <div class="kpi-sub">${failNumerator} 失败 / ${failTotal} 尝试</div>
       </div>
     </div>
 

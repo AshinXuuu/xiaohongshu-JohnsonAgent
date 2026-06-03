@@ -80,6 +80,36 @@ def _init_schema():
                 CREATE INDEX IF NOT EXISTS idx_events_action ON events(action);
                 CREATE INDEX IF NOT EXISTS idx_events_emp    ON events(emp_id);
                 CREATE INDEX IF NOT EXISTS idx_events_time   ON events(time_ms DESC);
+
+                -- 售前问答用的产品资料库(OCR 入库)
+                CREATE TABLE IF NOT EXISTS manuals (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    brand        TEXT NOT NULL,
+                    product      TEXT NOT NULL,
+                    source_type  TEXT NOT NULL,
+                    source_file  TEXT NOT NULL,
+                    page_no      INTEGER,
+                    content      TEXT NOT NULL,
+                    char_count   INTEGER NOT NULL,
+                    created_at   INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_manuals_product ON manuals(brand, product);
+                CREATE INDEX IF NOT EXISTS idx_manuals_source  ON manuals(source_file);
+
+                CREATE TABLE IF NOT EXISTS manuals_files (
+                    file_path     TEXT PRIMARY KEY,
+                    file_hash     TEXT NOT NULL,
+                    brand         TEXT NOT NULL,
+                    product       TEXT NOT NULL,
+                    source_type   TEXT NOT NULL,
+                    total_pages   INTEGER,
+                    total_chars   INTEGER,
+                    cost_yuan     REAL,
+                    status        TEXT NOT NULL,
+                    error         TEXT,
+                    completed_at  INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_files_hash ON manuals_files(file_hash);
             """)
             conn.commit()
             _schema_initialized = True
@@ -137,16 +167,26 @@ def log_event(action: str, user: dict, details: dict = None):
         print(f"[kv_store] log_event 失败:{e}", flush=True)
 
 
-def get_recent_logs(n: int = 100):
-    """取最近 N 条事件(新→旧)"""
+def get_recent_logs(n: int = 100, action_filter=None):
+    """取最近 N 条事件(新→旧),可按 action 列表过滤"""
     try:
         conn = _get_conn()
         try:
-            rows = conn.execute(
-                "SELECT time_ms, action, emp_id, user_name, department, details_json "
-                "FROM events ORDER BY time_ms DESC LIMIT ?",
-                (max(1, min(n, 1000)),)
-            ).fetchall()
+            if action_filter:
+                placeholders = ','.join(['?'] * len(action_filter))
+                sql = (
+                    "SELECT time_ms, action, emp_id, user_name, department, details_json "
+                    f"FROM events WHERE action IN ({placeholders}) "
+                    "ORDER BY time_ms DESC LIMIT ?"
+                )
+                params = tuple(action_filter) + (max(1, min(n, 1000)),)
+            else:
+                sql = (
+                    "SELECT time_ms, action, emp_id, user_name, department, details_json "
+                    "FROM events ORDER BY time_ms DESC LIMIT ?"
+                )
+                params = (max(1, min(n, 1000)),)
+            rows = conn.execute(sql, params).fetchall()
         finally:
             conn.close()
         out = []
@@ -173,21 +213,34 @@ def get_counter(key: str) -> int:
     return 0
 
 
-def get_stats():
+def get_stats(action_filter=None):
     """聚合所有维度数据,供 /api/admin-stats 返回。
-
-    返回结构跟旧 Upstash 实现完全一致,前端不用改。
+    action_filter: 可选,只统计这些 action 的事件;None = 全部。
     """
     try:
+        # 构造可复用的 WHERE 片段
+        if action_filter:
+            placeholders = ','.join(['?'] * len(action_filter))
+            base_where = f" WHERE action IN ({placeholders}) "
+            base_params = tuple(action_filter)
+            and_where = f" AND action IN ({placeholders}) "
+        else:
+            base_where = ""
+            base_params = ()
+            and_where = ""
+
         conn = _get_conn()
         try:
-            total = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM events {base_where}", base_params
+            ).fetchone()[0]
 
             # 按员工 ID 分组
             by_user_raw = [
                 {'key': r[0] or 'unknown', 'count': r[1]}
                 for r in conn.execute(
-                    "SELECT emp_id, COUNT(*) FROM events GROUP BY emp_id"
+                    f"SELECT emp_id, COUNT(*) FROM events {base_where} GROUP BY emp_id",
+                    base_params,
                 ).fetchall()
             ]
 
@@ -195,15 +248,17 @@ def get_stats():
             by_dept = sorted([
                 {'key': r[0] or 'unknown', 'count': r[1]}
                 for r in conn.execute(
-                    "SELECT department, COUNT(*) FROM events GROUP BY department"
+                    f"SELECT department, COUNT(*) FROM events {base_where} GROUP BY department",
+                    base_params,
                 ).fetchall()
             ], key=lambda x: -x['count'])
 
-            # 按动作
+            # 按动作(filter 后只剩相关动作)
             by_action = sorted([
                 {'key': r[0], 'count': r[1]}
                 for r in conn.execute(
-                    "SELECT action, COUNT(*) FROM events GROUP BY action"
+                    f"SELECT action, COUNT(*) FROM events {base_where} GROUP BY action",
+                    base_params,
                 ).fetchall()
             ], key=lambda x: -x['count'])
 
@@ -211,8 +266,9 @@ def get_stats():
             by_daily = [
                 {'key': r[0], 'count': r[1]}
                 for r in conn.execute(
-                    "SELECT day, COUNT(*) FROM events "
-                    "GROUP BY day ORDER BY day DESC LIMIT 30"
+                    f"SELECT day, COUNT(*) FROM events {base_where} "
+                    "GROUP BY day ORDER BY day DESC LIMIT 30",
+                    base_params,
                 ).fetchall()
             ]
 
@@ -221,8 +277,9 @@ def get_stats():
                 {'key': r[0], 'count': r[1]}
                 for r in conn.execute(
                     "SELECT json_extract(details_json, '$.style') AS s, COUNT(*) "
-                    "FROM events WHERE s IS NOT NULL AND s != '' "
-                    "GROUP BY s"
+                    f"FROM events WHERE s IS NOT NULL AND s != '' {and_where} "
+                    "GROUP BY s",
+                    base_params,
                 ).fetchall()
             ], key=lambda x: -x['count'])
 
@@ -230,16 +287,18 @@ def get_stats():
                 {'key': r[0], 'count': r[1]}
                 for r in conn.execute(
                     "SELECT json_extract(details_json, '$.brand') AS b, COUNT(*) "
-                    "FROM events WHERE b IS NOT NULL AND b != '' "
-                    "GROUP BY b"
+                    f"FROM events WHERE b IS NOT NULL AND b != '' {and_where} "
+                    "GROUP BY b",
+                    base_params,
                 ).fetchall()
             ], key=lambda x: -x['count'])
 
             # 产品维度(从 details_json 抽取)+ 别名归一化合并
             raw_products = conn.execute(
                 "SELECT json_extract(details_json, '$.product') AS p, COUNT(*) "
-                "FROM events WHERE p IS NOT NULL AND p != '' "
-                "GROUP BY p"
+                f"FROM events WHERE p IS NOT NULL AND p != '' {and_where} "
+                "GROUP BY p",
+                base_params,
             ).fetchall()
             _merged = {}
             for name, count in raw_products:
@@ -255,8 +314,9 @@ def get_stats():
                 {'key': r[0], 'count': r[1]}
                 for r in conn.execute(
                     "SELECT json_extract(details_json, '$.copy_type') AS c, COUNT(*) "
-                    "FROM events WHERE c IS NOT NULL AND c != '' "
-                    "GROUP BY c"
+                    f"FROM events WHERE c IS NOT NULL AND c != '' {and_where} "
+                    "GROUP BY c",
+                    base_params,
                 ).fetchall()
             ], key=lambda x: -x['count'])
 
@@ -265,7 +325,8 @@ def get_stats():
                 {'key': r[0], 'count': r[1]}
                 for r in conn.execute(
                     "SELECT CAST(strftime('%H', time_ms/1000, 'unixepoch', 'localtime') AS INTEGER) AS h, "
-                    "COUNT(*) FROM events GROUP BY h ORDER BY h"
+                    f"COUNT(*) FROM events {base_where} GROUP BY h ORDER BY h",
+                    base_params,
                 ).fetchall()
             ]
         finally:
@@ -282,7 +343,7 @@ def get_stats():
             'by_copy_type': by_copy_type,
             'by_hour': by_hour,
             'by_daily': by_daily,
-            'recent': get_recent_logs(200),
+            'recent': get_recent_logs(200, action_filter=action_filter),
         }
     except Exception as e:
         print(f"[kv_store] get_stats 失败:{e}", flush=True)
