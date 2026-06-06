@@ -333,6 +333,98 @@
     color: var(--text);
     background: var(--primary-soft);
   }
+
+  /* ── 版本徽章 + 更新公告 ── */
+  .version-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, #818cf8, #6366f1);
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(99,102,241,0.35);
+    transition: transform .15s, box-shadow .15s;
+    font-family: inherit;
+  }
+  .version-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(99,102,241,0.45);
+  }
+
+  /* 版本公告 modal */
+  .ver-modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.5);
+    display: none; align-items: flex-start; justify-content: center;
+    z-index: 1500; padding: 30px 20px; overflow-y: auto;
+  }
+  .ver-modal-overlay.show { display: flex; }
+  .ver-modal-card {
+    background: white; border-radius: 14px;
+    max-width: 720px; width: 100%; max-height: calc(100vh - 60px);
+    display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(15,23,42,0.18);
+  }
+  .ver-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 22px; border-bottom: 1px solid var(--border-soft);
+  }
+  .ver-modal-header h2 {
+    margin: 0; font-size: 17px; font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .ver-modal-close {
+    background: transparent; border: none; font-size: 22px; cursor: pointer; color: var(--muted);
+    width: 32px; height: 32px; line-height: 1;
+  }
+  .ver-modal-close:hover { color: var(--text); }
+  .ver-modal-body { padding: 22px; overflow-y: auto; flex: 1; }
+
+  .ver-block { margin-bottom: 28px; }
+  .ver-block:last-child { margin-bottom: 0; }
+  .ver-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .ver-num {
+    font-size: 17px; font-weight: 700; color: var(--accent);
+    background: var(--accent-soft); padding: 2px 12px; border-radius: 7px;
+  }
+  .ver-num.old { color: var(--muted); background: var(--primary-soft); }
+  .ver-date { font-size: 12px; color: var(--muted); }
+  .ver-title { font-size: 15px; font-weight: 600; color: var(--text); margin: 8px 0 4px; letter-spacing: -0.005em; }
+  .ver-intro { font-size: 13px; color: var(--muted); margin: 0 0 14px; line-height: 1.65; }
+  .ver-hl { display: flex; gap: 12px; padding: 11px 0; border-top: 1px solid var(--border-soft); }
+  .ver-hl:first-of-type { border-top: none; }
+  .ver-hl-icon { font-size: 22px; flex-shrink: 0; width: 28px; text-align: center; }
+  .ver-hl-body { flex: 1; }
+  .ver-hl-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .ver-hl-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .ver-tech {
+    margin-top: 14px; background: var(--primary-soft); border: 1px solid var(--border-soft);
+    border-radius: 10px; padding: 4px 0;
+  }
+  .ver-tech summary {
+    cursor: pointer; padding: 10px 14px; font-size: 12.5px;
+    font-weight: 600; color: var(--muted); list-style: none;
+  }
+  .ver-tech summary::-webkit-details-marker { display: none; }
+  .ver-tech summary::before { content: '▸ '; }
+  .ver-tech[open] summary::before { content: '▾ '; }
+  .ver-tech ul { margin: 0; padding: 0 18px 12px 34px; }
+  .ver-tech li { font-size: 12px; color: var(--muted); line-height: 1.75; }
+  .ver-divider { border: none; border-top: 1px dashed var(--border); margin: 0 0 24px; }
+
+  @media (max-width: 600px) {
+    .ver-modal-overlay { padding: 16px 12px; }
+    .ver-modal-card { border-radius: 12px; }
+    .ver-modal-header { padding: 14px 18px; }
+    .ver-modal-header h2 { font-size: 15px; }
+    .ver-modal-body { padding: 16px; }
+    .ver-num { font-size: 15px; }
+    .ver-title { font-size: 14px; }
+  }
 </style>
 </head>
 <body>
@@ -361,11 +453,23 @@
   </div>
 </div>
 
+<!-- 版本公告 modal -->
+<div class="ver-modal-overlay" id="versionModal" onclick="closeVersionModal(event)">
+  <div class="ver-modal-card" onclick="event.stopPropagation()">
+    <div class="ver-modal-header">
+      <h2>更新公告</h2>
+      <button class="ver-modal-close" onclick="closeVersionModal()">×</button>
+    </div>
+    <div class="ver-modal-body" id="versionBody"></div>
+  </div>
+</div>
+
 <!-- 工作台门户视图 -->
 <div class="portal-shell" id="portalView" style="display:none">
   <div class="portal-bar">
     <h1>乔山销售助手 <span class="dot">·</span> 工作台</h1>
     <div class="spacer"></div>
+    <button class="version-badge" id="versionBadge" onclick="openVersionModal()">v2.0 新</button>
     <span class="me" id="meLabel"></span>
     <button class="logout" onclick="logout()">退出</button>
   </div>
@@ -378,7 +482,7 @@
       <div class="portal-grid">
         <a class="portal-card qa" href="/qa.html">
           <span class="badge">售前 / 售后</span>
-          <div class="icon-wrap">💬</div>
+          
           <div class="title">销售问答助手</div>
           <div class="desc">基于产品说明书 + 卖点资料的严格问答,业务现场被客户提问时秒查答案,并附带销售话术建议。</div>
           <div class="cta">进入 <span class="arrow">→</span></div>
@@ -386,7 +490,7 @@
 
         <a class="portal-card gen" href="/index.html">
           <span class="badge">内容创作</span>
-          <div class="icon-wrap">✨</div>
+          
           <div class="title">小红书文案生成助手</div>
           <div class="desc">选品牌、选产品、选类型,一键生成种草 / 场景 / 干货 / 促销文案 + 配套封面图,复制即用。</div>
           <div class="cta">进入 <span class="arrow">→</span></div>
@@ -400,6 +504,8 @@
 
 <script>
 const USER_KEY = 'xhsAgent:user';
+// 会话有效期:24 小时。每次登录刷新一次。超过这个时间强制重登。
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const $ = id => document.getElementById(id);
 
 function escapeHtml(s) {
@@ -412,15 +518,23 @@ function getMe() {
   catch (_) { return null; }
 }
 function setMe(u) {
+  // 写入时打上时间戳
+  u.loginAt = Date.now();
   localStorage.setItem(USER_KEY, JSON.stringify(u));
 }
+function isSessionValid(me) {
+  if (!me || !me.emp_id || !me.loginAt) return false;
+  return (Date.now() - me.loginAt) < SESSION_TTL_MS;
+}
 
-// ─────────── 路由:已登录 → 门户,未登录 → 登录 ───────────
+// ─────────── 路由:已登录且未过期 → 门户;否则 → 登录 ───────────
 function route() {
   const me = getMe();
-  if (me && me.emp_id) {
+  if (isSessionValid(me)) {
     showPortal(me);
   } else {
+    // 过期或无登录态,清掉(顺便阻止旧版无 loginAt 字段的用户用 cookie 漂浮)
+    if (me) localStorage.removeItem(USER_KEY);
     showLogin();
   }
 }
@@ -515,8 +629,10 @@ function showPortal(me) {
   $('meLabel').textContent = `${me.department} · 工号 ${me.emp_id}`;
   // 管理员显示一个低调的后台入口
   if (me.is_admin) {
-    $('extras').innerHTML = `<a href="/admin.html">🛡️ 管理员后台</a>`;
+    $('extras').innerHTML = `<a href="/admin.html">管理员后台</a>`;
   }
+  // 新版本未读 → 自动弹公告
+  maybeShowVersionModal();
 }
 function logout() {
   if (!confirm('确定要退出登录吗?')) return;
@@ -524,6 +640,111 @@ function logout() {
   location.reload();
 }
 window.logout = logout;
+
+// ─────────── 版本更新公告 ───────────
+const SEEN_VERSION_KEY = 'xhsAgent:seenVersion';
+const APP_VERSION = 'v2.0';
+const CHANGELOG = [
+  {
+    version: 'v2.0',
+    date: '2026-06-03',
+    title: '销售助手大升级 — 新增问答助手 + 工作台门户',
+    intro: '这次是大版本升级,我们把工具从单一文案生成,扩成完整的「乔山销售助手」。最大的新功能是「售前问答助手」——业务现场被客户问参数、问保养、问售后,直接选产品发问,AI 基于说明书 + 卖点资料严格回答,还附带销售话术建议。',
+    highlights: [
+      { icon: '', title: '新增「售前问答助手」', desc: '24 款产品的说明书、单页、卖点资料全部 OCR 入库,选产品 + 提问就秒得答案。严格基于资料回答,资料里没有就明说没有,绝不瞎编。' },
+      { icon: '', title: '工作台门户上线', desc: '登录后看到 2 张大卡片——「问答助手」和「文案生成」自由切换。以后再加新功能也是在这里添入口。' },
+      { icon: '', title: '登录加身份证后 6 位', desc: '工号 + 身份证后 6 位双因子,业务自己的账号自己管,防止误登他人账号。导入了乔山 KOS 全员 73 人名单。' },
+      { icon: '', title: '问答自动生成销售话术', desc: '回答主问题后,AI 还会自动出一段「销售话术指引」——比如客户问尺寸,话术会建议你提折叠功能、推荐户型;客户问保养,话术会强调维护简单降低顾虑。直接复制发给客户。' },
+      { icon: '', title: '售后热线 / 保修期智能兜底', desc: '问到售后、维修、保养、配件,自动追加 4000480500 热线;问到保修期但资料没写,自动按品牌政策回「整机一年 + 主体框架十年」并附热线。' },
+      { icon: '', title: '管理后台按应用分维度', desc: '顶部 3 个 tab(全部 / 文案 / 问答)分别看每个应用的使用情况,失败率 / 用户榜 / 产品热度都跟着切换。' },
+      { icon: '', title: '手机端全面适配', desc: '门户、问答、管理后台三个新页面都做了移动端优化,业务一线在手机上用也舒服。' },
+    ],
+    tech: [
+      '产品资料 OCR 入库:65 PDF + 24 docx,共 1146 页 / 110 万字,豆包视觉 OCR 总成本 ¥5.61',
+      '问答 grounding 三层防幻觉:智能选段(卖点 docx 全选 + 单页 + 说明书按问题关键词打分 Top 12 页) + 强 prompt + temperature 0.1',
+      '问答上下文预算:每次最多 24000 字符,自动避免 DeepSeek context 溢出',
+      'API 端点新增:GET /api/qa?action=products(产品列表)、POST /api/qa(问答)',
+      '前端新增:/portal.html(门户)、/qa.html(问答)',
+      '后端 schema 扩展:manuals(逐页内容索引)、manuals_files(已处理文件登记,断点续传)',
+      '管理后台聚合层加 action_filter 支持,从 SQL WHERE IN 走过滤,所有维度统一',
+      '前端门户用 backdrop-filter 毛玻璃 + Linear/Vercel 风格高级感配色',
+      '移动端:iOS 防自动缩放(input font-size 16px)+ touch target ≥44px + 顶栏 flex-wrap 自适应',
+      '导出 / 导入 manuals 工具:scripts/export_manuals.py + scripts/import_manuals.py(SQLite ATTACH 增量合并)',
+    ],
+  },
+  {
+    version: 'v1.10',
+    date: '2026-05-21',
+    title: '产品库扩充 · 封面更稳 · 数据本地化',
+    intro: '这次更新让产品更全、封面更可靠、系统更省心,核心是把"封面别乱改产品图"和"少点几下"做到位。',
+    highlights: [
+      { icon: '', title: '产品库扩充到 25 款', desc: '新增「十字星 Schwinn」品牌,乔山补齐 11 款产品卖点,现在 25 款产品都能一键出文案。' },
+      { icon: '', title: '封面风格自动匹配', desc: '不用再手动选封面风格了——选了文案类型,系统自动配最搭的封面调性,少点一步。' },
+      { icon: '', title: '封面款式翻倍(30 套)', desc: '从 15 套版式扩到 30 套配色,一次生成 3 张张张不重样,挑选空间更大。' },
+      { icon: '', title: '封面不再乱改产品图', desc: '产品细节、logo、角度原样保留,不再被 AI 改变形;生成失败会自动重试一次,3 张更稳。' },
+      { icon: '', title: '文案类型精简为 4 类', desc: '聚焦最常用的 种草 / 场景 / 干货 / 促销,选起来更快。' },
+    ],
+  },
+  {
+    version: 'v1.0',
+    date: '2026-05',
+    title: '首个版本上线',
+    intro: '小红书文案生成助手正式上线,业务团队可以自助生成文案和封面,告别求人写稿。',
+    highlights: [
+      { icon: '', title: '一键生成小红书文案', desc: '选品牌、选产品、选文案类型,AI 自动产出标题、正文、话题标签,复制即用。' },
+      { icon: '', title: 'AI 封面生成', desc: '上传产品照,自动生成小红书风格封面图。' },
+      { icon: '', title: '工号登录 + 历史记录', desc: '部门 / 姓名 / 工号登录,生成记录自动留档,随时回看。' },
+      { icon: '', title: '管理员用量后台', desc: '管理员可查看各部门、各成员的使用情况。' },
+    ],
+  },
+];
+
+function renderVersionBody() {
+  const html = CHANGELOG.map((v, idx) => {
+    const hl = (v.highlights || []).map(h => `
+      <div class="ver-hl">
+        <div class="ver-hl-icon">${h.icon || '•'}</div>
+        <div class="ver-hl-body">
+          <div class="ver-hl-title">${escapeHtml(h.title)}</div>
+          <div class="ver-hl-desc">${escapeHtml(h.desc)}</div>
+        </div>
+      </div>`).join('');
+    const tech = (v.tech || []).map(t => `<li>${escapeHtml(t)}</li>`).join('');
+    return `
+      ${idx > 0 ? '<hr class="ver-divider">' : ''}
+      <div class="ver-block">
+        <div class="ver-head">
+          <span class="ver-num${idx > 0 ? ' old' : ''}">${escapeHtml(v.version)}</span>
+          <span class="ver-date">${escapeHtml(v.date)}</span>
+        </div>
+        <div class="ver-title">${escapeHtml(v.title)}</div>
+        <p class="ver-intro">${escapeHtml(v.intro)}</p>
+        ${hl}
+        ${tech ? `<details class="ver-tech"><summary>技术明细(给好奇的同学)</summary><ul>${tech}</ul></details>` : ''}
+      </div>`;
+  }).join('');
+  $('versionBody').innerHTML = html;
+}
+function openVersionModal() {
+  renderVersionBody();
+  $('versionModal').classList.add('show');
+  try { localStorage.setItem(SEEN_VERSION_KEY, APP_VERSION); } catch (_) {}
+}
+function closeVersionModal(e) {
+  if (e && e.target.id !== 'versionModal' && e.type === 'click' && e.target.closest('.ver-modal-card')) return;
+  $('versionModal').classList.remove('show');
+}
+window.openVersionModal = openVersionModal;
+window.closeVersionModal = closeVersionModal;
+
+function maybeShowVersionModal() {
+  let seen = '';
+  try { seen = localStorage.getItem(SEEN_VERSION_KEY); } catch (_) {}
+  if (seen !== APP_VERSION) {
+    // 用户没看过当前版本,登录进门户时自动弹一次
+    setTimeout(openVersionModal, 500);
+  }
+}
 
 // 启动
 route();

@@ -320,6 +320,18 @@ def get_stats(action_filter=None):
                 ).fetchall()
             ], key=lambda x: -x['count'])
 
+            # Top 问题(只对 qa 应用有意义,其它情况会返回空列表)
+            # 取 details_json.question 文本,按完全一致聚合,Top 30
+            by_question = [
+                {'key': r[0], 'count': r[1]}
+                for r in conn.execute(
+                    "SELECT json_extract(details_json, '$.question') AS q, COUNT(*) c "
+                    f"FROM events WHERE q IS NOT NULL AND q != '' {and_where} "
+                    "GROUP BY q ORDER BY c DESC LIMIT 30",
+                    base_params,
+                ).fetchall()
+            ]
+
             # 小时分布(0-23)用于热力图
             by_hour = [
                 {'key': r[0], 'count': r[1]}
@@ -329,6 +341,7 @@ def get_stats(action_filter=None):
                     base_params,
                 ).fetchall()
             ]
+
         finally:
             conn.close()
 
@@ -343,6 +356,7 @@ def get_stats(action_filter=None):
             'by_copy_type': by_copy_type,
             'by_hour': by_hour,
             'by_daily': by_daily,
+            'by_question': by_question,
             'recent': get_recent_logs(200, action_filter=action_filter),
         }
     except Exception as e:

@@ -274,25 +274,55 @@
     display: none;
   }
   .login-error.show { display: block; }
-  /* ── 顶部用户栏 ── */
-  .user-bar {
-    display: flex; align-items: center; gap: 10px;
-    background: white; padding: 10px 20px;
+  /* ── 顶部页眉(统一 topbar)── */
+  .topbar {
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
     border-bottom: 1px solid var(--border);
-    font-size: 13px;
-    position: sticky; top: 0; z-index: 100;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
   }
-  .user-bar .user-info { flex: 1; color: var(--text); font-weight: 500; }
-  .user-bar button {
-    padding: 6px 12px; border: 1px solid var(--border);
-    border-radius: 16px; background: white; cursor: pointer; font-size: 12px;
+  .topbar h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
   }
-  .user-bar button:hover { background: #f5f5f5; }
-  .user-bar .user-logout { color: var(--muted); }
-  .user-bar .user-admin {
-    background: linear-gradient(135deg, #fde68a, #fbbf24);
-    border-color: #fbbf24; color: #78350f; font-weight: 600;
+  .topbar-spacer { flex: 1; }
+  .topbar-me {
+    color: var(--muted);
+    font-size: 12.5px;
   }
+  .topbar-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    background: white;
+    border-radius: 7px;
+    font-size: 12.5px;
+    cursor: pointer;
+    color: #595959;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .topbar-btn:hover {
+    background: var(--primary-light);
+    border-color: var(--border);
+    color: var(--text);
+  }
+  /* 兼容:让旧的 user-bar / user-info / user-admin 仍可工作但走 topbar 样式 */
+  .user-bar { display: none !important; }
   /* ── 模态框(历史 / 管理员)── */
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.5);
@@ -724,20 +754,22 @@
   </div>
 </div>
 
-<!-- 顶部用户栏 -->
-<div class="user-bar" id="userBar" style="display:none">
-  <span class="user-info" id="userInfoLabel"></span>
-  <button class="user-history" id="userHistoryBtn" onclick="openHistoryModal()">📂 历史记录</button>
-  <button class="user-portal" onclick="location.href='/'" title="返回工作台">🏠 工作台</button>
-  <button class="user-admin" id="userAdminBtn" onclick="window.open('/admin.html','_blank')" style="display:none">🛡️ 管理员后台</button>
-  <button class="user-logout" onclick="logout()">退出</button>
+<!-- 统一 topbar(与 qa.html / admin.html 一致)-->
+<div class="topbar" id="userBar" style="display:none">
+  <h1>小红书文案生成助手</h1>
+  <div class="topbar-spacer"></div>
+  <span class="topbar-me" id="userInfoLabel"></span>
+  <button class="topbar-btn" id="userHistoryBtn" onclick="openHistoryModal()">历史记录</button>
+  <button class="topbar-btn" id="userAdminBtn" onclick="window.open('/admin.html','_blank')" style="display:none">管理员后台</button>
+  <a class="topbar-btn" href="/">返回工作台</a>
+  <button class="topbar-btn" onclick="logout()">退出</button>
 </div>
 
 <!-- 历史记录弹窗 -->
 <div class="modal-overlay" id="historyModal" onclick="closeHistoryModal(event)">
   <div class="modal-card" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <h2>📂 我的历史记录</h2>
+      <h2>我的历史记录</h2>
       <button class="modal-close" onclick="closeHistoryModal()">×</button>
     </div>
     <div class="modal-body" id="historyBody"></div>
@@ -748,32 +780,14 @@
 <div class="modal-overlay" id="adminModal" onclick="closeAdminPanel(event)">
   <div class="modal-card" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <h2>🛡️ 管理员后台</h2>
+      <h2>管理员后台</h2>
       <button class="modal-close" onclick="closeAdminPanel()">×</button>
     </div>
     <div class="modal-body" id="adminBody"></div>
   </div>
 </div>
 
-<!-- 版本更新公告弹窗 -->
-<div class="modal-overlay" id="versionModal" onclick="closeVersionModal(event)">
-  <div class="modal-card" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <h2>🎉 更新公告</h2>
-      <button class="modal-close" onclick="closeVersionModal()">×</button>
-    </div>
-    <div class="modal-body" id="versionBody"></div>
-  </div>
-</div>
-
 <div class="container">
-
-  <header>
-    <h1>小红书<span>文案生成</span>助手</h1>
-    <p>选产品 · 选类型 · 一键生成 · 复制即用
-      <button class="version-badge" id="versionBadge" onclick="openVersionModal()">🎉 v2.0 新</button>
-    </p>
-  </header>
 
   <div class="card">
     <div class="form-row">
@@ -814,7 +828,6 @@
   <div class="card result-section" id="coverResultSection">
     <!-- AI 封面生成结果(3 张图) -->
   </div>
-
 
 </div>
 
@@ -938,7 +951,7 @@ async function generate() {
     });
     const data = await resp.json();
     if (!resp.ok || data.error) {
-      resultEl.innerHTML = `<div class="error">⚠️ 生成失败:${data.error || '未知错误'}</div>`;
+      resultEl.innerHTML = `<div class="error">生成失败:${data.error || '未知错误'}</div>`;
       return;
     }
     lastGenContext = {
@@ -952,7 +965,7 @@ async function generate() {
     };
     renderResult(data);
   } catch (e) {
-    resultEl.innerHTML = `<div class="error">⚠️ 网络错误:${e.message}</div>`;
+    resultEl.innerHTML = `<div class="error">网络错误:${e.message}</div>`;
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = '一键生成文案';
@@ -989,7 +1002,7 @@ function renderResult(data) {
 
   resultEl.innerHTML = `
     <div class="section-title">
-      📌 标题(5 选 1,点击复制)
+      标题(5 选 1,点击复制)
       <button class="copy-btn" onclick='copyAll()'>复制全文</button>
     </div>
     <ul class="title-list">
@@ -1002,13 +1015,13 @@ function renderResult(data) {
     </ul>
 
     <div class="section-title">
-      📝 正文
+      正文
       <button class="copy-btn" onclick='copy(${JSON.stringify(body)})'>复制正文</button>
     </div>
     <div class="body-box">${escapeHtml(body)}</div>
 
     <div class="section-title">
-      🏷️ 话题标签
+      话题标签
       <button class="copy-btn" onclick='copy(${JSON.stringify(tagsText)})'>复制标签</button>
     </div>
     <div class="tags-box">
@@ -1017,10 +1030,10 @@ function renderResult(data) {
 
     <div class="result-actions">
       <button class="submit-btn ghost" onclick='document.getElementById("submit").click()'>
-        🔄 重新生成一版
+        重新生成一版
       </button>
       <button class="submit-btn" onclick='openCoverPanel()'>
-        🎨 生成封面图
+        生成封面图
       </button>
     </div>
   `;
@@ -1043,130 +1056,7 @@ window.copy = copy;
 // ─────────── 登录 / 用户系统 ───────────
 const USER_KEY = 'xhsAgent:user';
 const HISTORY_KEY = 'xhsAgent:history';
-const SEEN_VERSION_KEY = 'xhsAgent:seenVersion';
 
-// ─────────── 版本更新公告 ───────────
-const APP_VERSION = 'v2.0';
-const CHANGELOG = [
-  {
-    version: 'v2.0',
-    date: '2026-06-03',
-    title: '🚀 销售助手大升级 — 新增问答助手 + 工作台门户',
-    intro: '这次是大版本升级,我们把工具从单一文案生成,扩成完整的「乔山销售助手」。最大的新功能是「售前问答助手」——业务现场被客户问参数、问保养、问售后,直接选产品发问,AI 基于说明书 + 卖点资料严格回答,还附带销售话术建议。',
-    highlights: [
-      { icon: '💬', title: '新增「售前问答助手」', desc: '24 款产品的说明书、单页、卖点资料全部 OCR 入库,选产品 + 提问就秒得答案。严格基于资料回答,资料里没有就明说没有,绝不瞎编。' },
-      { icon: '🏠', title: '工作台门户上线', desc: '登录后看到 2 张大卡片——「问答助手」和「文案生成」自由切换。以后再加新功能也是在这里添入口。' },
-      { icon: '🔐', title: '登录加身份证后 6 位', desc: '工号 + 身份证后 6 位双因子,业务自己的账号自己管,防止误登他人账号。导入了乔山 KOS 全员 73 人名单。' },
-      { icon: '💡', title: '问答自动生成销售话术', desc: '回答主问题后,AI 还会自动出一段「销售话术指引」——比如客户问尺寸,话术会建议你提折叠功能、推荐户型;客户问保养,话术会强调维护简单降低顾虑。直接复制发给客户。' },
-      { icon: '📞', title: '售后热线 / 保修期智能兜底', desc: '问到售后、维修、保养、配件,自动追加 4000480500 热线;问到保修期但资料没写,自动按品牌政策回「整机一年 + 主体框架十年」并附热线。' },
-      { icon: '📊', title: '管理后台按应用分维度', desc: '顶部 3 个 tab(全部 / 文案 / 问答)分别看每个应用的使用情况,失败率 / 用户榜 / 产品热度都跟着切换。' },
-      { icon: '📱', title: '手机端全面适配', desc: '门户、问答、管理后台三个新页面都做了移动端优化,业务一线在手机上用也舒服。' },
-    ],
-    tech: [
-      '产品资料 OCR 入库:65 PDF + 24 docx,共 1146 页 / 110 万字,豆包视觉 OCR 总成本 ¥5.61',
-      '问答 grounding 三层防幻觉:智能选段(卖点 docx 全选 + 单页 + 说明书按问题关键词打分 Top 12 页) + 强 prompt + temperature 0.1',
-      '问答上下文预算:每次最多 24000 字符,自动避免 DeepSeek context 溢出',
-      'API 端点新增:GET /api/qa?action=products(产品列表)、POST /api/qa(问答)',
-      '前端新增:/portal.html(门户)、/qa.html(问答)',
-      '后端 schema 扩展:manuals(逐页内容索引)、manuals_files(已处理文件登记,断点续传)',
-      '管理后台聚合层加 action_filter 支持,从 SQL WHERE IN 走过滤,所有维度统一',
-      '前端门户用 backdrop-filter 毛玻璃 + Linear/Vercel 风格高级感配色',
-      '移动端:iOS 防自动缩放(input font-size 16px)+ touch target ≥44px + 顶栏 flex-wrap 自适应',
-      '导出 / 导入 manuals 工具:scripts/export_manuals.py + scripts/import_manuals.py(SQLite ATTACH 增量合并)',
-    ],
-  },
-  {
-    version: 'v1.10',
-    date: '2026-05-21',
-    title: '产品库扩充 · 封面更稳 · 数据本地化',
-    intro: '这次更新让产品更全、封面更可靠、系统更省心,核心是把"封面别乱改产品图"和"少点几下"做到位。',
-    highlights: [
-      { icon: '📦', title: '产品库扩充到 25 款', desc: '新增「十字星 Schwinn」品牌,乔山补齐 11 款产品卖点,现在 25 款产品都能一键出文案。' },
-      { icon: '🎯', title: '封面风格自动匹配', desc: '不用再手动选封面风格了——选了文案类型,系统自动配最搭的封面调性,少点一步。' },
-      { icon: '🖼️', title: '封面款式翻倍(30 套)', desc: '从 15 套版式扩到 30 套配色,一次生成 3 张张张不重样,挑选空间更大。' },
-      { icon: '🛡️', title: '封面不再乱改产品图', desc: '产品细节、logo、角度原样保留,不再被 AI 改变形;生成失败会自动重试一次,3 张更稳。' },
-      { icon: '✂️', title: '文案类型精简为 4 类', desc: '聚焦最常用的 种草 / 场景 / 干货 / 促销,选起来更快。' },
-    ],
-    tech: [
-      '产品库:25 个 SKU(乔山 15 + 搏飞 9 + 十字星 1),全部结构化卖点 docx',
-      '封面 prompt 重写:强制锁定原图(禁止改产品 / logo / 角度),删除诱导重画的配色构图描述',
-      '封面禁止 AI 渲染品牌 logo / 型号字 / 英文水印(易出错)',
-      '封面风格自动映射:文案类型 → 封面风格池(种草·场景→种草氛围,干货→干货教程,促销→促销爆款)',
-      '封面模板池 15 → 30(每套版式 +1 配色变体)',
-      '封面接口超时 55s → 90s,快速失败自动换 seed 重试 1 次',
-      '文案类型 6 → 4(下线 生活 / 封面金句)',
-      '用量数据从 Upstash 迁移到本地 SQLite,数据全本地化 + 每日自动备份',
-    ],
-  },
-  {
-    version: 'v1.0',
-    date: '2026-05',
-    title: '首个版本上线',
-    intro: '小红书文案生成助手正式上线,业务团队可以自助生成文案和封面,告别求人写稿。',
-    highlights: [
-      { icon: '✍️', title: '一键生成小红书文案', desc: '选品牌、选产品、选文案类型,AI 自动产出标题、正文、话题标签,复制即用。' },
-      { icon: '🎨', title: 'AI 封面生成', desc: '上传产品照,自动生成小红书风格封面图。' },
-      { icon: '🔑', title: '工号登录 + 历史记录', desc: '部门 / 姓名 / 工号登录,生成记录自动留档,随时回看。' },
-      { icon: '📊', title: '管理员用量后台', desc: '管理员可查看各部门、各成员的使用情况。' },
-    ],
-    tech: [
-      'DeepSeek 文案生成 + 豆包 Seedream 封面生成',
-      '产品库:乔山 Johnson + 搏飞 BowFlex',
-      '用户白名单登录 + 用量统计',
-      '部署:Vercel Serverless(后迁移到腾讯云 Lighthouse 自托管)',
-    ],
-  },
-];
-
-function renderVersionBody() {
-  const html = CHANGELOG.map((v, idx) => {
-    const hl = (v.highlights || []).map(h => `
-      <div class="ver-hl">
-        <div class="ver-hl-icon">${h.icon || '•'}</div>
-        <div class="ver-hl-body">
-          <div class="ver-hl-title">${escapeHtml(h.title)}</div>
-          <div class="ver-hl-desc">${escapeHtml(h.desc)}</div>
-        </div>
-      </div>`).join('');
-    const tech = (v.tech || []).map(t => `<li>${escapeHtml(t)}</li>`).join('');
-    return `
-      ${idx > 0 ? '<hr class="ver-divider">' : ''}
-      <div class="ver-block">
-        <div class="ver-head">
-          <span class="ver-num${idx > 0 ? ' old' : ''}">${escapeHtml(v.version)}</span>
-          <span class="ver-date">${escapeHtml(v.date)}</span>
-        </div>
-        <div class="ver-title">${escapeHtml(v.title)}</div>
-        <p class="ver-intro">${escapeHtml(v.intro)}</p>
-        ${hl}
-        ${tech ? `<details class="ver-tech"><summary>技术明细(给好奇的同学)</summary><ul>${tech}</ul></details>` : ''}
-      </div>`;
-  }).join('');
-  $('versionBody').innerHTML = html;
-}
-
-function openVersionModal() {
-  renderVersionBody();
-  $('versionModal').classList.add('show');
-  // 看过就记下当前版本号,下次不再自动弹
-  try { localStorage.setItem(SEEN_VERSION_KEY, APP_VERSION); } catch (_) {}
-}
-window.openVersionModal = openVersionModal;
-
-function closeVersionModal(e) {
-  if (e && e.target.id !== 'versionModal' && e.target.classList && !e.target.classList.contains('modal-close')) return;
-  $('versionModal').classList.remove('show');
-}
-window.closeVersionModal = closeVersionModal;
-
-function maybeShowVersionModal() {
-  let seen = null;
-  try { seen = localStorage.getItem(SEEN_VERSION_KEY); } catch (_) {}
-  if (seen !== APP_VERSION) {
-    // 登录后稍微延迟弹,体验更顺
-    setTimeout(openVersionModal, 600);
-  }
-}
 let currentUser = null;       // {department, name, emp_id, is_admin}
 let usersByDept = {};         // {dept: [{name}]} 给登录下拉用
 
@@ -1175,12 +1065,17 @@ function getCurrentUser() {
   catch (_) { return null; }
 }
 
+// 24h 会话有效期,过期强制跳门户重登
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
 async function initAuth() {
   currentUser = getCurrentUser();
-  if (currentUser && currentUser.emp_id) {
+  const valid = currentUser && currentUser.emp_id && currentUser.loginAt
+                && (Date.now() - currentUser.loginAt) < SESSION_TTL_MS;
+  if (valid) {
     showApp();
   } else {
-    // 没登录态:跳门户(那边有登录 + 工作台)。不再在主页显示登录卡。
+    if (currentUser) localStorage.removeItem(USER_KEY);
     location.replace('/');
   }
 }
@@ -1213,8 +1108,6 @@ function showApp() {
   if (currentUser.is_admin) $('userAdminBtn').style.display = '';
   // 真正去加载产品
   loadProducts();
-  // 有新版本时首次自动弹更新公告
-  maybeShowVersionModal();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1365,13 +1258,13 @@ async function openAdminPanel() {
     });
     const data = await resp.json();
     if (!resp.ok || data.error) {
-      $('adminBody').innerHTML = `<div class="error">⚠️ ${escapeHtml(data.error || '未知错误')}</div>`;
+      $('adminBody').innerHTML = `<div class="error">${escapeHtml(data.error || '未知错误')}</div>`;
       return;
     }
     if (data.kv_configured === false) {
       $('adminBody').innerHTML = `
         <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:16px;border-radius:6px;font-size:13px;color:#92400e">
-          <strong>⚠️ Vercel KV 还未配置</strong><br><br>
+          <strong>Vercel KV 还未配置</strong><br><br>
           ${escapeHtml(data.message || '')}<br><br>
           配置步骤:
           <ol style="margin:8px 0 0 16px;padding:0">
@@ -1426,7 +1319,7 @@ function renderAdminStats(d) {
     </div>
 
     <!-- 各部门排行 -->
-    <h3 class="admin-h3">📊 部门排行</h3>
+    <h3 class="admin-h3">部门排行</h3>
     <div class="admin-bars">
       ${(d.by_dept || []).map(x => `
         <div class="admin-bar-row">
@@ -1438,7 +1331,7 @@ function renderAdminStats(d) {
     </div>
 
     <!-- 各人排行(top 15)-->
-    <h3 class="admin-h3">👤 个人用量 Top 15</h3>
+    <h3 class="admin-h3">个人用量 Top 15</h3>
     <div class="admin-bars">
       ${(d.by_user || []).slice(0, 15).map(x => `
         <div class="admin-bar-row">
@@ -1450,7 +1343,7 @@ function renderAdminStats(d) {
     </div>
 
     <!-- 各操作类型 -->
-    <h3 class="admin-h3">⚙️ 操作类型分布</h3>
+    <h3 class="admin-h3">操作类型分布</h3>
     <div class="admin-bars">
       ${(d.by_action || []).map(x => `
         <div class="admin-bar-row">
@@ -1463,7 +1356,7 @@ function renderAdminStats(d) {
 
     <!-- 风格偏好 -->
     ${(d.by_style || []).length ? `
-    <h3 class="admin-h3">🎨 封面风格选择分布</h3>
+    <h3 class="admin-h3">封面风格选择分布</h3>
     <div class="admin-bars">
       ${(d.by_style || []).map(x => `
         <div class="admin-bar-row">
@@ -1475,7 +1368,7 @@ function renderAdminStats(d) {
     </div>` : ''}
 
     <!-- 每日趋势(最近 14 天)-->
-    <h3 class="admin-h3">📅 最近 14 天每日操作量</h3>
+    <h3 class="admin-h3">最近 14 天每日操作量</h3>
     <div class="admin-bars">
       ${(d.by_daily || []).slice(0, 14).reverse().map(x => `
         <div class="admin-bar-row">
@@ -1487,7 +1380,7 @@ function renderAdminStats(d) {
     </div>
 
     <!-- 最近活动 -->
-    <h3 class="admin-h3">📝 最近 30 条操作记录</h3>
+    <h3 class="admin-h3">最近 30 条操作记录</h3>
     <div class="admin-recent">
       ${(d.recent || []).slice(0, 30).map(e => `
         <div class="admin-recent-row">
@@ -1546,8 +1439,8 @@ function openCoverPanel() {
   coverSectionEl.classList.add('visible');
   coverSectionEl.innerHTML = `
     <div class="section-title">
-      🎨 生成封面图
-      <button class="ai-import-btn" onclick="aiImportFields()">✨ 一键导入</button>
+      生成封面图
+      <button class="ai-import-btn" onclick="aiImportFields()">一键导入</button>
     </div>
     <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
       上传一张你拍好的产品照,填 3 个文字字段,豆包 AI 会一次生成 3 张候选封面(3:4 比例,无水印)。
@@ -1572,7 +1465,7 @@ function openCoverPanel() {
     <label style="font-size:13px;color:var(--muted);">上传产品照(JPG / PNG,3MB 内,3:4 比例最佳)</label>
     <div id="coverUploadArea">
       <div class="upload-zone" id="uploadZone">
-        <div class="icon">📷</div>
+        <div class="icon">↑</div>
         <div><strong>点击或拖拽图片到这里</strong></div>
         <p class="hint">建议 3:4 比例(如 900x1200 / 1080x1440)</p>
         <input type="file" id="photoInput" accept="image/jpeg,image/png" />
@@ -1622,12 +1515,12 @@ async function aiImportFields() {
     $('subtitle').value = data.subtitle || '';
     $('huaText').value = data.hua_text || '';
     updateGenBtnState();
-    showToast('✓ 已自动填充');
+    showToast('已自动填充');
   } catch (e) {
     showToast('网络错误:' + e.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = '✨ 一键导入';
+    btn.textContent = '一键导入';
   }
 }
 window.aiImportFields = aiImportFields;
@@ -1720,7 +1613,7 @@ function removeCoverPhoto() {
   const area = $('coverUploadArea');
   area.innerHTML = `
     <div class="upload-zone" id="uploadZone">
-      <div class="icon">📷</div>
+      <div class="icon">↑</div>
       <div><strong>点击或拖拽图片到这里</strong></div>
       <p class="hint">建议 3:4 比例(如 900x1200 / 1080x1440)</p>
       <input type="file" id="photoInput" accept="image/jpeg,image/png" />
@@ -1737,7 +1630,7 @@ function updateGenBtnState() {
   const main = ($('mainTitle')?.value || '').trim();
   if (coverPhotoBase64 && main) {
     btn.disabled = false;
-    btn.textContent = '✨ 生成 3 张候选封面';
+    btn.textContent = '生成 3 张候选封面';
   } else {
     btn.disabled = true;
     if (!coverPhotoBase64) btn.textContent = '请先上传产品照';
@@ -1778,14 +1671,14 @@ async function generateCovers() {
       status.innerHTML = '失败:' + escapeHtml(data.error || '未知错误') +
         (data.details ? '<br><small>' + escapeHtml(JSON.stringify(data.details)) + '</small>' : '');
       btn.disabled = false;
-      btn.textContent = '🔁 重试';
+      btn.textContent = '重试';
       return;
     }
 
     const images = data.images || [];
     const errs = data.errors || [];
 
-    let statusMsg = `✅ 成功生成 ${images.length} 张`;
+    let statusMsg = `成功生成 ${images.length} 张`;
     if (errs.length) statusMsg += `,${errs.length} 张失败(已忽略)`;
     status.className = 'cover-status success show';
     status.textContent = statusMsg;
@@ -1806,12 +1699,12 @@ async function generateCovers() {
 
     renderCoverResults(images);
     btn.disabled = false;
-    btn.textContent = '🔁 再生成 3 张';
+    btn.textContent = '再生成 3 张';
   } catch (e) {
     status.className = 'cover-status error show';
     status.textContent = '网络错误: ' + e.message;
     btn.disabled = false;
-    btn.textContent = '🔁 重试';
+    btn.textContent = '重试';
   }
 }
 
@@ -1819,23 +1712,23 @@ function renderCoverResults(images) {
   if (!images.length) return;
   coverResultEl.classList.add('visible');
   coverResultEl.innerHTML = `
-    <div class="section-title">🖼️ 生成结果(点缩略图看大图,点"下载"保存)</div>
+    <div class="section-title">生成结果(点缩略图看大图,点"下载"保存)</div>
     <div class="cover-results">
       ${images.map((url, i) => `
         <div class="cover-result-card">
           <img src="${escapeHtml(url)}" alt="封面候选 ${i+1}" onclick="openLightbox('${escapeHtml(url)}')" />
           <div class="actions">
-            <a href="${escapeHtml(url)}" download="cover_${i+1}.png" target="_blank">⬇ 下载</a>
-            <a href="${escapeHtml(url)}" target="_blank">🔍 大图</a>
+            <a href="${escapeHtml(url)}" download="cover_${i+1}.png" target="_blank">下载</a>
+            <a href="${escapeHtml(url)}" target="_blank">查看大图</a>
           </div>
         </div>
       `).join('')}
     </div>
     <p style="color:var(--muted);font-size:12px;margin:14px 0 0;">
-      💡 AI 生图对中文文字识别仍不完美,可能出现错字。如果 3 张都不理想,点上方"再生成 3 张"重试。
+      AI 生图对中文文字识别仍不完美,可能出现错字。如果 3 张都不理想,点上方"再生成 3 张"重试。
     </p>
     <button class="submit-btn ghost" style="margin-top:14px" onclick="openHistoryModal()">
-      📂 查看全部生成结果
+      查看全部生成结果
     </button>
   `;
   coverResultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });

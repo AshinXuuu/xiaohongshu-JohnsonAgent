@@ -150,17 +150,20 @@
     /* 输入框 + 按钮在手机上竖排,按钮全宽更好点 */
     .ask-row {
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
     }
     .ask-input {
-      font-size: 16px; /* 16px 防 iOS 缩放 */
-      padding: 11px 12px;
-      min-height: 48px;
+      font-size: 16px;        /* iOS 防自动放大 */
+      padding: 12px 14px;
+      min-height: 88px;        /* 移动端给 3 行高度,看着不会太矮 */
+      max-height: 200px;
+      line-height: 1.6;
     }
     .ask-btn {
-      padding: 12px;
-      font-size: 14.5px;
+      padding: 14px;
+      font-size: 15px;
       width: 100%;
+      min-height: 48px;        /* 拇指更容易点中 */
     }
 
     /* 问答历史 */
@@ -249,16 +252,19 @@
   }
   .ask-input {
     flex: 1;
-    padding: 11px 14px;
+    padding: 12px 14px;
     border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 14px;
+    line-height: 1.55;
     background: white;
     font-family: inherit;
     color: var(--text);
     resize: none;
-    min-height: 44px;
-    transition: all 0.15s;
+    min-height: 48px;
+    max-height: 160px;
+    overflow-y: auto;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
   .ask-input:focus {
     outline: none;
@@ -277,6 +283,7 @@
     transition: all 0.15s;
     white-space: nowrap;
     font-family: inherit;
+    flex-shrink: 0;
   }
   .ask-btn:hover { background: var(--primary-hover); }
   .ask-btn:disabled {
@@ -330,6 +337,7 @@
   }
   .qa-a {
     padding: 16px 18px 14px;
+    position: relative;
   }
   .qa-a .text {
     white-space: pre-wrap;
@@ -339,6 +347,32 @@
     word-break: break-word;
   }
   .qa-a .text strong { color: var(--text); font-weight: 600; }
+  /* 一键复制按钮 */
+  .qa-copy {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    padding: 5px 11px;
+    border: 1px solid var(--border);
+    background: white;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-soft);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    font-weight: 500;
+  }
+  .qa-copy:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .qa-copy.copied {
+    background: var(--success-soft);
+    border-color: var(--success);
+    color: var(--success);
+  }
   .qa-loading {
     display: flex;
     align-items: center;
@@ -409,10 +443,11 @@
 <body>
 
 <div class="topbar">
-  <h1>💬 售前问答 <span class="badge">基于产品资料</span></h1>
+  <h1>售前问答</h1>
   <div class="spacer"></div>
   <span class="me" id="meLabel"></span>
-  <a class="btn" href="/">← 返回首页</a>
+  <a class="btn" href="/">返回工作台</a>
+  <button class="btn" onclick="logout()">退出</button>
 </div>
 
 <div class="container" id="main">
@@ -435,7 +470,7 @@
     <div class="card-title" id="askCardTitle">第二步:问问题</div>
     <div class="faq-chips" id="faqChips"></div>
     <div class="ask-row">
-      <textarea class="ask-input" id="questionInput" placeholder="输入问题,比如:跑带宽是多少?最大承重是多少?适合什么人群?" rows="1"></textarea>
+      <textarea class="ask-input" id="questionInput" placeholder="输入问题(如:跑带多宽?最大承重?适合什么人群?)" rows="2"></textarea>
       <button class="ask-btn" id="askBtn" onclick="submitQuestion()">提问</button>
     </div>
   </div>
@@ -463,6 +498,31 @@ function getMe() {
   try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); }
   catch (_) { return null; }
 }
+async function copyAnswer(btn) {
+  const text = btn.getAttribute('data-text') || '';
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      // 降级:iOS Safari 老版本兼容
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+    }
+    const orig = btn.textContent;
+    btn.classList.add('copied');
+    btn.textContent = '已复制';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.textContent = orig;
+    }, 1500);
+  } catch (e) {
+    alert('复制失败: ' + e.message);
+  }
+}
+window.copyAnswer = copyAnswer;
+
 function splitAnswer(answer) {
   // 把回答按「销售建议:」/「销售建议：」/「销售建议」拆成主回答 + 话术
   if (!answer) return { main: '', pitch: '' };
@@ -479,9 +539,12 @@ function escapeHtml(s) {
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// ── 鉴权:未登录直接跳门户 ──
+// ── 鉴权:未登录或会话过期(>24h)直接跳门户重新登录 ──
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const me = getMe();
-if (!me) {
+const sessionValid = me && me.emp_id && me.loginAt && (Date.now() - me.loginAt) < SESSION_TTL_MS;
+if (!sessionValid) {
+  if (me) localStorage.removeItem(USER_KEY);
   location.replace('/');
 } else {
   $('meLabel').textContent = `${me.department} · ${me.name}`;
@@ -541,12 +604,12 @@ function onProductChange() {
   const info = (productMap[brand] || []).find(p => p.name === product);
   if (info) {
     $('productStatus').innerHTML =
-      `<span class="ok">✓ 资料就绪</span> · 共 ${info.chunks} 段,${(info.chars/1000).toFixed(1)}k 字`;
+      `<span class="ok">资料就绪</span> · 共 ${info.chunks} 段,${(info.chars/1000).toFixed(1)}k 字`;
   }
   $('askCard').style.display = '';
-  $('askCardTitle').textContent = `第二步:问关于「${product}」的问题`;
+  $('askCardTitle').textContent = `问关于「${product}」的问题`;
   renderFaqChips();
-  $('questionInput').focus();
+  // 不自动 focus(移动端会弹起键盘干扰);用户点击输入框时再弹
 }
 
 function renderFaqChips() {
@@ -598,22 +661,30 @@ async function submitQuestion() {
     const resp = await fetch('/api/qa', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({brand, product, question})
+      // 必须带 _user,否则管理后台明细里用户会显示「未知」
+      body: JSON.stringify({
+        brand, product, question,
+        _user: { department: me.department, name: me.name, emp_id: me.emp_id },
+      })
     });
     const data = await resp.json();
     const aBox = item.querySelector('.qa-a');
     if (!resp.ok || data.error) {
-      aBox.innerHTML = `<div class="no-data">⚠ ${escapeHtml(data.error || '请求失败')}</div>`;
+      aBox.innerHTML = `<div class="no-data">${escapeHtml(data.error || '请求失败')}</div>`;
     } else if (data.no_data) {
       aBox.innerHTML = `<div class="no-data">${escapeHtml(data.answer)}</div>`;
     } else {
-      // 分离主回答 vs 销售建议
       const { main, pitch } = splitAnswer(data.answer || '');
-      let html = `<div class="text">${escapeHtml(main)}</div>`;
+      // 给一键复制留一份完整文本(主回答 + 销售建议)
+      const fullForCopy = pitch ? `${main}\n\n销售话术:\n${pitch}` : main;
+      let html = `
+        <button class="qa-copy" data-text="${escapeHtml(fullForCopy)}" onclick="copyAnswer(this)">复制回答</button>
+        <div class="text">${escapeHtml(main)}</div>
+      `;
       if (pitch) {
         html += `
           <div class="sales-tip">
-            <div class="sales-tip-title">💡 销售话术指引</div>
+            <div class="sales-tip-title">销售话术指引</div>
             <div class="sales-tip-body">${escapeHtml(pitch)}</div>
           </div>
         `;
@@ -621,7 +692,7 @@ async function submitQuestion() {
       aBox.innerHTML = html;
     }
   } catch (e) {
-    item.querySelector('.qa-a').innerHTML = `<div class="no-data">⚠ 网络错误:${escapeHtml(e.message)}</div>`;
+    item.querySelector('.qa-a').innerHTML = `<div class="no-data">网络错误:${escapeHtml(e.message)}</div>`;
   } finally {
     askBtn.disabled = false;
     askBtn.textContent = '提问';
