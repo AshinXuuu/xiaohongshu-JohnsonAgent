@@ -220,10 +220,10 @@
   /* ─── 移动端专项 ─── */
   @media (max-width: 600px) {
     body { font-size: 13px; }
-    .topbar { padding: 11px 14px; gap: 8px; flex-wrap: wrap; }
+    .topbar { padding: 12px 16px; gap: 8px; flex-wrap: wrap; }
     .topbar h1 { font-size: 14px; }
     .topbar h1 .badge { font-size: 10px; padding: 1px 6px; }
-    .topbar .meta { font-size: 11px; width: 100%; order: 99; }
+    .topbar .meta { font-size: 11.5px; width: 100%; order: 99; padding-top: 4px; }
     .topbar button, .topbar a.btn { padding: 5px 10px; font-size: 12px; }
 
     .container { padding: 14px 12px; }
@@ -727,7 +727,8 @@ function render(d) {
       <div class="chart-box tall"><canvas id="chartDaily"></canvas></div>
     </div>
 
-    <!-- 第一排:文案类型 / 操作类型 / 风格 -->
+    ${app === 'qa' ? '' : `
+    <!-- 第一排:文案类型 / 操作类型 / 风格 (QA 应用下隐藏) -->
     <div class="row-3">
       <div class="card">
         <div class="card-title">文案类型分布</div>
@@ -741,7 +742,7 @@ function render(d) {
         <div class="card-title">封面风格分布</div>
         <div class="chart-box"><canvas id="chartStyle"></canvas></div>
       </div>
-    </div>
+    </div>`}
 
     <!-- 第二排:品牌 / 时段 -->
     <div class="row-2">
@@ -823,9 +824,12 @@ function render(d) {
 
   // ── 渲染图表 ──
   drawDailyChart(d.by_daily || []);
-  drawDoughnut('chartCopyType', d.by_copy_type || [], copyTypePalette);
-  drawDoughnut('chartAction', mapActionLabel(d.by_action || []), actionPalette);
-  drawDoughnut('chartStyle', d.by_style || [], stylePalette);
+  // QA 应用下整排 3 张图都不渲染
+  if (app !== 'qa') {
+    drawDoughnut('chartCopyType', d.by_copy_type || [], copyTypePalette);
+    drawDoughnut('chartAction', mapActionLabel(d.by_action || []), actionPalette);
+    drawDoughnut('chartStyle', d.by_style || [], stylePalette);
+  }
   drawBarH('chartBrand', d.by_brand || [], 'var(--c-indigo)');
   drawHourChart(d.by_hour || []);
 
