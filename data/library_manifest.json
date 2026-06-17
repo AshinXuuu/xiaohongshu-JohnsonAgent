@@ -1,0 +1,527 @@
+{
+  "generated_from": "产品库",
+  "brands": {
+    "乔山Johnson": [
+      {
+        "name": "专业系列动感单车GR7",
+        "files": [
+          {
+            "name": "GR7单页_画板 1.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/专业系列动感单车GR7/GR7单页_画板 1.pdf",
+            "size": 2823789
+          },
+          {
+            "name": "HZ18_GR7-GR7s IDC OM r1_0.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/专业系列动感单车GR7/HZ18_GR7-GR7s IDC OM r1_0.pdf",
+            "size": 32825537
+          },
+          {
+            "name": "HZ18_GR7-GR7s OM r1_0_C 022324'新.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/专业系列动感单车GR7/HZ18_GR7-GR7s OM r1_0_C 022324'新.pdf",
+            "size": 9646580
+          },
+          {
+            "name": "HZ18_GR7-GR7s OM r1_0_ENG.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/专业系列动感单车GR7/HZ18_GR7-GR7s OM r1_0_ENG.pdf",
+            "size": 4679315
+          }
+        ]
+      },
+      {
+        "name": "入门系列健身车3.0SC",
+        "files": [
+          {
+            "name": "3.0SC单页.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/入门系列健身车3.0SC/3.0SC单页.pdf",
+            "size": 2417357
+          },
+          {
+            "name": "HZ23_3.0SC_OM_r1_0 D 122523_ Print.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/入门系列健身车3.0SC/HZ23_3.0SC_OM_r1_0 D 122523_ Print.pdf",
+            "size": 6805588
+          },
+          {
+            "name": "HZ23_3.0SC_OM_r1_0 ENG.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/入门系列健身车3.0SC/HZ23_3.0SC_OM_r1_0 ENG.pdf",
+            "size": 3596536
+          }
+        ]
+      },
+      {
+        "name": "入门系列椭圆机ANDES3.1",
+        "files": [
+          {
+            "name": "ANDES3.1单页_画板 1.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/入门系列椭圆机ANDES3.1/ANDES3.1单页_画板 1.pdf",
+            "size": 2925574
+          },
+          {
+            "name": "HZ21_Andes 3.1_5.1_7.1 簡中 OG Rev_1.0_C 071621' Print.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/入门系列椭圆机ANDES3.1/HZ21_Andes 3.1_5.1_7.1 簡中 OG Rev_1.0_C 071621' Print.pdf",
+            "size": 1808614
+          },
+          {
+            "name": "HZ21_Andes 3.1_5.1_7.1 ENG.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/入门系列椭圆机ANDES3.1/HZ21_Andes 3.1_5.1_7.1 ENG.pdf",
+            "size": 1156454
+          }
+        ]
+      },
+      {
+        "name": "智能折叠跑步机TX-1",
+        "files": [
+          {
+            "name": "TX-1产品说明书(英文).pdf",
+            "type": "单页",
+            "key": "乔山Johnson/智能折叠跑步机TX-1/TX-1产品说明书(英文).pdf",
+            "size": 839920
+          },
+          {
+            "name": "TX-1单页_画板 1.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/智能折叠跑步机TX-1/TX-1单页_画板 1.pdf",
+            "size": 3223197
+          },
+          {
+            "name": "HZ23_TX-1产品说明书(1).pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/智能折叠跑步机TX-1/HZ23_TX-1产品说明书(1).pdf",
+            "size": 2878812
+          }
+        ]
+      },
+      {
+        "name": "智能系列动感单车5.0IC",
+        "files": [
+          {
+            "name": "5.0IC单页_画板 1.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/智能系列动感单车5.0IC/5.0IC单页_画板 1.pdf",
+            "size": 3854671
+          },
+          {
+            "name": "HZ22_5.0IC-21 OM_r1_0_D CHT_CHS 051222' Print.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/智能系列动感单车5.0IC/HZ22_5.0IC-21 OM_r1_0_D CHT_CHS 051222' Print.pdf",
+            "size": 4944701
+          },
+          {
+            "name": "HZ22_5.0IC-21 OM_r1_0_ENG.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/智能系列动感单车5.0IC/HZ22_5.0IC-21 OM_r1_0_ENG.pdf",
+            "size": 2507086
+          }
+        ]
+      },
+      {
+        "name": "智能系列动感单车7.0IC",
+        "files": [
+          {
+            "name": "7.0IC单页_画板 1.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/智能系列动感单车7.0IC/7.0IC单页_画板 1.pdf",
+            "size": 3298590
+          },
+          {
+            "name": "HZ22_7.0IC-22 OM_r1_1_D CHT_CHS 051122' Print.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/智能系列动感单车7.0IC/HZ22_7.0IC-22 OM_r1_1_D CHT_CHS 051122' Print.pdf",
+            "size": 6193372
+          },
+          {
+            "name": "HZ22_7.0IC-22 OM_r1_1_ENG.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/智能系列动感单车7.0IC/HZ22_7.0IC-22 OM_r1_1_ENG.pdf",
+            "size": 3119241
+          }
+        ]
+      },
+      {
+        "name": "智能系列椭圆机ANDES7.1",
+        "files": [
+          {
+            "name": "ANDES7.1单页_画板 1.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/智能系列椭圆机ANDES7.1/ANDES7.1单页_画板 1.pdf",
+            "size": 3040258
+          },
+          {
+            "name": "HZ21_Andes 3.1_5.1_7.1 簡中 OG Rev_1.0_C 071621' Print.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/智能系列椭圆机ANDES7.1/HZ21_Andes 3.1_5.1_7.1 簡中 OG Rev_1.0_C 071621' Print.pdf",
+            "size": 1808614
+          },
+          {
+            "name": "HZ21_Andes 3.1_5.1_7.1 ENG.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/智能系列椭圆机ANDES7.1/HZ21_Andes 3.1_5.1_7.1 ENG.pdf",
+            "size": 1156454
+          }
+        ]
+      },
+      {
+        "name": "智能系列跑步机7.4AT",
+        "files": [
+          {
+            "name": "7.4AT单页_画板 1.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/智能系列跑步机7.4AT/7.4AT单页_画板 1.pdf",
+            "size": 3317975
+          },
+          {
+            "name": "HZ23_7.4AT_03_OM_r1_0_C 092023'.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/智能系列跑步机7.4AT/HZ23_7.4AT_03_OM_r1_0_C 092023'.pdf",
+            "size": 8662444
+          },
+          {
+            "name": "HZ24_7.4AT-24 OM_r1_0_C 082024' Print (1).pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/智能系列跑步机7.4AT/HZ24_7.4AT-24 OM_r1_0_C 082024' Print (1).pdf",
+            "size": 12092691
+          },
+          {
+            "name": "HZ23_7.4AT_03_OM_r1_0_ENG.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/智能系列跑步机7.4AT/HZ23_7.4AT_03_OM_r1_0_ENG.pdf",
+            "size": 3715945
+          },
+          {
+            "name": "HZ24_7.4AT-24_OM ENGPrint.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/智能系列跑步机7.4AT/HZ24_7.4AT-24_OM ENGPrint.pdf",
+            "size": 6689273
+          }
+        ]
+      },
+      {
+        "name": "智能跑步机TX-5",
+        "files": [
+          {
+            "name": "TX-5跑步机.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/智能跑步机TX-5/TX-5跑步机.pdf",
+            "size": 2959118
+          },
+          {
+            "name": "TX-5说明书.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/智能跑步机TX-5/TX-5说明书.pdf",
+            "size": 57193762
+          }
+        ]
+      },
+      {
+        "name": "智能跑步机TX3",
+        "files": [
+          {
+            "name": "TX3跑步机单页.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/智能跑步机TX3/TX3跑步机单页.pdf",
+            "size": 2652675
+          },
+          {
+            "name": "JS26_跑步机TX3说明书.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/智能跑步机TX3/JS26_跑步机TX3说明书.pdf",
+            "size": 34192884
+          }
+        ]
+      },
+      {
+        "name": "进阶系列卧式单车5.0R",
+        "files": [
+          {
+            "name": "5.0R单页_画板 1.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/进阶系列卧式单车5.0R/5.0R单页_画板 1.pdf",
+            "size": 3146429
+          },
+          {
+            "name": "HZ23_5.0R-21_OM_r1_1_D 111623' Print.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/进阶系列卧式单车5.0R/HZ23_5.0R-21_OM_r1_1_D 111623' Print.pdf",
+            "size": 7996949
+          },
+          {
+            "name": "HZ23_5.0R-21_OM_r1_1_ENG.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/进阶系列卧式单车5.0R/HZ23_5.0R-21_OM_r1_1_ENG.pdf",
+            "size": 14071935
+          }
+        ]
+      },
+      {
+        "name": "进阶系列跑步机 5.0AT",
+        "files": [
+          {
+            "name": "进阶系列跑步机5.0AT.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/进阶系列跑步机 5.0AT/进阶系列跑步机5.0AT.pdf",
+            "size": 2915965
+          },
+          {
+            "name": "HZ24_5.0AT-21_OM Print.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/进阶系列跑步机 5.0AT/HZ24_5.0AT-21_OM Print.pdf",
+            "size": 7007256
+          },
+          {
+            "name": "HZ24_5.0AT-21_OM ENG.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/进阶系列跑步机 5.0AT/HZ24_5.0AT-21_OM ENG.pdf",
+            "size": 3326177
+          }
+        ]
+      },
+      {
+        "name": "进阶系列跑步机T101",
+        "files": [
+          {
+            "name": "T101-27单页_画板 1.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/进阶系列跑步机T101/T101-27单页_画板 1.pdf",
+            "size": 1232100
+          },
+          {
+            "name": "HZ21_T101-27 OM_r1_1_D 111623' Print.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/进阶系列跑步机T101/HZ21_T101-27 OM_r1_1_D 111623' Print.pdf",
+            "size": 2733770
+          },
+          {
+            "name": "HZ21_T101 OM_r1_1_ENG.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/进阶系列跑步机T101/HZ21_T101 OM_r1_1_ENG.pdf",
+            "size": 2258143
+          }
+        ]
+      },
+      {
+        "name": "进阶系列跑步机T202",
+        "files": [
+          {
+            "name": "T202-26单页_画板 1.pdf",
+            "type": "单页",
+            "key": "乔山Johnson/进阶系列跑步机T202/T202-26单页_画板 1.pdf",
+            "size": 1287825
+          },
+          {
+            "name": "HZ21_T202-26 OM_r1_1_D 111623' Print.pdf",
+            "type": "中文说明书",
+            "key": "乔山Johnson/进阶系列跑步机T202/HZ21_T202-26 OM_r1_1_D 111623' Print.pdf",
+            "size": 3029389
+          },
+          {
+            "name": "HZ21_T202-26 OM_r1_1_ENG.pdf",
+            "type": "英文说明书",
+            "key": "乔山Johnson/进阶系列跑步机T202/HZ21_T202-26 OM_r1_1_ENG.pdf",
+            "size": 1267464
+          }
+        ]
+      }
+    ],
+    "十字星Schwinn": [
+      {
+        "name": "风阻单车AD6i",
+        "files": [
+          {
+            "name": "AD6i风阻单车单页_画板 1.pdf",
+            "type": "单页",
+            "key": "十字星Schwinn/风阻单车AD6i/AD6i风阻单车单页_画板 1.pdf",
+            "size": 3097228
+          }
+        ]
+      }
+    ],
+    "搏飞BowFlex": [
+      {
+        "name": "可收纳训练凳5.1S",
+        "files": [
+          {
+            "name": "可收纳训练凳5.1S.pdf",
+            "type": "单页",
+            "key": "搏飞BowFlex/可收纳训练凳5.1S/可收纳训练凳5.1S.pdf",
+            "size": 1192094
+          },
+          {
+            "name": "BFX24_5.1S Bench A4 OM_r1_0_A 012225__Print.pdf",
+            "type": "中文说明书",
+            "key": "搏飞BowFlex/可收纳训练凳5.1S/BFX24_5.1S Bench A4 OM_r1_0_A 012225__Print.pdf",
+            "size": 3054581
+          }
+        ]
+      },
+      {
+        "name": "可调节哑铃52",
+        "files": [
+          {
+            "name": "52哑铃单页.pdf",
+            "type": "单页",
+            "key": "搏飞BowFlex/可调节哑铃52/52哑铃单页.pdf",
+            "size": 1757089
+          },
+          {
+            "name": "BFX24_52-OM_BFW0004001_B_121725' (1).pdf",
+            "type": "中文说明书",
+            "key": "搏飞BowFlex/可调节哑铃52/BFX24_52-OM_BFW0004001_B_121725' (1).pdf",
+            "size": 22144169
+          }
+        ]
+      },
+      {
+        "name": "可调节哑铃552i",
+        "files": [
+          {
+            "name": "可调节哑铃552i.pdf",
+            "type": "单页",
+            "key": "搏飞BowFlex/可调节哑铃552i/可调节哑铃552i.pdf",
+            "size": 2320054
+          },
+          {
+            "name": "BFX24_552i Dumbbell A4 OM_r1_0_A_012225__Print.pdf",
+            "type": "中文说明书",
+            "key": "搏飞BowFlex/可调节哑铃552i/BFX24_552i Dumbbell A4 OM_r1_0_A_012225__Print.pdf",
+            "size": 1574870
+          }
+        ]
+      },
+      {
+        "name": "可调节哑铃专用收纳架",
+        "files": [
+          {
+            "name": "可调节哑铃专用收纳架.pdf",
+            "type": "单页",
+            "key": "搏飞BowFlex/可调节哑铃专用收纳架/可调节哑铃专用收纳架.pdf",
+            "size": 1106501
+          },
+          {
+            "name": "BFX24_DB Stand A4 OM_r1_0_A 012225__Print.pdf",
+            "type": "中文说明书",
+            "key": "搏飞BowFlex/可调节哑铃专用收纳架/BFX24_DB Stand A4 OM_r1_0_A 012225__Print.pdf",
+            "size": 1498224
+          }
+        ]
+      },
+      {
+        "name": "可调节壶铃840",
+        "files": [
+          {
+            "name": "可调节壶铃.pdf",
+            "type": "单页",
+            "key": "搏飞BowFlex/可调节壶铃840/可调节壶铃.pdf",
+            "size": 2356635
+          },
+          {
+            "name": "BFX24_840 Kettlebell A4 OM_r1_0_A 012225__Print.pdf",
+            "type": "中文说明书",
+            "key": "搏飞BowFlex/可调节壶铃840/BFX24_840 Kettlebell A4 OM_r1_0_A 012225__Print.pdf",
+            "size": 936877
+          }
+        ]
+      },
+      {
+        "name": "家庭综合力量站PR1000",
+        "files": [
+          {
+            "name": "家庭综合力量站PR1000.pdf",
+            "type": "单页",
+            "key": "搏飞BowFlex/家庭综合力量站PR1000/家庭综合力量站PR1000.pdf",
+            "size": 2258611
+          },
+          {
+            "name": "BFX.PR1000.global.QuickStart.ZH.pdf",
+            "type": "中文说明书",
+            "key": "搏飞BowFlex/家庭综合力量站PR1000/BFX.PR1000.global.QuickStart.ZH.pdf",
+            "size": 5715186
+          },
+          {
+            "name": "BFX.PR1000.MY17.QSM.EN.pdf",
+            "type": "英文说明书",
+            "key": "搏飞BowFlex/家庭综合力量站PR1000/BFX.PR1000.MY17.QSM.EN.pdf",
+            "size": 5607526
+          }
+        ]
+      },
+      {
+        "name": "家庭综合力量站X",
+        "files": [
+          {
+            "name": "家庭综合力量站X.pdf",
+            "type": "单页",
+            "key": "搏飞BowFlex/家庭综合力量站X/家庭综合力量站X.pdf",
+            "size": 2204037
+          },
+          {
+            "name": "BFX Xtreme 2SE OM.pdf",
+            "type": "中文说明书",
+            "key": "搏飞BowFlex/家庭综合力量站X/BFX Xtreme 2SE OM.pdf",
+            "size": 56460920
+          },
+          {
+            "name": "产品详解.pdf",
+            "type": "中文说明书",
+            "key": "搏飞BowFlex/家庭综合力量站X/产品详解.pdf",
+            "size": 8336019
+          }
+        ]
+      },
+      {
+        "name": "综合踏步登山机M6",
+        "files": [
+          {
+            "name": "综合踏步登山机M6.pdf",
+            "type": "单页",
+            "key": "搏飞BowFlex/综合踏步登山机M6/综合踏步登山机M6.pdf",
+            "size": 2498248
+          },
+          {
+            "name": "BFX24_Max Trainer M6 OM_BEP0002001_B_082525'.pdf",
+            "type": "中文说明书",
+            "key": "搏飞BowFlex/综合踏步登山机M6/BFX24_Max Trainer M6 OM_BEP0002001_B_082525'.pdf",
+            "size": 71730984
+          },
+          {
+            "name": "M6说明书.pdf",
+            "type": "中文说明书",
+            "key": "搏飞BowFlex/综合踏步登山机M6/M6说明书.pdf",
+            "size": 19414157
+          }
+        ]
+      },
+      {
+        "name": "高性能跑步机T6",
+        "files": [
+          {
+            "name": "T6跑步机单页.pdf",
+            "type": "单页",
+            "key": "搏飞BowFlex/高性能跑步机T6/T6跑步机单页.pdf",
+            "size": 1783750
+          },
+          {
+            "name": "T6跑步机说明书+简中20260611.pdf",
+            "type": "中文说明书",
+            "key": "搏飞BowFlex/高性能跑步机T6/T6跑步机说明书+简中20260611.pdf",
+            "size": 59394668
+          },
+          {
+            "name": "BFX T6 Owners Manual_09May025.pdf",
+            "type": "英文说明书",
+            "key": "搏飞BowFlex/高性能跑步机T6/BFX T6 Owners Manual_09May025.pdf",
+            "size": 19988001
+          }
+        ]
+      }
+    ]
+  }
+}

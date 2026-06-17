@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>产品资料库 · 乔山销售助手</title>
+<style>
+  :root {
+    --primary: #1e293b;
+    --primary-soft: #f1f5f9;
+    --bg: #fafaf9;
+    --card: #ffffff;
+    --text: #18181b;
+    --text-soft: #3f3f46;
+    --muted: #71717a;
+    --border: #e4e4e7;
+    --border-soft: #f4f4f5;
+    --shadow: 0 1px 2px rgba(15,23,42,0.04);
+    --shadow-md: 0 4px 12px rgba(15,23,42,0.06);
+    --accent: #0d9488;
+    --accent-soft: #f0fdfa;
+    --accent-strong: #0f766e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "tnum" 1;
+  }
+  .topbar {
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 14px;
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar h1 {
+    margin: 0; font-size: 15px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 10px; letter-spacing: -0.01em;
+  }
+  .topbar h1 .badge {
+    background: var(--accent-soft); color: var(--accent-strong);
+    font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 500;
+  }
+  .topbar .spacer { flex: 1; }
+  .topbar .me { color: var(--muted); font-size: 12.5px; }
+  .topbar a.btn, .topbar button.btn {
+    padding: 6px 12px; border: 1px solid var(--border); background: white;
+    border-radius: 7px; font-size: 12.5px; cursor: pointer; color: var(--text-soft);
+    text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+    font-weight: 500; transition: all 0.15s;
+  }
+  .topbar a.btn:hover, .topbar button.btn:hover { background: var(--primary-soft); color: var(--text); }
+
+  .container { max-width: 920px; margin: 0 auto; padding: 24px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
+  .brand-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .brand-tab {
+    padding: 7px 14px; border: 1px solid var(--border); background: white;
+    border-radius: 999px; font-size: 13px; cursor: pointer; color: var(--text-soft);
+    font-weight: 500; transition: all 0.15s;
+  }
+  .brand-tab:hover { border-color: var(--accent); color: var(--accent-strong); }
+  .brand-tab.active { background: var(--accent); border-color: var(--accent); color: white; }
+  .search {
+    flex: 1; min-width: 180px; padding: 9px 13px; border: 1px solid var(--border);
+    border-radius: 9px; font-size: 16px; outline: none; background: white;
+  }
+  .search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .prod {
+    background: var(--card); border: 1px solid var(--border-soft); border-radius: 12px;
+    box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden;
+  }
+  .prod-head {
+    padding: 14px 18px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .prod-brand {
+    font-size: 11px; color: var(--accent-strong); background: var(--accent-soft);
+    padding: 2px 8px; border-radius: 6px; font-weight: 500;
+  }
+  .prod-name { font-size: 15px; font-weight: 650; color: var(--text); }
+  .prod-count { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+  .file-row {
+    display: flex; align-items: center; gap: 12px; padding: 12px 18px;
+    border-top: 1px solid var(--border-soft);
+  }
+  .file-row:first-child { border-top: none; }
+  .ftype {
+    font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; white-space: nowrap;
+  }
+  .ftype.单页 { background: #eff6ff; color: #1d4ed8; }
+  .ftype.中文说明书 { background: #f0fdf4; color: #15803d; }
+  .ftype.英文说明书 { background: #fef3c7; color: #b45309; }
+  .ftype.其他 { background: var(--primary-soft); color: var(--text-soft); }
+  .fname { flex: 1; font-size: 13px; color: var(--text-soft); word-break: break-all; }
+  .fsize { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .dl-btn {
+    padding: 7px 14px; border: none; border-radius: 8px; background: var(--accent);
+    color: white; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: background 0.15s; min-height: 36px;
+  }
+  .dl-btn:hover { background: var(--accent-strong); }
+  .dl-btn:disabled { opacity: 0.6; cursor: default; }
+
+  .empty, .loading { text-align: center; color: var(--muted); padding: 48px 20px; font-size: 14px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    background: var(--primary); color: white; padding: 10px 18px; border-radius: 10px;
+    font-size: 13px; box-shadow: var(--shadow-md); opacity: 0; pointer-events: none;
+    transition: opacity 0.2s; z-index: 100; max-width: 90vw;
+  }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 640px) {
+    .topbar { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+    .topbar .me { font-size: 11.5px; width: 100%; order: 99; padding-top: 4px; }
+    .container { padding: 16px; }
+    .file-row { flex-wrap: wrap; }
+    .fname { flex-basis: 100%; order: 3; }
+    .dl-btn { margin-left: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>产品资料库 <span class="badge">资料下载</span></h1>
+  <div class="spacer"></div>
+  <span class="me" id="meLabel"></span>
+  <a class="btn" href="/">返回工作台</a>
+  <button class="btn" onclick="logout()">退出</button>
+</div>
+
+<div class="container">
+  <div class="toolbar">
+    <div class="brand-tabs" id="brandTabs"></div>
+    <input class="search" id="search" placeholder="搜产品名,如 TX-5 / 哑铃 / 椭圆机" />
+  </div>
+  <div id="list"><div class="loading">正在加载资料清单...</div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const USER_KEY = 'xhsAgent:user';
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const $ = id => document.getElementById(id);
+
+function getMe() {
+  try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); }
+  catch (_) { return null; }
+}
+function logout() { localStorage.removeItem(USER_KEY); location.replace('/'); }
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function fmtSize(b) {
+  if (!b) return '';
+  if (b < 1024*1024) return (b/1024).toFixed(0) + ' KB';
+  return (b/1024/1024).toFixed(1) + ' MB';
+}
+let toastTimer;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── 鉴权 ──
+const me = getMe();
+const sessionValid = me && me.emp_id && me.loginAt && (Date.now() - me.loginAt) < SESSION_TTL_MS;
+if (!sessionValid) {
+  if (me) localStorage.removeItem(USER_KEY);
+  location.replace('/');
+} else {
+  $('meLabel').textContent = `${me.department} · ${me.name}`;
+}
+
+// ── 状态 ──
+let brandsData = {};   // {brand: [{name, files:[{name,type,key,size}]}]}
+let currentBrand = '全部';
+let keyword = '';
+
+async function load() {
+  try {
+    const resp = await fetch('/api/library');
+    const data = await resp.json();
+    brandsData = data.brands || {};
+    renderTabs();
+    render();
+  } catch (e) {
+    $('list').innerHTML = `<div class="empty">加载失败:${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderTabs() {
+  const brands = ['全部', ...Object.keys(brandsData)];
+  $('brandTabs').innerHTML = brands.map(b =>
+    `<div class="brand-tab ${b === currentBrand ? 'active' : ''}" data-b="${escapeHtml(b)}">${escapeHtml(b)}</div>`
+  ).join('');
+  $('brandTabs').querySelectorAll('.brand-tab').forEach(el => {
+    el.onclick = () => { currentBrand = el.dataset.b; renderTabs(); render(); };
+  });
+}
+
+function render() {
+  const rows = [];
+  for (const [brand, products] of Object.entries(brandsData)) {
+    if (currentBrand !== '全部' && brand !== currentBrand) continue;
+    for (const p of products) {
+      if (keyword && !p.name.toLowerCase().includes(keyword)) continue;
+      rows.push(productHtml(brand, p));
+    }
+  }
+  $('list').innerHTML = rows.length
+    ? rows.join('')
+    : '<div class="empty">没有匹配的产品</div>';
+  $('list').querySelectorAll('.dl-btn').forEach(btn => {
+    btn.onclick = () => download(btn);
+  });
+}
+
+function productHtml(brand, p) {
+  const files = p.files.map(f => `
+    <div class="file-row">
+      <span class="ftype ${escapeHtml(f.type)}">${escapeHtml(f.type || '资料')}</span>
+      <span class="fname">${escapeHtml(f.name)}</span>
+      <span class="fsize">${fmtSize(f.size)}</span>
+      <button class="dl-btn" data-key="${escapeHtml(f.key)}" data-name="${escapeHtml(f.name)}">下载</button>
+    </div>`).join('');
+  return `
+    <div class="prod">
+      <div class="prod-head">
+        <span class="prod-brand">${escapeHtml(brand)}</span>
+        <span class="prod-name">${escapeHtml(p.name)}</span>
+        <span class="prod-count">${p.files.length} 份</span>
+      </div>
+      ${files}
+    </div>`;
+}
+
+async function download(btn) {
+  const key = btn.dataset.key;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '获取中...';
+  try {
+    const resp = await fetch('/api/library', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key,
+        _user: { department: me.department, name: me.name, emp_id: me.emp_id },
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      toast(data.error || '下载失败');
+    } else if (data.url) {
+      // 预签名链接已带 attachment 头,直接跳转即触发下载
+      const a = document.createElement('a');
+      a.href = data.url; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+      toast('开始下载:' + (data.name || ''));
+    }
+  } catch (e) {
+    toast('网络错误:' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+$('search').addEventListener('input', e => { keyword = e.target.value.trim().toLowerCase(); render(); });
+
+if (me) load();
+</script>
+</body>
+</html>
