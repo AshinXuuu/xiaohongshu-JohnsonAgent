@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>小红书文案生成助手</title>
+<link rel="stylesheet" href="/assets/app.css" />
 <style>
   :root {
     --primary: #ff2741;
@@ -760,15 +761,8 @@
   </div>
 </div>
 
-<!-- 统一 topbar(与 qa.html / admin.html 一致)-->
-<div class="topbar" id="userBar" style="display:none">
-  <h1>小红书文案生成助手</h1>
-  <div class="topbar-spacer"></div>
-  <span class="topbar-me" id="userInfoLabel"></span>
-  <button class="topbar-btn" id="userHistoryBtn" onclick="openHistoryModal()">历史记录</button>
-  <a class="topbar-btn" href="/">返回工作台</a>
-  <button class="topbar-btn" onclick="logout()">退出</button>
-</div>
+<!-- 统一外壳顶栏(由 app.js 注入,登录后显示)-->
+<div id="appTopbar" style="display:none"></div>
 
 <!-- 历史记录弹窗 -->
 <div class="modal-overlay" id="historyModal" onclick="closeHistoryModal(event)">
@@ -843,6 +837,7 @@
   <img id="lightboxImg" src="" alt="" />
 </div>
 
+<script src="/assets/app.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const brandSel = $('brand');
@@ -1100,17 +1095,21 @@ async function loadDepartments() {
 
 function showLogin() {
   $('loginOverlay').style.display = 'flex';
-  $('userBar').style.display = 'none';
+  const bar = $('appTopbar');
+  if (bar) bar.style.display = 'none';
   document.querySelector('.container').style.display = 'none';
 }
 
 function showApp() {
   $('loginOverlay').style.display = 'none';
-  $('userBar').style.display = 'flex';
+  const bar = $('appTopbar');
+  if (bar) bar.style.display = 'flex';
+  // 统一外壳顶栏 + 文案页专属「历史记录」按钮
+  App.mountTopbar({
+    active: 'content',
+    extra: '<button class="btn" onclick="openHistoryModal()">历史记录</button>',
+  });
   document.querySelector('.container').style.display = 'block';
-  $('userInfoLabel').textContent =
-    `${currentUser.department} · ${currentUser.name}（工号 ${currentUser.emp_id}）`;
-  // 管理员入口只在 portal 底部展示,这里不再放(避免重复入口)
   // 真正去加载产品
   loadProducts();
 }

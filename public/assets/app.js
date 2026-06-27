@@ -131,11 +131,14 @@
       ? '<a class="btn" href="' + escapeHtml(org.admin.href || "/admin.html") + '">管理后台</a>'
       : "";
 
+    // opts.extra:页面专属按钮(如文案页的「历史记录」),插在退出按钮之前
+    var extraHtml = opts.extra || "";
+
     var html =
       '<a class="app-brand" href="/">' + brandInner + "</a>" +
       '<nav class="app-nav">' + navHtml + "</nav>" +
       '<div class="app-spacer"></div>' +
-      userHtml + adminHtml +
+      userHtml + adminHtml + extraHtml +
       '<button class="btn" id="appLogoutBtn">退出</button>';
 
     var bar = document.getElementById("appTopbar");
