@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KOS 任务管理 · 乔山销售助手</title>
+<link rel="stylesheet" href="/assets/app.css" />
+<style>
+  .subbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; }
+  .subbar .back { margin-right:auto; }
+  h2.sec { font-size:15px; margin:24px 0 12px; }
+  .card2 { background:var(--card); border:1px solid var(--border-soft); border-radius:12px; box-shadow:var(--shadow); padding:16px 18px; margin-bottom:14px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+  .fld { display:flex; flex-direction:column; gap:4px; }
+  label { font-size:11.5px; color:var(--muted); }
+  input, select, textarea { padding:8px 11px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:white; outline:none; font-family:inherit; }
+  input:focus, select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .lib, .task { border:1px solid var(--border-soft); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+  .lib-head, .task-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .lib-name { font-weight:650; font-size:14px; }
+  .muted2 { font-size:12px; color:var(--muted); }
+  .cap-bar { height:7px; border-radius:99px; background:var(--border-soft); overflow:hidden; flex:1; min-width:120px; max-width:260px; }
+  .cap-fill { height:100%; background:var(--accent); }
+  .pill { font-size:11px; padding:2px 8px; border-radius:999px; background:var(--accent-soft); color:var(--accent-strong); }
+  .pill.warn { background:#fffbeb; color:#b45309; }
+  .pill.ok { background:#f0fdf4; color:#15803d; }
+  .mini { padding:5px 11px; border:1px solid var(--border); background:white; border-radius:7px; font-size:12.5px; cursor:pointer; color:var(--text-soft); }
+  .mini:hover { background:var(--primary-soft); }
+  .path { font-family:ui-monospace,monospace; font-size:12px; background:var(--primary-soft); padding:2px 7px; border-radius:6px; word-break:break-all; }
+  .depts { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:4px; }
+  .depts label { font-size:13px; color:var(--text-soft); display:flex; align-items:center; gap:4px; }
+  .deny { text-align:center; padding:60px 20px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div id="appTopbar"></div>
+<div class="container">
+  <div id="content">
+    <div class="subbar">
+      <a class="btn back" href="/admin.html">← 数据看板</a>
+      <span class="muted2" id="topinfo"></span>
+    </div>
+
+    <h2 class="sec">素材库</h2>
+    <div class="card2">
+      <div class="row">
+        <div class="fld"><label>品牌</label><input id="lbBrand" placeholder="如 乔山Johnson" /></div>
+        <div class="fld"><label>产品</label><input id="lbProduct" placeholder="如 智能跑步机TX-5" /></div>
+        <div class="fld"><label>批次编号</label><input id="lbCode" placeholder="如 20260627" /></div>
+        <button class="btn btn-primary" id="lbAdd">新建素材库</button>
+      </div>
+      <div class="muted2" id="lbHint" style="margin-top:8px"></div>
+    </div>
+    <div id="libs"><div class="muted2">加载中...</div></div>
+
+    <h2 class="sec">任务</h2>
+    <div class="card2">
+      <div class="row">
+        <div class="fld" style="flex:1; min-width:180px"><label>任务标题(可空)</label><input id="tkTitle" placeholder="不填则自动用 品牌+产品" /></div>
+        <div class="fld"><label>绑定素材库</label><select id="tkLib"></select></div>
+        <div class="fld"><label>每人发几篇</label><input id="tkPer" type="number" min="1" value="1" style="width:90px" /></div>
+        <div class="fld"><label>截止日期</label><input id="tkDeadline" type="date" /></div>
+      </div>
+      <div style="margin-top:10px">
+        <label>发给</label>
+        <div class="row" style="margin-top:4px">
+          <select id="tkScope"><option value="all">全员</option><option value="dept">指定部门</option></select>
+          <div class="depts" id="tkDepts" style="display:none"></div>
+        </div>
+      </div>
+      <div style="margin-top:12px"><button class="btn btn-primary" id="tkAdd">发布任务</button></div>
+    </div>
+    <div id="tasks"><div class="muted2">加载中...</div></div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+const me = App.requireSession();
+const esc = App.escapeHtml;
+let libraries = [], departments = [];
+
+if (me) {
+  App.mountTopbar();
+  if (!['org_admin','super_admin'].includes(App.roleOf(me))) {
+    document.getElementById('content').innerHTML =
+      '<div class="deny"><h2>无权访问</h2><p>KOS 任务管理仅向管理员开放。</p><p><a href="/">← 返回工作台</a></p></div>';
+  } else { init(); }
+}
+
+async function api(action, extra) {
+  return App.api('/api/kos-admin', { method:'POST',
+    body: Object.assign({ action, _user:{ department:me.department, name:me.name, emp_id:me.emp_id } }, extra||{}) });
+}
+
+async function init() {
+  // 部门列表(给指定部门用)
+  try { const r = await App.api('/api/login'); departments = (r.data && r.data.departments) || []; } catch(e){}
+  document.getElementById('tkDepts').innerHTML = departments.map(d =>
+    `<label><input type="checkbox" value="${esc(d)}" />${esc(d)}</label>`).join('');
+  await loadLibs();
+  await loadTasks();
+}
+
+async function loadLibs() {
+  const r = await api('list_libraries');
+  libraries = (r.data && r.data.libraries) || [];
+  // 任务表单的库下拉
+  document.getElementById('tkLib').innerHTML = libraries.map(l =>
+    `<option value="${l.id}">${esc(l.brand)} ${esc(l.product)}${l.code ? ' · '+esc(l.code) : ''}（容量${l.capacity.remaining}）</option>`).join('') || '<option value="">先建素材库</option>';
+  document.getElementById('libs').innerHTML = libraries.length ? libraries.map(libRow).join('') : '<div class="muted2">还没有素材库</div>';
+  libraries.forEach(l => {
+    document.getElementById('scan'+l.id).onclick = () => scan(l.id);
+  });
+}
+
+function libRow(l) {
+  const cap = l.capacity;
+  const pct = cap.total ? Math.round(cap.used/cap.total*100) : 0;
+  const enough = cap.tiles >= 4;
+  return `<div class="lib">
+    <div class="lib-head">
+      <span class="lib-name">${esc(l.brand)} ${esc(l.product)}</span>
+      ${l.code ? `<span class="muted2">批次 ${esc(l.code)}</span>` : ''}
+      <span class="pill">主图 ${cap.mains}</span>
+      <span class="pill ${enough?'ok':'warn'}">可拼图 ${cap.tiles}${enough?'':' (需≥4)'}</span>
+      <div class="cap-bar"><div class="cap-fill" style="width:${pct}%"></div></div>
+      <span class="muted2">容量 ${cap.remaining}/${cap.total} 人·篇</span>
+      <button class="mini" id="scan${l.id}">扫描登记</button>
+    </div>
+    <div class="muted2" style="margin-top:6px">上传到 COS:<span class="path">${esc(l.cos_prefix||'')}</span>(文件名含「主图」/「可拼图」)</div>
+  </div>`;
+}
+
+async function scan(id) {
+  App.toast('扫描中...');
+  const r = await api('scan_library', { library_id: id });
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '扫描失败'); return; }
+  App.toast(`登记:主图+${r.data.added_mains} 可拼图+${r.data.added_tiles}${r.data.skipped?(' 跳过'+r.data.skipped):''}`);
+  await loadLibs();
+}
+
+document.getElementById('lbAdd').onclick = async () => {
+  const brand = document.getElementById('lbBrand').value.trim();
+  const product = document.getElementById('lbProduct').value.trim();
+  const code = document.getElementById('lbCode').value.trim();
+  if (!brand || !product) { App.toast('请填品牌和产品'); return; }
+  const r = await api('create_library', { brand, product, code });
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '建库失败'); return; }
+  document.getElementById('lbHint').innerHTML = `已建库。请把素材上传到 COS:<span class="path">${esc(r.data.cos_prefix)}</span> 然后点该库的「扫描登记」。`;
+  document.getElementById('lbProduct').value = ''; document.getElementById('lbCode').value = '';
+  await loadLibs();
+};
+
+document.getElementById('tkScope').onchange = e => {
+  document.getElementById('tkDepts').style.display = e.target.value === 'dept' ? 'flex' : 'none';
+};
+
+document.getElementById('tkAdd').onclick = async () => {
+  const library_id = document.getElementById('tkLib').value;
+  if (!library_id) { App.toast('请先建并选择素材库'); return; }
+  const scope = document.getElementById('tkScope').value;
+  const depts = scope === 'dept'
+    ? [...document.querySelectorAll('#tkDepts input:checked')].map(x => x.value) : [];
+  if (scope === 'dept' && !depts.length) { App.toast('请选至少一个部门'); return; }
+  const r = await api('create_task', {
+    title: document.getElementById('tkTitle').value.trim(),
+    library_id, scope, depts,
+    per_person: parseInt(document.getElementById('tkPer').value) || 1,
+    deadline: document.getElementById('tkDeadline').value,
+  });
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '发布失败'); return; }
+  App.toast(r.data.enough ? '任务已发布' : `任务已发布,但素材不够:需 ${r.data.need} 份、仅剩 ${r.data.remaining},请补可拼图`);
+  document.getElementById('tkTitle').value = '';
+  await loadTasks();
+};
+
+async function loadTasks() {
+  const r = await api('list_tasks');
+  const tasks = (r.data && r.data.tasks) || [];
+  document.getElementById('tasks').innerHTML = tasks.length ? tasks.map(taskRow).join('') : '<div class="muted2">还没有任务</div>';
+  tasks.forEach(t => { const b = document.getElementById('close'+t.id); if (b) b.onclick = () => closeTask(t.id); });
+}
+
+function taskRow(t) {
+  const scopeTxt = t.scope === 'all' ? '全员' : ('部门:' + (t.depts||[]).join('、'));
+  const open = t.status === 'open';
+  return `<div class="task">
+    <div class="task-head">
+      <span class="lib-name">${esc(t.title || (t.brand+' '+t.product))}</span>
+      <span class="pill ${open?'ok':''}">${open?'进行中':'已结束'}</span>
+      <span class="muted2">${esc(scopeTxt)} · 每人 ${t.per_person} 篇${t.deadline?(' · 截止 '+esc(t.deadline)):''}</span>
+      <span class="muted2">已发 ${t.issued} · 已发布 ${t.published} · 剩余容量 ${t.capacity.remaining}</span>
+      ${open?`<button class="mini" id="close${t.id}">结束任务</button>`:''}
+    </div>
+  </div>`;
+}
+
+async function closeTask(id) {
+  if (!confirm('确定结束该任务?业务将无法再领取。')) return;
+  const r = await api('close_task', { id });
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '操作失败'); return; }
+  App.toast('已结束'); await loadTasks();
+}
+</script>
+</body>
+</html>
