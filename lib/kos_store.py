@@ -355,3 +355,106 @@ def list_tasks(org='johnson'):
         return tasks
     finally:
         c.close()
+
+
+# ──────────────── 业务侧 ────────────────
+
+def tasks_for_user(user):
+    """该业务能看到的进行中任务 + 自己的进度。"""
+    _ensure()
+    dept = (user or {}).get('department')
+    emp = (user or {}).get('emp_id')
+    c = _conn()
+    try:
+        rows = c.execute("SELECT * FROM kos_tasks WHERE org='johnson' AND status='open' ORDER BY created_at DESC").fetchall()
+        out = []
+        for r in rows:
+            t = dict(r)
+            depts = json.loads(t.get('depts') or '[]')
+            if t['scope'] == 'dept' and dept not in depts:
+                continue
+            t['depts'] = depts
+            t['my_issued'] = c.execute(
+                "SELECT COUNT(*) FROM kos_packs WHERE task_id=? AND emp_id=?", (t['id'], emp)).fetchone()[0]
+            t['my_published'] = c.execute(
+                "SELECT COUNT(*) FROM kos_packs WHERE task_id=? AND emp_id=? AND status='published'",
+                (t['id'], emp)).fetchone()[0]
+            t['remaining_cap'] = capacity(t['library_id'])['remaining']
+            out.append(t)
+        return out
+    finally:
+        c.close()
+
+
+def count_user_task_packs(task_id, emp_id):
+    _ensure()
+    c = _conn()
+    try:
+        return c.execute("SELECT COUNT(*) FROM kos_packs WHERE task_id=? AND emp_id=?",
+                         (task_id, emp_id)).fetchone()[0]
+    finally:
+        c.close()
+
+
+def get_pack(pack_id):
+    _ensure()
+    c = _conn()
+    try:
+        r = c.execute("SELECT * FROM kos_packs WHERE id=?", (pack_id,)).fetchone()
+        return dict(r) if r else None
+    finally:
+        c.close()
+
+
+def publish_pack(pack_id, emp_id, note_url):
+    """业务回填小红书链接 → 标记已发布。仅本人可操作。"""
+    _ensure()
+    c = _conn()
+    try:
+        r = c.execute("SELECT emp_id FROM kos_packs WHERE id=?", (pack_id,)).fetchone()
+        if not r or r['emp_id'] != emp_id:
+            return False
+        c.execute("UPDATE kos_packs SET status='published', note_url=?, published_at=? WHERE id=?",
+                  ((note_url or '').strip(), int(time.time()), pack_id))
+        c.commit()
+        return True
+    finally:
+        c.close()
+
+
+def my_packs(emp_id, task_id=None):
+    _ensure()
+    c = _conn()
+    try:
+        q = "SELECT * FROM kos_packs WHERE emp_id=?"
+        args = [emp_id]
+        if task_id:
+            q += " AND task_id=?"; args.append(task_id)
+        q += " ORDER BY created_at DESC"
+        return [dict(r) for r in c.execute(q, args).fetchall()]
+    finally:
+        c.close()
+
+
+def leaderboard(org='johnson'):
+    """排行:每人 笔记数(已发布)+ 完成任务数(某任务已发布≥该任务每人篇数)。"""
+    _ensure()
+    c = _conn()
+    try:
+        per = {t['id']: t['per_person'] for t in
+               (dict(r) for r in c.execute("SELECT id,per_person FROM kos_tasks WHERE org=?", (org,)).fetchall())}
+        rows = c.execute(
+            "SELECT emp_id, user_name, department, task_id, COUNT(*) c "
+            "FROM kos_packs WHERE status='published' GROUP BY emp_id, task_id").fetchall()
+        agg = {}
+        for r in rows:
+            e = r['emp_id'] or ''
+            a = agg.setdefault(e, {"emp_id": e, "name": r['user_name'], "department": r['department'],
+                                   "notes": 0, "tasks_done": 0})
+            a["notes"] += r['c']
+            if r['c'] >= per.get(r['task_id'], 1):
+                a["tasks_done"] += 1
+        board = sorted(agg.values(), key=lambda x: (-x["tasks_done"], -x["notes"]))
+        return board
+    finally:
+        c.close()

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KOS 任务中心 · 乔山销售助手</title>
+<link rel="stylesheet" href="/assets/app.css" />
+<style>
+  .stats { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .stat { background:var(--card); border:1px solid var(--border-soft); border-radius:12px; box-shadow:var(--shadow); padding:14px 18px; flex:1; min-width:130px; }
+  .stat .n { font-size:24px; font-weight:700; color:var(--accent-strong); }
+  .stat .l { font-size:12px; color:var(--muted); margin-top:2px; }
+  h2.sec { font-size:15px; margin:20px 0 12px; }
+  .task { background:var(--card); border:1px solid var(--border-soft); border-radius:12px; box-shadow:var(--shadow); padding:16px 18px; margin-bottom:12px; }
+  .task-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .task-name { font-weight:650; font-size:15px; }
+  .muted2 { font-size:12.5px; color:var(--muted); }
+  .prog { font-size:12.5px; color:var(--accent-strong); font-weight:600; }
+  .task-act { margin-top:12px; display:flex; gap:10px; align-items:center; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:999px; background:#f0fdf4; color:#15803d; }
+
+  /* 排行 */
+  .board { background:var(--card); border:1px solid var(--border-soft); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; }
+  .brow { display:flex; align-items:center; gap:12px; padding:10px 16px; border-top:1px solid var(--border-soft); font-size:13.5px; }
+  .brow:first-child { border-top:none; }
+  .brow .rank { width:24px; color:var(--muted); font-weight:600; }
+  .brow .who { flex:1; }
+  .brow .me { color:var(--accent-strong); font-weight:600; }
+
+  /* 素材包弹窗 */
+  .modal { position:fixed; inset:0; background:rgba(15,23,42,0.5); display:none; align-items:flex-start; justify-content:center; z-index:100; overflow:auto; padding:20px; }
+  .modal.show { display:flex; }
+  .pack { background:white; border-radius:14px; width:100%; max-width:560px; box-shadow:var(--shadow-md); }
+  .pack h3 { margin:0; padding:16px 20px; border-bottom:1px solid var(--border-soft); font-size:15px; display:flex; align-items:center; }
+  .pack h3 .x { margin-left:auto; cursor:pointer; color:var(--muted); font-size:20px; background:none; border:none; }
+  .pack-body { padding:16px 20px; }
+  .imgs { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .imgs figure { margin:0; }
+  .imgs img { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:8px; border:1px solid var(--border); background:var(--primary-soft); display:block; }
+  .imgs figcaption { font-size:11px; color:var(--muted); text-align:center; margin-top:4px; }
+  .imgs a { display:block; text-align:center; font-size:12px; color:var(--accent-strong); margin-top:3px; text-decoration:none; }
+  .tip { font-size:12px; color:var(--muted); margin:10px 0; }
+  .copybox { background:var(--primary-soft); border-radius:10px; padding:12px; margin-top:10px; }
+  .copybox .t { font-weight:600; font-size:13px; margin-bottom:4px; }
+  .copybox .body { font-size:13px; white-space:pre-wrap; line-height:1.6; }
+  .copybox .tags { font-size:12.5px; color:var(--accent-strong); margin-top:6px; }
+  .fillrow { display:flex; gap:8px; margin-top:14px; }
+  .fillrow input { flex:1; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; }
+  .deny { text-align:center; padding:60px 20px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div id="appTopbar"></div>
+<div class="container">
+  <div id="content">
+    <div class="stats">
+      <div class="stat"><div class="n" id="sDone">–</div><div class="l">本期完成任务</div></div>
+      <div class="stat"><div class="n" id="sNotes">–</div><div class="l">已发布笔记</div></div>
+    </div>
+
+    <h2 class="sec">待办任务</h2>
+    <div id="tasks"><div class="muted2">加载中...</div></div>
+
+    <h2 class="sec">排行榜</h2>
+    <div class="board" id="board"></div>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="pack">
+    <h3>本篇素材包 <button class="x" onclick="closePack()">×</button></h3>
+    <div class="pack-body" id="packBody"></div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+const me = App.requireSession();
+const esc = App.escapeHtml;
+
+if (me) { App.mountTopbar({ active:'tasks' }); load(); }
+
+async function api(action, extra) {
+  return App.api('/api/kos', { method:'POST',
+    body: Object.assign({ action, _user:{ department:me.department, name:me.name, emp_id:me.emp_id } }, extra||{}) });
+}
+
+async function load() {
+  const [t, b] = await Promise.all([api('my_tasks'), api('leaderboard')]);
+  renderTasks((t.data && t.data.tasks) || []);
+  renderBoard((b.data && b.data.board) || []);
+}
+
+function renderTasks(tasks) {
+  // 顶部统计:本期完成任务 = 我已完成的任务数;笔记数从排行里取(下方 renderBoard 也会算)
+  let done = 0, notes = 0;
+  tasks.forEach(t => { if (t.my_published >= t.per_person) done++; });
+  document.getElementById('sDone').textContent = done;
+  document.getElementById('tasks').innerHTML = tasks.length ? tasks.map(taskRow).join('')
+    : '<div class="muted2">暂无待办任务,等管理员发布。</div>';
+  tasks.forEach(t => { const btn = document.getElementById('take'+t.id); if (btn) btn.onclick = () => issue(t.id, btn); });
+}
+
+function taskRow(t) {
+  const done = t.my_published >= t.per_person;
+  const canTake = t.my_issued < t.per_person && t.remaining_cap > 0;
+  return `<div class="task">
+    <div class="task-top">
+      <span class="task-name">${esc(t.title || (t.brand+' '+t.product))}</span>
+      ${done ? '<span class="pill">已完成</span>' : ''}
+      <span class="muted2">${esc(t.brand)} · ${esc(t.product)}${t.deadline?(' · 截止 '+esc(t.deadline)):''}</span>
+    </div>
+    <div class="task-act">
+      <span class="prog">进度 ${t.my_published}/${t.per_person} 篇</span>
+      <span class="muted2">已领 ${t.my_issued}</span>
+      <span style="flex:1"></span>
+      ${canTake ? `<button class="btn btn-primary" id="take${t.id}">领取素材包</button>`
+                : (done ? '' : `<span class="muted2">${t.remaining_cap<=0?'素材已发尽':'已领满,去发布吧'}</span>`)}
+    </div>
+  </div>`;
+}
+
+async function issue(taskId, btn) {
+  btn.disabled = true; btn.textContent = '生成中...(约10秒)';
+  const r = await api('issue', { task_id: taskId });
+  btn.disabled = false; btn.textContent = '领取素材包';
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '领取失败'); return; }
+  showPack(r.data);
+  load();
+}
+
+function showPack(d) {
+  const c = d.copy || {};
+  const title = (c.titles && c.titles[0]) || '';
+  const tags = (c.tags || []).join(' ');
+  const fullCopy = [title, '', c.body || '', '', tags].join('\n');
+  document.getElementById('packBody').innerHTML = `
+    <div class="muted2">第 ${d.post_index}/${d.per_person} 篇 · 长按图片保存到手机</div>
+    <div class="imgs">
+      ${['cover','two','four'].map((k,i) => `
+        <figure>
+          <img src="${esc(d.images[k])}" alt="${['封面','2合1','4合1'][i]}" />
+          <figcaption>${['封面','2合1','4合1'][i]}</figcaption>
+          <a href="${esc(d.images[k])}" download="kos_${d.pack_id}_${k}.jpg">下载</a>
+        </figure>`).join('')}
+    </div>
+    <div class="tip">手机长按图片即可保存;电脑可点「下载」。</div>
+    <div class="copybox">
+      <div class="t">文案(点下方复制)</div>
+      <div class="body" id="copyText">${esc(fullCopy.trim())}</div>
+      ${(c.titles && c.titles.length>1) ? `<div class="muted2" style="margin-top:8px">备选标题:${c.titles.slice(1).map(esc).join(' / ')}</div>` : ''}
+    </div>
+    <button class="btn btn-primary" style="margin-top:10px" onclick="copyCopy(this)">复制文案</button>
+    <div class="fillrow">
+      <input id="noteUrl" placeholder="发布后把小红书笔记链接贴这里" />
+      <button class="btn" onclick="completePack(${d.pack_id}, this)">标记完成</button>
+    </div>`;
+  window._curCopy = fullCopy.trim();
+  document.getElementById('modal').classList.add('show');
+}
+
+function closePack() { document.getElementById('modal').classList.remove('show'); }
+window.closePack = closePack;
+
+async function copyCopy(btn) {
+  try { await navigator.clipboard.writeText(window._curCopy || ''); btn.textContent = '已复制'; setTimeout(()=>btn.textContent='复制文案',1500); }
+  catch(e){ App.toast('复制失败,请手动选择'); }
+}
+window.copyCopy = copyCopy;
+
+async function completePack(packId, btn) {
+  const url = document.getElementById('noteUrl').value.trim();
+  if (!url) { App.toast('请先贴上笔记链接'); return; }
+  btn.disabled = true;
+  const r = await api('complete', { pack_id: packId, note_url: url });
+  btn.disabled = false;
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '提交失败'); return; }
+  App.toast('已标记完成,计入统计');
+  closePack(); load();
+}
+window.completePack = completePack;
+
+function renderBoard(board) {
+  let myNotes = 0;
+  const me_emp = me.emp_id;
+  document.getElementById('board').innerHTML = board.length ? board.map((b,i) => {
+    if (b.emp_id === me_emp) myNotes = b.notes;
+    const mine = b.emp_id === me_emp;
+    return `<div class="brow">
+      <span class="rank">${i+1}</span>
+      <span class="who ${mine?'me':''}">${esc(b.name||'')} ${esc(b.department||'')}${mine?'(我)':''}</span>
+      <span class="muted2">完成 ${b.tasks_done} · 笔记 ${b.notes}</span>
+    </div>`;
+  }).join('') : '<div class="brow muted2">还没有人完成,快来抢第一</div>';
+  document.getElementById('sNotes').textContent = myNotes;
+}
+</script>
+</body>
+</html>

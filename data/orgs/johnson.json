@@ -58,7 +58,7 @@
       "color": "#f59e0b",
       "color_soft": "#fffbeb",
       "color_strong": "#b45309",
-      "enabled": false,
+      "enabled": true,
       "roles": ["staff", "org_admin", "super_admin"]
     }
   ],
