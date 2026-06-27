@@ -10,28 +10,28 @@
   },
   "modules": [
     {
+      "key": "tasks",
+      "name": "KOS 任务",
+      "title": "KOS 任务中心",
+      "badge": "任务中心",
+      "desc": "查看待完成的 KOS 笔记任务,一键领取图文素材包,发布后回填链接,看团队排行。",
+      "href": "/tasks.html",
+      "color": "#f59e0b",
+      "color_soft": "#fffbeb",
+      "color_strong": "#b45309",
+      "enabled": true,
+      "roles": ["staff", "org_admin", "super_admin"]
+    },
+    {
       "key": "content",
-      "name": "小红书文案",
-      "title": "小红书文案生成助手",
+      "name": "小红书生成",
+      "title": "小红书生成助手",
       "badge": "内容创作",
       "desc": "选品牌、选产品、选类型,一键生成种草 / 场景 / 干货 / 促销文案 + 配套封面图,复制即用。",
       "href": "/index.html",
       "color": "#ec4899",
       "color_soft": "#fdf2f8",
       "color_strong": "#be185d",
-      "enabled": true,
-      "roles": ["staff", "org_admin", "super_admin"]
-    },
-    {
-      "key": "library",
-      "name": "产品资料库",
-      "title": "产品资料库",
-      "badge": "资料下载",
-      "desc": "按品牌、产品在线下载单页、中英文说明书等原始资料,随时发给客户,无需到处找文件。",
-      "href": "/library.html",
-      "color": "#0d9488",
-      "color_soft": "#f0fdfa",
-      "color_strong": "#0f766e",
       "enabled": true,
       "roles": ["staff", "org_admin", "super_admin"]
     },
@@ -49,15 +49,15 @@
       "roles": ["staff", "org_admin", "super_admin"]
     },
     {
-      "key": "tasks",
-      "name": "KOS 任务",
-      "title": "KOS 任务中心",
-      "badge": "任务中心",
-      "desc": "查看待完成的 KOS 笔记任务,一键领取图文素材包,发布后回填链接,看团队排行。",
-      "href": "/tasks.html",
-      "color": "#f59e0b",
-      "color_soft": "#fffbeb",
-      "color_strong": "#b45309",
+      "key": "library",
+      "name": "产品资料库",
+      "title": "产品资料库",
+      "badge": "资料下载",
+      "desc": "按品牌、产品在线下载单页、中英文说明书等原始资料,随时发给客户,无需到处找文件。",
+      "href": "/library.html",
+      "color": "#0d9488",
+      "color_soft": "#f0fdfa",
+      "color_strong": "#0f766e",
       "enabled": true,
       "roles": ["staff", "org_admin", "super_admin"]
     }
