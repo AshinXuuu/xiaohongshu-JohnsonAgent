@@ -1,0 +1,45 @@
+{
+  "id": "johnson",
+  "name": "乔山销售助手",
+  "short_name": "乔山",
+  "logo": null,
+  "theme": {
+    "accent": "#6366f1",
+    "accent_strong": "#4338ca",
+    "accent_soft": "#eef2ff"
+  },
+  "modules": [
+    {
+      "key": "content",
+      "name": "小红书文案",
+      "href": "/index.html",
+      "enabled": true,
+      "roles": ["staff", "org_admin", "super_admin"]
+    },
+    {
+      "key": "library",
+      "name": "产品资料库",
+      "href": "/library.html",
+      "enabled": true,
+      "roles": ["staff", "org_admin", "super_admin"]
+    },
+    {
+      "key": "qa",
+      "name": "销售问答",
+      "href": "/qa.html",
+      "enabled": true,
+      "roles": ["staff", "org_admin", "super_admin"]
+    },
+    {
+      "key": "tasks",
+      "name": "KOS 任务",
+      "href": "/tasks.html",
+      "enabled": false,
+      "roles": ["staff", "org_admin", "super_admin"]
+    }
+  ],
+  "admin": {
+    "href": "/admin.html",
+    "roles": ["org_admin", "super_admin"]
+  }
+}
