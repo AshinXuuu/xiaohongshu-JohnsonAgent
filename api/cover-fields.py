@@ -117,8 +117,10 @@ class handler(BaseHTTPRequestHandler):
             if not brand_name or not product_name:
                 return self._error(400, "缺少 brand / product")
 
-            data = load_products()
-            brand, product = find_product(data, brand_name, product_name)
+            import sys as _sys
+            _sys.path.insert(0, str(ROOT))
+            from lib.products_store import find_product as _ps_find
+            brand, product = _ps_find(brand_name, product_name)
             if not brand or not product:
                 return self._error(404, f"产品不存在:{brand_name} / {product_name}")
 
