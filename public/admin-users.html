@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>用户管理 · 乔山销售助手</title>
+<link rel="stylesheet" href="/assets/app.css" />
+<style>
+  .subbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .subbar .back { margin-right: auto; }
+  .filter, .search {
+    padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; background: white; outline: none;
+  }
+  .search { min-width: 160px; }
+  .filter:focus, .search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .add-card { background: var(--card); border: 1px solid var(--border-soft); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 18px; }
+  .add-card .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .add-card .fld { display: flex; flex-direction: column; gap: 4px; }
+  .add-card label { font-size: 11.5px; color: var(--muted); }
+  .add-card input, .add-card select {
+    padding: 8px 11px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
+    background: white; outline: none;
+  }
+  .add-card input:focus, .add-card select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--card);
+    border: 1px solid var(--border-soft); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+  th, td { text-align: left; padding: 11px 14px; font-size: 13.5px; border-bottom: 1px solid var(--border-soft); }
+  th { background: var(--primary-soft); color: var(--text-soft); font-weight: 600; font-size: 12.5px; }
+  tr:last-child td { border-bottom: none; }
+  td .role-sel { padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; background: white; }
+  .tag-admin { display:inline-block; margin-left:6px; font-size:11px; color:var(--accent-strong); background:var(--accent-soft); padding:1px 7px; border-radius:999px; }
+  .del-btn { padding: 5px 11px; border: 1px solid var(--border); background: white; border-radius: 7px;
+    font-size: 12.5px; cursor: pointer; color: var(--danger); }
+  .del-btn:hover { background: #fef2f2; border-color: var(--danger); }
+  .count { font-size: 12.5px; color: var(--muted); }
+  .deny { text-align:center; padding:60px 20px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="appTopbar"></div>
+
+<div class="container">
+  <div id="content">
+    <div class="subbar">
+      <a class="btn back" href="/admin.html">← 数据看板</a>
+      <select class="filter" id="deptFilter"><option value="">全部部门</option></select>
+      <input class="search" id="search" placeholder="搜姓名 / 工号" />
+      <span class="count" id="count"></span>
+    </div>
+
+    <div class="add-card">
+      <div class="row">
+        <div class="fld"><label>部门</label><select id="addDept"></select></div>
+        <div class="fld"><label>姓名</label><input id="addName" placeholder="姓名" /></div>
+        <div class="fld"><label>工号</label><input id="addEmp" placeholder="工号" /></div>
+        <div class="fld"><label>身份证后6位</label><input id="addId6" placeholder="可空" /></div>
+        <div class="fld"><label>角色</label><select id="addRole"></select></div>
+        <button class="btn btn-primary" id="addBtn">添加用户</button>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr><th>部门</th><th>姓名</th><th>工号</th><th>身份证后6</th><th>角色</th><th>操作</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="6" class="count" style="padding:24px">加载中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+const me = App.requireSession();
+let users = [], departments = [], roles = [], callerRole = 'staff';
+const ROLE_LABEL = { super_admin: '超级管理员', org_admin: '管理员', dept_manager: '部门管理', staff: '业务' };
+const esc = App.escapeHtml;
+
+if (me) {
+  App.mountTopbar();
+  if (!['org_admin', 'super_admin'].includes(App.roleOf(me))) {
+    document.getElementById('content').innerHTML =
+      '<div class="deny"><h2>无权访问</h2><p>用户管理仅向管理员开放。</p><p><a href="/">← 返回工作台</a></p></div>';
+  } else {
+    load();
+  }
+}
+
+async function api(action, extra) {
+  const body = Object.assign({ action, _user: { department: me.department, name: me.name, emp_id: me.emp_id } }, extra || {});
+  return App.api('/api/users', { method: 'POST', body });
+}
+
+async function load() {
+  const r = await api('list');
+  if (!r.ok || !r.data) { document.getElementById('rows').innerHTML = '<tr><td colspan="6">加载失败</td></tr>'; return; }
+  users = r.data.users || [];
+  departments = r.data.departments || [];
+  roles = r.data.roles || ['staff'];
+  callerRole = r.data.caller_role || 'staff';
+  // 部门筛选 + 添加表单部门
+  const optd = departments.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+  document.getElementById('deptFilter').innerHTML = '<option value="">全部部门</option>' + optd;
+  document.getElementById('addDept').innerHTML = optd;
+  document.getElementById('addRole').innerHTML = roleOptions('staff');
+  render();
+}
+
+// 只有 super_admin 能授予管理员角色;否则角色下拉里不出现 org_admin/super_admin
+function roleOptions(selected) {
+  return roles.filter(r => (callerRole === 'super_admin') || !['org_admin', 'super_admin'].includes(r))
+    .map(r => `<option value="${r}" ${r === selected ? 'selected' : ''}>${ROLE_LABEL[r] || r}</option>`).join('');
+}
+
+function render() {
+  const dept = document.getElementById('deptFilter').value;
+  const kw = document.getElementById('search').value.trim().toLowerCase();
+  const list = users.filter(u =>
+    (!dept || u.department === dept) &&
+    (!kw || (u.name || '').toLowerCase().includes(kw) || (u.emp_id || '').toLowerCase().includes(kw)));
+  document.getElementById('count').textContent = `共 ${list.length} 人`;
+  if (!list.length) { document.getElementById('rows').innerHTML = '<tr><td colspan="6" class="count" style="padding:24px">没有匹配用户</td></tr>'; return; }
+  document.getElementById('rows').innerHTML = list.map(u => {
+    const isAdmin = ['org_admin', 'super_admin'].includes(u.role);
+    return `<tr data-id="${u.id}">
+      <td>${esc(u.department)}</td>
+      <td>${esc(u.name)}${isAdmin ? '<span class="tag-admin">' + (ROLE_LABEL[u.role] || '') + '</span>' : ''}</td>
+      <td>${esc(u.emp_id)}</td>
+      <td>${esc(u.id_last6 || '')}</td>
+      <td><select class="role-sel" onchange="changeRole(${u.id}, this.value)">${roleOptions(u.role)}</select></td>
+      <td><button class="del-btn" onclick="deactivate(${u.id}, '${esc(u.name)}')">停用</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function addUser() {
+  const dept = document.getElementById('addDept').value;
+  const name = document.getElementById('addName').value.trim();
+  const emp = document.getElementById('addEmp').value.trim();
+  const id6 = document.getElementById('addId6').value.trim();
+  const role = document.getElementById('addRole').value;
+  if (!dept || !name || !emp) { App.toast('请填部门、姓名、工号'); return; }
+  const btn = document.getElementById('addBtn');
+  btn.disabled = true; btn.textContent = '添加中...';
+  const r = await api('add', { department: dept, name, emp_id: emp, id_last6: id6, role });
+  btn.disabled = false; btn.textContent = '添加用户';
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '添加失败'); return; }
+  document.getElementById('addName').value = '';
+  document.getElementById('addEmp').value = '';
+  document.getElementById('addId6').value = '';
+  App.toast('已添加:' + name);
+  await load();
+}
+
+async function changeRole(id, role) {
+  const r = await api('update', { id, role });
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '修改失败'); await load(); return; }
+  App.toast('角色已更新');
+  // 更新本地缓存,避免整表重渲染打断
+  const u = users.find(x => x.id === id); if (u) u.role = role;
+  render();
+}
+
+async function deactivate(id, name) {
+  if (!confirm(`确定停用「${name}」?停用后该账号无法登录(可在数据库恢复)。`)) return;
+  const r = await api('deactivate', { id });
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '停用失败'); return; }
+  App.toast('已停用:' + name);
+  await load();
+}
+
+window.changeRole = changeRole;
+window.deactivate = deactivate;
+document.getElementById('addBtn').addEventListener('click', addUser);
+document.getElementById('deptFilter').addEventListener('change', render);
+document.getElementById('search').addEventListener('input', render);
+</script>
+</body>
+</html>

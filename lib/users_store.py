@@ -106,6 +106,7 @@ def _ensure_seeded():
 
 def _row_to_user(r):
     return {
+        "id": r["id"],
         "department": r["department"], "name": r["name"], "emp_id": r["emp_id"],
         "id_last6": r["id_last6"], "role": r["role"], "is_admin": bool(r["is_admin"]),
         "org": r["org"], "active": bool(r["active"]),
