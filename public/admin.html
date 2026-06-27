@@ -562,7 +562,7 @@ function logoutAdmin() {
 }
 window.logoutAdmin = logoutAdmin;
 
-if (me && !me.is_admin) {
+if (me && !['org_admin', 'super_admin'].includes(App.roleOf(me))) {
   document.getElementById('mainArea').innerHTML = `
     <div class="deny">
       <h2>无权访问</h2>
@@ -589,7 +589,7 @@ function switchApp(app) {
 window.switchApp = switchApp;
 
 async function loadStats() {
-  if (!me || !me.is_admin) return;
+  if (!me || !['org_admin', 'super_admin'].includes(App.roleOf(me))) return;
   $('mainArea').innerHTML = `
     <div class="loading"><div class="spinner"></div>正在拉取全公司用量数据 ...</div>
   `;

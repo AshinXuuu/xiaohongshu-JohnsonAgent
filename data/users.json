@@ -241,7 +241,8 @@
         "name": "徐昕",
         "emp_id": "888888",
         "id_last6": "777777",
-        "is_admin": true
+        "is_admin": true,
+        "role": "super_admin"
       },
       {
         "name": "桑昱倩",
@@ -262,7 +263,8 @@
         "name": "花琪",
         "emp_id": "24070293",
         "id_last6": "173536",
-        "is_admin": true
+        "is_admin": true,
+        "role": "org_admin"
       },
       {
         "name": "房硕南",
@@ -487,7 +489,8 @@
         "name": "杨露",
         "emp_id": "26040832",
         "id_last6": "140013",
-        "is_admin": true
+        "is_admin": true,
+        "role": "org_admin"
       }
     ]
   }

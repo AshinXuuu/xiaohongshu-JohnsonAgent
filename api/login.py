@@ -56,11 +56,14 @@ def find_user(department, name, emp_id, id_last6=None):
                 if expect_id6 != id_last6:
                     return None, '身份证后 6 位不正确'
             # 没配过则跳过校验,但要求请求里至少给了 6 位数字格式(前端会强制)
+            role = u.get("role") or ("org_admin" if u.get("is_admin") else "staff")
             return {
                 "department": department,
                 "name": name,
                 "emp_id": emp_id,
-                "is_admin": bool(u.get("is_admin")),
+                "is_admin": bool(u.get("is_admin")),  # 兼容旧前端
+                "role": role,
+                "org": u.get("org") or "johnson",
             }, None
     return None, '工号或姓名与所选部门不匹配'
 

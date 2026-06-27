@@ -29,6 +29,7 @@ import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lib.kv_store import get_stats, _kv_available
+from lib.auth import is_admin
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -48,20 +49,7 @@ def load_users():
         return json.load(f)
 
 
-def is_admin(user_info: dict) -> bool:
-    """根据 users.json 验证是否为管理员账号"""
-    if not user_info:
-        return False
-    emp_id = str(user_info.get("emp_id") or "").strip()
-    name = (user_info.get("name") or "").strip()
-    dept = (user_info.get("department") or "").strip()
-    data = load_users()
-    for u in data.get("users_by_dept", {}).get(dept, []):
-        if (str(u.get("emp_id", "")).strip() == emp_id
-                and u.get("name", "").strip() == name
-                and u.get("is_admin")):
-            return True
-    return False
+# is_admin 已统一移到 lib/auth.py(按 users.json 服务端核对角色,org_admin/super_admin 通过)
 
 
 def enrich_user_data(stats: dict):
