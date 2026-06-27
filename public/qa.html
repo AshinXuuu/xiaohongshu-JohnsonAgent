@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>售前问答 · 乔山销售助手</title>
+<link rel="stylesheet" href="/assets/app.css" />
 <style>
   :root {
     --primary: #1e293b;
@@ -443,13 +444,7 @@
 </head>
 <body>
 
-<div class="topbar">
-  <h1>售前问答</h1>
-  <div class="spacer"></div>
-  <span class="me" id="meLabel"></span>
-  <a class="btn" href="/">返回工作台</a>
-  <button class="btn" onclick="logout()">退出</button>
-</div>
+<header id="appTopbar"></header>
 
 <div class="container" id="main">
   <div class="card">
@@ -481,6 +476,7 @@
   </div>
 </div>
 
+<script src="/assets/app.js"></script>
 <script>
 const USER_KEY = 'xhsAgent:user';
 const $ = id => document.getElementById(id);
@@ -548,7 +544,7 @@ if (!sessionValid) {
   if (me) localStorage.removeItem(USER_KEY);
   location.replace('/');
 } else {
-  $('meLabel').textContent = `${me.department} · ${me.name}`;
+  App.mountTopbar({ active: 'qa' });
 }
 
 // ── 状态 ──

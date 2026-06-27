@@ -24,3 +24,7 @@ out/
 # 项目相关大文件
 封面参考/
 *.pptx
+
+品牌库/
+.fuse_hidden*
+**/.fuse_hidden*
