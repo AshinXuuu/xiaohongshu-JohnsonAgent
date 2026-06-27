@@ -20,41 +20,22 @@ ADMIN_ROLES = ("org_admin", "super_admin")
 ALL_ROLES = ("super_admin", "org_admin", "dept_manager", "staff")
 
 
-def _load_users() -> dict:
-    try:
-        return json.loads(USERS_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return {"users_by_dept": {}}
-
-
 def find_user_record(user: dict):
-    """按 部门 + 工号 + 姓名 在白名单里找到服务端记录;找不到返回 None。"""
+    """按 部门 + 工号 + 姓名 找到服务端记录;找不到返回 None。
+    数据源已收口到数据库(lib/users_store),DB 异常时自动回退 users.json。
+    """
     if not user:
         return None
-    emp_id = str(user.get("emp_id") or "").strip()
-    name = (user.get("name") or "").strip()
-    dept = (user.get("department") or "").strip()
-    if not (emp_id and name):
-        return None
-    data = _load_users()
-    for u in data.get("users_by_dept", {}).get(dept, []):
-        if (str(u.get("emp_id", "")).strip() == emp_id
-                and u.get("name", "").strip() == name):
-            return u
-    return None
+    from lib.users_store import get_user
+    return get_user(user.get("department"), user.get("name"), user.get("emp_id"))
 
 
 def role_of(user: dict) -> str:
-    """服务端核对后的真实角色;未匹配/未知用户 → 最小权限 staff。
-
-    兼容老数据:记录里没有 role 字段时,is_admin=True 视为 org_admin。
-    """
+    """服务端核对后的真实角色;未匹配/未知用户 → 最小权限 staff。"""
     rec = find_user_record(user)
     if not rec:
         return "staff"
-    if rec.get("role"):
-        return rec["role"]
-    return "org_admin" if rec.get("is_admin") else "staff"
+    return rec.get("role") or ("org_admin" if rec.get("is_admin") else "staff")
 
 
 def org_of(user: dict) -> str:

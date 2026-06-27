@@ -38,34 +38,27 @@ def load_users():
 
 def find_user(department, name, emp_id, id_last6=None):
     """白名单校验,匹配返回 user dict,不匹配返回 (None, reason)。
+    数据源已收口到数据库(lib/users_store),DB 异常时自动回退 users.json。
     身份证后 6 位验证:
-        - 若 users.json 里该用户已配置 id_last6 → 必须匹配
-        - 若未配置 → 暂不校验(过渡期,允许 老员工没填的情况下继续登录)
+        - 该用户已配置 id_last6 → 必须匹配
+        - 未配置 → 暂不校验(过渡期)
     """
-    data = load_users()
-    name = (name or "").strip()
-    emp_id = str(emp_id or "").strip()
-    # 身份证末位可能是 X,统一大写比对(防止用户输小写 x)
-    id_last6 = str(id_last6 or "").strip().upper()
-    dept_users = data.get("users_by_dept", {}).get(department, [])
-    for u in dept_users:
-        if (str(u.get("emp_id", "")).strip() == emp_id
-                and u.get("name", "").strip() == name):
-            expect_id6 = str(u.get("id_last6", "")).strip().upper()
-            if expect_id6:
-                if expect_id6 != id_last6:
-                    return None, '身份证后 6 位不正确'
-            # 没配过则跳过校验,但要求请求里至少给了 6 位数字格式(前端会强制)
-            role = u.get("role") or ("org_admin" if u.get("is_admin") else "staff")
-            return {
-                "department": department,
-                "name": name,
-                "emp_id": emp_id,
-                "is_admin": bool(u.get("is_admin")),  # 兼容旧前端
-                "role": role,
-                "org": u.get("org") or "johnson",
-            }, None
-    return None, '工号或姓名与所选部门不匹配'
+    from lib.users_store import get_user
+    id6 = str(id_last6 or "").strip().upper()  # 末位 X 统一大写
+    u = get_user(department, name, emp_id)
+    if not u:
+        return None, '工号或姓名与所选部门不匹配'
+    expect_id6 = str(u.get("id_last6") or "").strip().upper()
+    if expect_id6 and expect_id6 != id6:
+        return None, '身份证后 6 位不正确'
+    return {
+        "department": u["department"],
+        "name": u["name"],
+        "emp_id": u["emp_id"],
+        "is_admin": bool(u.get("is_admin")),  # 兼容旧前端
+        "role": u.get("role") or "staff",
+        "org": u.get("org") or "johnson",
+    }, None
 
 
 def log_user_action(req_info: dict):
@@ -82,18 +75,12 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        # GET 返回部门+人员清单(给前端下拉用),不含 is_admin 字段
+        # GET 返回部门+人员清单(给前端下拉用),只暴露姓名
         try:
-            data = load_users()
-            sanitized = {}
-            for dept, lst in data.get("users_by_dept", {}).items():
-                sanitized[dept] = [
-                    {"name": u["name"]}  # 只返回姓名,不暴露工号
-                    for u in lst
-                ]
+            from lib.users_store import list_departments, users_by_dept_public
             self._json(200, {
-                "departments": data.get("departments", []),
-                "users_by_dept": sanitized,
+                "departments": list_departments(),
+                "users_by_dept": users_by_dept_public(),
             })
         except Exception as e:
             self._json(500, {"error": str(e)})

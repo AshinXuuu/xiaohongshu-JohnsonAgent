@@ -56,14 +56,13 @@ def enrich_user_data(stats: dict):
     """把 emp_id 翻译成"姓名(部门)",便于前端展示"""
     if not stats:
         return stats
-    users_data = load_users()
+    from lib.users_store import all_users
     id_to_info = {}
-    for dept, users in users_data.get("users_by_dept", {}).items():
-        for u in users:
-            id_to_info[str(u.get("emp_id"))] = {
-                "name": u.get("name", "未知"),
-                "department": dept,
-            }
+    for u in all_users():
+        id_to_info[str(u.get("emp_id"))] = {
+            "name": u.get("name", "未知"),
+            "department": u.get("department", "未知"),
+        }
     enriched = []
     for item in stats.get("by_user_raw", []):
         info = id_to_info.get(item["key"], {"name": "未知", "department": "未知"})
