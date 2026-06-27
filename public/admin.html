@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>管理员后台 · 小红书文案生成助手</title>
+<link rel="stylesheet" href="/assets/app.css" />
 <style>
   :root {
     /* 主色:深 slate,克制不抢眼 */
@@ -479,19 +480,21 @@
     font-weight: 400;
   }
   .app-tab.active .count { color: var(--accent); }
+  /* 顶栏下方的管理控制条(刷新 + 更新时间) */
+  .admin-subbar {
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: 12px; padding: 14px 24px 0;
+  }
+  .admin-subbar .meta { color: var(--muted); font-size: 12.5px; }
 </style>
 </head>
 <body>
 
 <!-- 顶部工具栏 -->
-<div class="topbar">
-  <h1>管理员后台 <span class="badge">仅管理员</span></h1>
-  <div class="spacer"></div>
+<header id="appTopbar"></header>
+<div class="admin-subbar">
   <span class="meta" id="updateTime"></span>
-  <span class="meta" id="meLabel"></span>
-  <button onclick="loadStats()">刷新</button>
-  <a class="btn" href="/">返回工作台</a>
-  <button class="btn" onclick="logoutAdmin()">退出</button>
+  <button class="btn" onclick="loadStats()">刷新</button>
 </div>
 
 <div class="container" id="mainArea">
@@ -504,6 +507,7 @@
 <!-- Chart.js (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
+<script src="/assets/app.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const USER_KEY = 'xhsAgent:user';  // 必须和 index.html 第 1043 行保持一致
@@ -549,9 +553,7 @@ if (!sessionValid) {
   if (me) localStorage.removeItem(USER_KEY);
   location.replace('/');
 } else {
-  // 顶栏显示当前用户
-  const lbl = document.getElementById('meLabel');
-  if (lbl) lbl.textContent = `${me.department} · ${me.name}`;
+  App.mountTopbar();
 }
 function logoutAdmin() {
   if (!confirm('确定要退出登录吗?')) return;
