@@ -260,6 +260,9 @@
     font-weight: 500;
     letter-spacing: 0.01em;
   }
+  /* 配置驱动卡片:颜色由内联 --card-* 变量决定(静态卡片仍走下方 .qa/.gen/.lib 变体)*/
+  .portal-card .badge { background: var(--card-soft, var(--accent-soft)); color: var(--card-strong, #4338ca); }
+  .portal-card .cta { color: var(--card-accent, var(--accent)); }
   .portal-card.qa .badge {
     background: var(--accent-soft);
     color: #4338ca;
@@ -484,7 +487,7 @@
       <h2 class="portal-greeting">您好,<span class="name" id="greetName"></span></h2>
       <p class="portal-sub">请选择需要的工具开始工作</p>
 
-      <div class="portal-grid">
+      <div class="portal-grid" id="portalGrid">
         <a class="portal-card qa" href="/qa.html">
           <span class="badge">售前 / 售后</span>
           
@@ -515,6 +518,7 @@
   </div>
 </div>
 
+<script src="/assets/app.js"></script>
 <script>
 const USER_KEY = 'xhsAgent:user';
 // 会话有效期:24 小时。每次登录刷新一次。超过这个时间强制重登。
@@ -644,8 +648,36 @@ function showPortal(me) {
   if (me.is_admin) {
     $('extras').innerHTML = `<a href="/admin.html">管理员后台</a>`;
   }
+  // 模块卡片改为读组织配置渲染(白标就绪);拉取失败则保留页面里的静态卡片兜底
+  renderPortalCards(me);
   // 新版本未读 → 自动弹公告
   maybeShowVersionModal();
+}
+
+// 按组织配置 + 角色渲染模块卡片
+async function renderPortalCards(me) {
+  const grid = $('portalGrid');
+  if (!grid || !window.App) return;
+  try {
+    const org = await App.loadOrg();
+    const role = App.roleOf(me);
+    const mods = (org.modules || []).filter(m =>
+      m.enabled !== false && (!m.roles || m.roles.indexOf(role) !== -1));
+    if (!mods.length) return;   // 配置异常时不清空,保留静态兜底
+    grid.innerHTML = mods.map(m => {
+      const style = `--card-accent:${m.color || '#6366f1'};` +
+                    `--card-soft:${m.color_soft || '#eef2ff'};` +
+                    `--card-strong:${m.color_strong || '#4338ca'}`;
+      return `<a class="portal-card" style="${style}" href="${escapeHtml(m.href)}">
+          <span class="badge">${escapeHtml(m.badge || '')}</span>
+          <div class="title">${escapeHtml(m.title || m.name || '')}</div>
+          <div class="desc">${escapeHtml(m.desc || '')}</div>
+          <div class="cta">进入 <span class="arrow">→</span></div>
+        </a>`;
+    }).join('');
+  } catch (e) {
+    // 静默:登录已成功,配置拉取失败时静态卡片仍在
+  }
 }
 function logout() {
   if (!confirm('确定要退出登录吗?')) return;
