@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>产品管理 · 乔山销售助手</title>
+<link rel="stylesheet" href="/assets/app.css" />
+<style>
+  .subbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; }
+  .subbar .back { margin-right:auto; }
+  .add-card { background:var(--card); border:1px solid var(--border-soft); border-radius:12px;
+    box-shadow:var(--shadow); padding:16px 18px; margin-bottom:18px; }
+  .add-card .row { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+  .add-card .fld { display:flex; flex-direction:column; gap:4px; }
+  .add-card label { font-size:11.5px; color:var(--muted); }
+  .add-card input, .add-card select, .add-card textarea {
+    padding:8px 11px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:white; outline:none; font-family:inherit; }
+  .add-card textarea { min-width:280px; min-height:38px; }
+  .brand-sec { background:var(--card); border:1px solid var(--border-soft); border-radius:12px;
+    box-shadow:var(--shadow); margin-bottom:14px; overflow:hidden; }
+  .brand-head { display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--border-soft); }
+  .brand-name { font-size:15px; font-weight:650; }
+  .brand-head .count { font-size:12px; color:var(--muted); }
+  .brand-head .spacer { flex:1; }
+  .prow { display:flex; align-items:center; gap:12px; padding:11px 18px; border-top:1px solid var(--border-soft); }
+  .prow:first-child { border-top:none; }
+  .pname { flex:1; font-size:13.5px; }
+  .pchars { font-size:11.5px; color:var(--muted); white-space:nowrap; }
+  .mini { padding:5px 11px; border:1px solid var(--border); background:white; border-radius:7px; font-size:12.5px; cursor:pointer; color:var(--text-soft); }
+  .mini:hover { background:var(--primary-soft); }
+  .mini.danger { color:var(--danger); }
+  .mini.danger:hover { background:#fef2f2; border-color:var(--danger); }
+
+  .modal { position:fixed; inset:0; background:rgba(15,23,42,0.45); display:none; align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .modal.show { display:flex; }
+  .modal-card { background:white; border-radius:14px; width:100%; max-width:720px; max-height:88vh; display:flex; flex-direction:column; box-shadow:var(--shadow-md); }
+  .modal-card h3 { margin:0; padding:18px 20px; border-bottom:1px solid var(--border-soft); font-size:15px; }
+  .modal-body { padding:16px 20px; overflow:auto; }
+  .modal-body input { width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:12px; outline:none; }
+  .modal-body textarea { width:100%; min-height:340px; padding:11px 13px; border:1px solid var(--border); border-radius:8px; font-size:13px; line-height:1.6; font-family:inherit; outline:none; resize:vertical; }
+  .modal-foot { padding:14px 20px; border-top:1px solid var(--border-soft); display:flex; justify-content:flex-end; gap:10px; }
+  .deny { text-align:center; padding:60px 20px; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="appTopbar"></div>
+
+<div class="container">
+  <div id="content">
+    <div class="subbar">
+      <a class="btn back" href="/admin.html">← 数据看板</a>
+      <button class="btn" id="reimportBtn">从文件重新导入</button>
+      <span class="count" id="topcount"></span>
+    </div>
+
+    <div class="add-card">
+      <div class="row">
+        <div class="fld"><label>品牌</label><select id="addBrand"></select></div>
+        <div class="fld"><label>产品名</label><input id="addName" placeholder="产品名" /></div>
+        <div class="fld" style="flex:1"><label>卖点内容(可空,稍后编辑)</label><textarea id="addContent" placeholder="可先建空产品,再点编辑填卖点"></textarea></div>
+        <button class="btn btn-primary" id="addBtn">添加产品</button>
+      </div>
+    </div>
+
+    <div id="list"><div class="count" style="padding:20px">加载中...</div></div>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <h3 id="mTitle">编辑</h3>
+    <div class="modal-body">
+      <input id="mName" placeholder="产品名" style="display:none" />
+      <textarea id="mBody"></textarea>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" id="mSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+const me = App.requireSession();
+const esc = App.escapeHtml;
+let brands = [];
+let editing = null;   // {kind:'product'|'guidelines', id?, brand?}
+
+if (me) {
+  App.mountTopbar();
+  if (!['org_admin', 'super_admin'].includes(App.roleOf(me))) {
+    document.getElementById('content').innerHTML =
+      '<div class="deny"><h2>无权访问</h2><p>产品管理仅向管理员开放。</p><p><a href="/">← 返回工作台</a></p></div>';
+  } else { load(); }
+}
+
+async function api(action, extra) {
+  return App.api('/api/products-admin', {
+    method: 'POST',
+    body: Object.assign({ action, _user: { department: me.department, name: me.name, emp_id: me.emp_id } }, extra || {}),
+  });
+}
+
+async function load() {
+  const r = await api('list');
+  if (!r.ok || !r.data) { document.getElementById('list').innerHTML = '<div class="count" style="padding:20px">加载失败</div>'; return; }
+  brands = r.data.brands || [];
+  document.getElementById('addBrand').innerHTML = brands.map(b => `<option value="${esc(b.name)}">${esc(b.name)}</option>`).join('');
+  const np = brands.reduce((s, b) => s + b.products.length, 0);
+  document.getElementById('topcount').textContent = `${brands.length} 品牌 · ${np} 产品`;
+  render();
+}
+
+function render() {
+  document.getElementById('list').innerHTML = brands.map(b => `
+    <div class="brand-sec">
+      <div class="brand-head">
+        <span class="brand-name">${esc(b.name)}</span>
+        <span class="count">${b.products.length} 个产品 · 品牌资料 ${(b.guidelines || '').length} 字</span>
+        <span class="spacer"></span>
+        <button class="mini" onclick="editGuidelines('${esc(b.name)}')">编辑品牌资料</button>
+      </div>
+      ${b.products.map(p => `
+        <div class="prow">
+          <span class="pname">${esc(p.name)}</span>
+          <span class="pchars">${(p.content || '').length} 字</span>
+          <button class="mini" onclick="editProduct(${p.id})">编辑卖点</button>
+          <button class="mini danger" onclick="delProduct(${p.id}, '${esc(p.name)}')">删除</button>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+function findProduct(id) {
+  for (const b of brands) { const p = b.products.find(x => x.id === id); if (p) return p; }
+  return null;
+}
+
+function openModal(title, withName) {
+  document.getElementById('mTitle').textContent = title;
+  document.getElementById('mName').style.display = withName ? '' : 'none';
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal() { document.getElementById('modal').classList.remove('show'); editing = null; }
+window.closeModal = closeModal;
+
+function editProduct(id) {
+  const p = findProduct(id); if (!p) return;
+  editing = { kind: 'product', id };
+  document.getElementById('mName').value = p.name;
+  document.getElementById('mBody').value = p.content || '';
+  openModal('编辑产品卖点', true);
+}
+function editGuidelines(brand) {
+  const b = brands.find(x => x.name === brand); if (!b) return;
+  editing = { kind: 'guidelines', brand };
+  document.getElementById('mBody').value = b.guidelines || '';
+  openModal('编辑品牌资料 · ' + brand, false);
+}
+window.editProduct = editProduct;
+window.editGuidelines = editGuidelines;
+
+document.getElementById('mSave').addEventListener('click', async () => {
+  if (!editing) return;
+  const body = document.getElementById('mBody').value;
+  let r;
+  if (editing.kind === 'product') {
+    const name = document.getElementById('mName').value.trim();
+    if (!name) { App.toast('产品名不能为空'); return; }
+    r = await api('update_product', { id: editing.id, name, content: body });
+  } else {
+    r = await api('update_guidelines', { brand: editing.brand, guidelines: body });
+  }
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '保存失败'); return; }
+  App.toast('已保存');
+  closeModal();
+  await load();
+});
+
+async function delProduct(id, name) {
+  if (!confirm(`确定删除产品「${name}」?删除后文案/封面将无法选到它。`)) return;
+  const r = await api('delete_product', { id });
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '删除失败'); return; }
+  App.toast('已删除:' + name);
+  await load();
+}
+window.delProduct = delProduct;
+
+document.getElementById('addBtn').addEventListener('click', async () => {
+  const brand = document.getElementById('addBrand').value;
+  const name = document.getElementById('addName').value.trim();
+  const content = document.getElementById('addContent').value;
+  if (!brand || !name) { App.toast('请选品牌、填产品名'); return; }
+  const r = await api('add_product', { brand, name, content });
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '添加失败'); return; }
+  document.getElementById('addName').value = '';
+  document.getElementById('addContent').value = '';
+  App.toast('已添加:' + name);
+  await load();
+});
+
+document.getElementById('reimportBtn').addEventListener('click', async () => {
+  if (!confirm('从 products.json 重新导入会【覆盖】数据库里所有产品和品牌资料(含手工改动),确定?')) return;
+  const r = await api('reimport');
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '导入失败'); return; }
+  App.toast(`已重导入:${r.data.brands} 品牌 / ${r.data.products} 产品`);
+  await load();
+});
+</script>
+</body>
+</html>

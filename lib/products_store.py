@@ -224,3 +224,28 @@ def update_guidelines(brand_name, guidelines):
         return True
     finally:
         c.close()
+
+
+def reimport_from_json():
+    """从 products.json 强制重建(清空 app_brands/app_products 再播种)。
+    给后台「从文件重新导入」用:跑完 build_products.py 重建 JSON 后,一键刷进库。
+    注意:会覆盖库里所有手工改动。"""
+    c = _conn()
+    try:
+        _ensure_schema(c)
+        c.execute("DELETE FROM app_products")
+        c.execute("DELETE FROM app_brands")
+        now = int(time.time())
+        nb = npd = 0
+        for bi, b in enumerate(_load_json().get('brands', [])):
+            c.execute("INSERT INTO app_brands(org,name,guidelines,sort_order,active,created_at,updated_at) "
+                      "VALUES('johnson',?,?,?,1,?,?)", (b.get('name', ''), b.get('guidelines', ''), bi, now, now))
+            nb += 1
+            for pi, p in enumerate(b.get('products', [])):
+                c.execute("INSERT INTO app_products(org,brand,name,content,sort_order,active,created_at,updated_at) "
+                          "VALUES('johnson',?,?,?,?,1,?,?)", (b.get('name', ''), p.get('name', ''), p.get('content', ''), pi, now, now))
+                npd += 1
+        c.commit()
+        return {"brands": nb, "products": npd}
+    finally:
+        c.close()
