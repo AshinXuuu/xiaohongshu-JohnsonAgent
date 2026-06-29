@@ -51,6 +51,7 @@
       <select class="filter" id="deptFilter"><option value="">全部部门</option></select>
       <input class="search" id="search" placeholder="搜姓名 / 工号" />
       <span class="count" id="count"></span>
+      <button class="btn" id="reimportBtn" style="display:none">从名单重新导入</button>
     </div>
 
     <div class="add-card">
@@ -100,6 +101,7 @@ async function load() {
   departments = r.data.departments || [];
   roles = r.data.roles || ['staff'];
   callerRole = r.data.caller_role || 'staff';
+  document.getElementById('reimportBtn').style.display = callerRole === 'super_admin' ? '' : 'none';
   // 部门筛选 + 添加表单部门
   const optd = departments.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
   document.getElementById('deptFilter').innerHTML = '<option value="">全部部门</option>' + optd;
@@ -176,6 +178,14 @@ window.deactivate = deactivate;
 document.getElementById('addBtn').addEventListener('click', addUser);
 document.getElementById('deptFilter').addEventListener('change', render);
 document.getElementById('search').addEventListener('input', render);
+
+document.getElementById('reimportBtn').addEventListener('click', async () => {
+  if (!confirm('从 users.json 名单重新导入会【覆盖】数据库里的全部用户(含此前手工增改),确定?')) return;
+  const r = await api('reimport');
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '导入失败'); return; }
+  alert(`已导入 ${r.data.count} 人。因部门可能变动,需要重新登录刷新身份,点击确定后跳回登录。`);
+  App.logout();
+});
 </script>
 </body>
 </html>

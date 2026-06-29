@@ -453,8 +453,8 @@
     <label for="loginEmpId">工号</label>
     <input id="loginEmpId" type="text" inputmode="numeric" autocomplete="off" placeholder="请输入工号" />
 
-    <label for="loginId6">身份证后 6 位</label>
-    <input id="loginId6" type="text" maxlength="6" autocomplete="off" placeholder="例如 123456 或 12345X" />
+    <label for="loginId6">身份证后 6 位<span style="color:var(--muted);font-weight:400">(部分部门可不填)</span></label>
+    <input id="loginId6" type="text" maxlength="6" autocomplete="off" placeholder="没有的可留空" />
 
     <button class="login-submit" id="loginBtn" onclick="doLogin()">登录</button>
     <div class="login-error" id="loginError"></div>
@@ -610,8 +610,8 @@ async function doLogin() {
     showLoginError('请把部门、姓名、工号填完整');
     return;
   }
-  if (!/^\d{5}[\dX]$/.test(id6)) {
-    showLoginError('请输入身份证后 6 位(末位可为 X)');
+  if (id6 && !/^\d{5}[\dX]$/.test(id6)) {
+    showLoginError('身份证后 6 位格式不对(末位可为 X);没有的可留空');
     return;
   }
   const btn = $('loginBtn');

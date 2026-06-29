@@ -92,6 +92,12 @@ class handler(BaseHTTPRequestHandler):
                 users_store.deactivate_user(uid)
                 return self._json(200, {"ok": True})
 
+            if action == "reimport":
+                if caller_role != "super_admin":
+                    return self._json(403, {"error": "仅超级管理员可从名单重新导入"})
+                n = users_store.reimport_from_json()
+                return self._json(200, {"ok": True, "count": n})
+
             return self._json(400, {"error": "未知 action"})
         except Exception as e:
             self._json(500, {"error": str(e)})

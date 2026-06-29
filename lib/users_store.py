@@ -253,3 +253,33 @@ def update_user(uid, **fields):
 def deactivate_user(uid):
     """软删除:停用而非物理删除,保留历史可追溯。"""
     return update_user(uid, active=0)
+
+
+def reimport_from_json():
+    """从 users.json 强制重建 app_users(清空再播种)。给后台「从名单重新导入」用:
+    更新 users.json 后,超管点一下即可把数据库刷新成新名单。会覆盖库里所有用户。"""
+    c = _conn()
+    try:
+        _ensure_schema(c)
+        c.execute("DELETE FROM app_users")
+        data = _load_json()
+        by_dept = data.get('users_by_dept', {})
+        seq = list(data.get('departments') or [])
+        seq += [d for d in by_dept if d not in seq]
+        now = int(time.time())
+        order = 0
+        n = 0
+        for dept in seq:
+            for u in by_dept.get(dept, []):
+                c.execute(
+                    "INSERT INTO app_users(org,department,name,emp_id,id_last6,role,is_admin,active,"
+                    "sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,1,?,?,?)",
+                    (u.get('org') or 'johnson', dept, (u.get('name') or '').strip(),
+                     str(u.get('emp_id') or '').strip(), (u.get('id_last6') or '').strip(),
+                     _role_of_record(u), 1 if u.get('is_admin') else 0, order, now, now))
+                order += 1
+                n += 1
+        c.commit()
+        return n
+    finally:
+        c.close()
