@@ -201,7 +201,10 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
+    opacity: 0;                       /* 卡片渲染好前先隐藏,避免闪旧静态卡片 */
+    transition: opacity 0.2s ease;
   }
+  .portal-grid.ready { opacity: 1; }
   @media (max-width: 720px) { .portal-grid { grid-template-columns: 1fr; } }
 
   /* ─── 移动端专项 ────────────────────────────── */
@@ -658,26 +661,31 @@ function showPortal(me) {
 // 按组织配置 + 角色渲染模块卡片
 async function renderPortalCards(me) {
   const grid = $('portalGrid');
-  if (!grid || !window.App) return;
+  if (!grid) return;
   try {
-    const org = await App.loadOrg();
-    const role = App.roleOf(me);
-    const mods = (org.modules || []).filter(m =>
-      m.enabled !== false && (!m.roles || m.roles.indexOf(role) !== -1));
-    if (!mods.length) return;   // 配置异常时不清空,保留静态兜底
-    grid.innerHTML = mods.map(m => {
-      const style = `--card-accent:${m.color || '#6366f1'};` +
-                    `--card-soft:${m.color_soft || '#eef2ff'};` +
-                    `--card-strong:${m.color_strong || '#4338ca'}`;
-      return `<a class="portal-card" style="${style}" href="${escapeHtml(m.href)}">
-          <span class="badge">${escapeHtml(m.badge || '')}</span>
-          <div class="title">${escapeHtml(m.title || m.name || '')}</div>
-          <div class="desc">${escapeHtml(m.desc || '')}</div>
-          <div class="cta">进入 <span class="arrow">→</span></div>
-        </a>`;
-    }).join('');
+    if (window.App) {
+      const org = await App.loadOrg();
+      const role = App.roleOf(me);
+      const mods = (org.modules || []).filter(m =>
+        m.enabled !== false && (!m.roles || m.roles.indexOf(role) !== -1));
+      if (mods.length) {
+        grid.innerHTML = mods.map(m => {
+          const style = `--card-accent:${m.color || '#6366f1'};` +
+                        `--card-soft:${m.color_soft || '#eef2ff'};` +
+                        `--card-strong:${m.color_strong || '#4338ca'}`;
+          return `<a class="portal-card" style="${style}" href="${escapeHtml(m.href)}">
+              <span class="badge">${escapeHtml(m.badge || '')}</span>
+              <div class="title">${escapeHtml(m.title || m.name || '')}</div>
+              <div class="desc">${escapeHtml(m.desc || '')}</div>
+              <div class="cta">进入 <span class="arrow">→</span></div>
+            </a>`;
+        }).join('');
+      }
+    }
   } catch (e) {
-    // 静默:登录已成功,配置拉取失败时静态卡片仍在
+    // 静默:配置拉取失败时保留静态兜底卡片
+  } finally {
+    grid.classList.add('ready');   // 无论走配置还是兜底,渲染完成后淡入,避免闪旧卡片
   }
 }
 function logout() {
