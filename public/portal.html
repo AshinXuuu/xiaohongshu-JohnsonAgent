@@ -481,7 +481,7 @@
   <div class="portal-bar">
     <h1>乔山销售助手 <span class="dot">·</span> 工作台</h1>
     <div class="spacer"></div>
-    <button class="version-badge" id="versionBadge" onclick="openVersionModal()">v2.0 新</button>
+    <button class="version-badge" id="versionBadge" onclick="openVersionModal()">v3.0 新</button>
     <span class="me" id="meLabel"></span>
     <button class="logout" onclick="logout()">退出</button>
   </div>
@@ -697,8 +697,33 @@ window.logout = logout;
 
 // ─────────── 版本更新公告 ───────────
 const SEEN_VERSION_KEY = 'xhsAgent:seenVersion';
-const APP_VERSION = 'v2.0';
+const APP_VERSION = 'v3.0';
 const CHANGELOG = [
+  {
+    version: 'v3.0',
+    date: '2026-06-27',
+    title: '平台级大升级 — 新增 KOS 任务中心 + 工作台焕新',
+    intro: '这次是迄今最大的一次升级。最大的新功能是「KOS 任务中心」——业务登录就能看到待办的种草任务,一键「领取素材包」,系统当场帮你拼好图、配好文案,保存即发小红书,发完贴上链接就计入团队排行。同时整个工作台和后台全面焕新。',
+    highlights: [
+      { icon: '', title: '「KOS 任务中心」上线', desc: '看到待办任务后点「领取素材包」,系统当场生成封面 + 两张拼接图 + 配套文案。长按保存图片、一键复制文案,去小红书发布,发完把笔记链接贴回来就计入完成,还能看团队排行榜。' },
+      { icon: '', title: '智能防查重出图', desc: '同一批素材,每个人领到的图都会经过随机裁切重新拼接,张张不同,降低被平台判重限流的风险(不会改动产品本身)。' },
+      { icon: '', title: '产品资料库', desc: '按品牌、产品在线下载产品单页和中英文说明书,随时发给客户,不用再到处翻文件。' },
+      { icon: '', title: '工作台焕新', desc: 'KOS 任务 / 小红书生成 / 销售问答 / 产品资料库 四大工具统一界面,顶部一处自由切换,顺手很多。' },
+      { icon: '', title: '登录更省心', desc: '部分部门(如世代主管)登录只需填工号,不用再填身份证。' },
+      { icon: '', title: '后台全面网页化(管理员)', desc: '用户、产品、KOS 素材库与任务,全部在网页后台增删改,改名单/改卖点/发任务都不用再改文件了。' },
+    ],
+    tech: [
+      '防查重出图引擎(Pillow):随机裁切(cover+随机偏移+轻缩放,不翻转)+ 2合1/4合1 拼接 + 重编码 JPEG + 清 EXIF;成品 3:4(1080×1440)',
+      '严格唯一组合消耗:每份占用一对(2合1)+ 一组四张(4合1),永不复用;单库容量 = min(C(n,2), C(n,4))',
+      'KOS 成品图服务器本地生成 + 令牌化下发(规避 COS 只读密钥),源素材从 COS 只读拉取',
+      'SaaS 化地基:5 页统一外壳 + 设计系统(颜色走 CSS 变量、配置驱动、白标就绪),工作台卡片读 data/orgs/johnson.json',
+      '角色权限 RBAC:super_admin / org_admin / staff,服务端按 users.json/库核对,前端伪造无效',
+      '用户、产品数据收口进 SQLite(app_users / app_brands / app_products),后台可视化管理 + JSON 兜底,数据库异常自动回退',
+      '产品资料库:COS 私有桶 + 后端预签名下载链接(5 分钟过期)+ 白名单',
+      '新增表:kos_libraries / kos_materials / kos_tasks / kos_packs',
+      '名单从工号 Excel 导入(97 人 / 10 部门),后台「从名单重新导入」一键刷库;登录身份证改为非必填',
+    ],
+  },
   {
     version: 'v2.0',
     date: '2026-06-03',
