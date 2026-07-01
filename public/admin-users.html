@@ -157,7 +157,8 @@ async function addUser() {
 }
 
 async function changeRole(id, role) {
-  const r = await api('update', { id, role });
+  const u = users.find(x => x.id === id);
+  const r = await api('update', { id, role, name: u ? u.name : '' });
   if (!r.ok || r.data.error) { App.toast(r.data.error || '修改失败'); await load(); return; }
   App.toast('角色已更新');
   // 更新本地缓存,避免整表重渲染打断
@@ -167,7 +168,7 @@ async function changeRole(id, role) {
 
 async function deactivate(id, name) {
   if (!confirm(`确定停用「${name}」?停用后该账号无法登录(可在数据库恢复)。`)) return;
-  const r = await api('deactivate', { id });
+  const r = await api('deactivate', { id, name });
   if (!r.ok || r.data.error) { App.toast(r.data.error || '停用失败'); return; }
   App.toast('已停用:' + name);
   await load();

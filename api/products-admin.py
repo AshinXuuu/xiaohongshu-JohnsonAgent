@@ -36,6 +36,32 @@ def _cos_client():
     return CosS3Client(CosConfig(Region=region, SecretId=sid, SecretKey=skey, Scheme='https')), bucket
 
 
+def _audit_log(caller, action, req):
+    from lib.audit import log
+    s = None
+    if action == 'add_product':
+        s = f"新增产品 {req.get('brand')} / {req.get('name')}"
+    elif action == 'update_product':
+        s = f"编辑产品卖点 {req.get('name') or ('id' + str(req.get('id')))}"
+    elif action == 'delete_product':
+        s = f"删除产品 {req.get('name') or ('id' + str(req.get('id')))}"
+    elif action == 'update_guidelines':
+        s = f"编辑品牌资料 {req.get('brand')}"
+    elif action == 'reimport':
+        s = "从文件重新导入产品(覆盖)"
+    elif action == 'register_files':
+        s = f"上传资料 {req.get('brand')} / {req.get('product')}({len(req.get('items') or [])} 个文件)"
+    elif action == 'update_file':
+        if req.get('name'):
+            s = f"资料改名→{req.get('name')}"
+        elif req.get('type'):
+            s = f"资料改类型→{req.get('type')}"
+    elif action == 'delete_file':
+        s = f"删除资料文件 {req.get('product') or ''}(id {req.get('id')})"
+    if s:
+        log(caller, '产品', action, s)
+
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
@@ -53,6 +79,7 @@ class handler(BaseHTTPRequestHandler):
             if not is_admin(req.get("_user") or {}):
                 return self._json(403, {"error": "无权访问,仅管理员可操作"})
             action = (req.get("action") or "").strip()
+            _audit_log(req.get("_user") or {}, action, req)
 
             if action == "list":
                 return self._json(200, {"brands": products_store.get_all()})

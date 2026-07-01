@@ -15,6 +15,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lib.auth import is_admin, role_of
 from lib import users_store
 
+
+def _audit_log(caller, action, req):
+    from lib.audit import log
+    if action == 'add':
+        s = f"新增用户 {req.get('name')}({req.get('department')} · {req.get('role') or 'staff'})"
+    elif action == 'update':
+        who = req.get('name') or f"id{req.get('id')}"
+        s = f"编辑用户 {who}" + (f",角色→{req.get('role')}" if req.get('role') else "")
+    elif action == 'deactivate':
+        s = f"停用用户 {req.get('name') or ('id' + str(req.get('id')))}"
+    elif action == 'reimport':
+        s = "从名单重新导入用户(覆盖全部)"
+    else:
+        return
+    log(caller, '用户', action, s)
+
+
 VALID_ROLES = ("staff", "dept_manager", "org_admin", "super_admin")
 ADMIN_ROLES = ("org_admin", "super_admin")
 
@@ -38,6 +55,7 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(403, {"error": "无权访问,仅管理员可操作"})
             caller_role = role_of(caller)
             action = (req.get("action") or "").strip()
+            _audit_log(caller, action, req)
 
             if action == "list":
                 return self._json(200, {

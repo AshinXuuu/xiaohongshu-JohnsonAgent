@@ -189,7 +189,7 @@ async function renameFile(pid, fid) {
 }
 async function delFile(pid, fid) {
   if (!confirm('确定删除这份资料?业务将无法下载它(COS 原文件不动)。')) return;
-  const r = await api('delete_file', { id: fid });
+  const r = await api('delete_file', { id: fid, product: (_prodMap[pid] || {}).name });
   if (!r.ok || r.data.error) { App.toast(r.data.error || '删除失败'); return; }
   App.toast('已删除'); await loadFiles(pid);
 }
@@ -254,7 +254,7 @@ document.getElementById('mSave').addEventListener('click', async () => {
 
 async function delProduct(id, name) {
   if (!confirm(`确定删除产品「${name}」?删除后文案/封面将无法选到它。`)) return;
-  const r = await api('delete_product', { id });
+  const r = await api('delete_product', { id, name });
   if (!r.ok || r.data.error) { App.toast(r.data.error || '删除失败'); return; }
   App.toast('已删除:' + name);
   await load();

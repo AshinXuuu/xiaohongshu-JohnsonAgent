@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>操作日志 · 乔山销售助手</title>
+<link rel="stylesheet" href="/assets/app.css" />
+<style>
+  .subbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; }
+  .subbar .back { margin-right:auto; }
+  .tabs { display:flex; gap:6px; }
+  .tab { padding:6px 14px; border:1px solid var(--border); background:white; border-radius:999px; font-size:13px; cursor:pointer; color:var(--text-soft); }
+  .tab.active { background:var(--accent); border-color:var(--accent); color:white; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--border-soft); border-radius:12px; overflow:hidden; box-shadow:var(--shadow); }
+  th, td { text-align:left; padding:10px 14px; font-size:13px; border-bottom:1px solid var(--border-soft); vertical-align:top; }
+  th { background:var(--primary-soft); color:var(--text-soft); font-weight:600; font-size:12.5px; }
+  tr:last-child td { border-bottom:none; }
+  .cat { font-size:11px; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  .cat.用户 { background:#eef2ff; color:#4338ca; }
+  .cat.产品 { background:#fdf2f8; color:#be185d; }
+  .cat.任务 { background:#fffbeb; color:#b45309; }
+  .who { white-space:nowrap; }
+  .role { font-size:11px; color:var(--muted); }
+  .tm { color:var(--muted); white-space:nowrap; font-size:12.5px; }
+  .count { font-size:12.5px; color:var(--muted); }
+  .deny { text-align:center; padding:60px 20px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div id="appTopbar"></div>
+<div class="container">
+  <div id="content">
+    <div class="subbar">
+      <a class="btn back" href="/admin.html">← 数据看板</a>
+      <div class="tabs" id="tabs"></div>
+      <span class="count" id="count"></span>
+    </div>
+    <table>
+      <thead><tr><th>时间</th><th>操作人</th><th>类别</th><th>操作内容</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4" class="count" style="padding:24px">加载中...</td></tr></tbody>
+    </table>
+    <div class="count" style="margin-top:10px">仅保留近 30 天记录。</div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+const me = App.requireSession();
+const esc = App.escapeHtml;
+const CATS = ['全部', '用户', '产品', '任务'];
+let cat = '全部';
+
+if (me) {
+  App.mountTopbar();
+  if (!['org_admin', 'super_admin'].includes(App.roleOf(me))) {
+    document.getElementById('content').innerHTML =
+      '<div class="deny"><h2>无权访问</h2><p>操作日志仅向管理员开放。</p><p><a href="/">← 返回工作台</a></p></div>';
+  } else {
+    renderTabs();
+    load();
+  }
+}
+
+function renderTabs() {
+  document.getElementById('tabs').innerHTML = CATS.map(c =>
+    `<div class="tab ${c === cat ? 'active' : ''}" data-c="${c}">${c}</div>`).join('');
+  document.querySelectorAll('#tabs .tab').forEach(el => {
+    el.onclick = () => { cat = el.dataset.c; renderTabs(); load(); };
+  });
+}
+
+function fmt(ms) {
+  const d = new Date(ms);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+const ROLE = { super_admin: '超管', org_admin: '管理员', dept_manager: '部门管理', staff: '' };
+
+async function load() {
+  const r = await App.api('/api/audit-log', {
+    method: 'POST',
+    body: { category: cat, _user: { department: me.department, name: me.name, emp_id: me.emp_id } },
+  });
+  const logs = (r.data && r.data.logs) || [];
+  document.getElementById('count').textContent = `共 ${logs.length} 条`;
+  document.getElementById('rows').innerHTML = logs.length ? logs.map(l => `
+    <tr>
+      <td class="tm">${fmt(l.time_ms)}</td>
+      <td class="who">${esc(l.name || '')} ${esc(l.department || '')}<div class="role">${ROLE[l.role] || l.role || ''}</div></td>
+      <td><span class="cat ${esc(l.category)}">${esc(l.category || '')}</span></td>
+      <td>${esc(l.summary || '')}</td>
+    </tr>`).join('') : '<tr><td colspan="4" class="count" style="padding:24px">暂无记录</td></tr>';
+}
+</script>
+</body>
+</html>

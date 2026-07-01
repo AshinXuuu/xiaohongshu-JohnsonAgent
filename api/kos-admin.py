@@ -69,6 +69,27 @@ def _users_in_scope(scope, depts):
     return len(allu)
 
 
+def _audit_log(caller, action, req):
+    from lib.audit import log
+    s = None
+    if action == 'create_library':
+        s = f"新建素材库 {req.get('brand')} / {req.get('product')}"
+    elif action == 'delete_library':
+        s = f"删除素材库(id {req.get('library_id')})"
+    elif action == 'register_materials':
+        s = f"上传KOS素材 {req.get('role')}({len(req.get('items') or [])} 张)"
+    elif action == 'scan_library':
+        s = f"扫描登记素材库(id {req.get('library_id')})"
+    elif action == 'delete_material':
+        s = f"删除KOS素材(id {req.get('id')})"
+    elif action == 'create_task':
+        s = f"发布任务(库id {req.get('library_id')},{req.get('scope')},每人{req.get('per_person') or 1}篇)"
+    elif action == 'close_task':
+        s = f"结束任务(id {req.get('id')})"
+    if s:
+        log(caller, '任务', action, s)
+
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
@@ -85,6 +106,7 @@ class handler(BaseHTTPRequestHandler):
             if not is_admin(caller):
                 return self._json(403, {"error": "无权访问,仅管理员可操作"})
             action = (req.get("action") or "").strip()
+            _audit_log(caller, action, req)
 
             if action == "create_library":
                 brand = (req.get("brand") or "").strip()
