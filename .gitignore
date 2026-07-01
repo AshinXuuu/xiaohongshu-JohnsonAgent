@@ -29,3 +29,4 @@ out/
 .fuse_hidden*
 **/.fuse_hidden*
 data/kos_out/
+backups/
