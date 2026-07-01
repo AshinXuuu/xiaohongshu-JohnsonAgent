@@ -12,12 +12,28 @@ action:
 """
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
+import os
 import sys
 import json
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lib.auth import is_admin
-from lib import products_store
+from lib import products_store, library_store
+
+# 资料库文件在 COS 的前缀(与 api/library.py 下载一致)
+LIB_PREFIX = os.environ.get('COS_PREFIX', 'kb/原始素材/产品库/')
+FILE_TYPES = ('单页', '中文说明书', '英文说明书', '其他')
+
+
+def _cos_client():
+    from qcloud_cos import CosConfig, CosS3Client
+    sid = os.environ.get('COS_SECRET_ID', '').strip()
+    skey = os.environ.get('COS_SECRET_KEY', '').strip()
+    region = os.environ.get('COS_REGION', '').strip()
+    bucket = os.environ.get('COS_BUCKET', '').strip()
+    if not all([sid, skey, region, bucket]):
+        raise RuntimeError('COS 未配置')
+    return CosS3Client(CosConfig(Region=region, SecretId=sid, SecretKey=skey, Scheme='https')), bucket
 
 
 class handler(BaseHTTPRequestHandler):
@@ -81,6 +97,60 @@ class handler(BaseHTTPRequestHandler):
             if action == "reimport":
                 res = products_store.reimport_from_json()
                 return self._json(200, {"ok": True, **res})
+
+            # ── 产品资料库文件管理 ──
+            if action == "list_files":
+                return self._json(200, {"files": library_store.list_by_product(
+                    (req.get("brand") or "").strip(), (req.get("product") or "").strip())})
+
+            if action == "sign_file_upload":
+                brand = (req.get("brand") or "").strip()
+                product = (req.get("product") or "").strip()
+                files = req.get("files") or []
+                if not (brand and product and files):
+                    return self._json(400, {"error": "缺少品牌/产品/文件"})
+                try:
+                    client, bucket = _cos_client()
+                except RuntimeError as e:
+                    return self._json(503, {"error": str(e)})
+                import uuid
+                out = []
+                for fn in files:
+                    ext = os.path.splitext(str(fn))[1].lower() or '.pdf'
+                    rel_key = f"{brand}/{product}/{uuid.uuid4().hex[:10]}{ext}"   # 存库的相对 key
+                    full_key = f"{LIB_PREFIX}{rel_key}"                            # COS 实际对象 key
+                    url = client.get_presigned_url(Method='PUT', Bucket=bucket, Key=full_key, Expired=900)
+                    out.append({"filename": fn, "cos_key": rel_key, "put_url": url})
+                return self._json(200, {"ok": True, "uploads": out})
+
+            if action == "register_files":
+                brand = (req.get("brand") or "").strip()
+                product = (req.get("product") or "").strip()
+                n = 0
+                for it in (req.get("items") or []):
+                    key = (it.get("cos_key") or "").strip()
+                    if not key or library_store.key_exists(key):
+                        continue
+                    ftype = it.get("type") if it.get("type") in FILE_TYPES else "单页"
+                    library_store.add_file(brand, product, it.get("filename") or key.rsplit('/', 1)[-1],
+                                           ftype, key, it.get("size") or 0)
+                    n += 1
+                return self._json(200, {"ok": True, "added": n})
+
+            if action == "update_file":
+                fid = req.get("id")
+                if not fid:
+                    return self._json(400, {"error": "缺少文件 id"})
+                name = req.get("name")
+                ftype = req.get("type") if req.get("type") in FILE_TYPES else None
+                library_store.update_file(fid, name=(name.strip() if name else None), ftype=ftype)
+                return self._json(200, {"ok": True})
+
+            if action == "delete_file":
+                if not req.get("id"):
+                    return self._json(400, {"error": "缺少文件 id"})
+                library_store.deactivate_file(req.get("id"))
+                return self._json(200, {"ok": True})
 
             return self._json(400, {"error": "未知 action"})
         except Exception as e:

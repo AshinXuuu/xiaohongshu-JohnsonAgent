@@ -40,11 +40,22 @@
   .modal-body textarea { width:100%; min-height:340px; padding:11px 13px; border:1px solid var(--border); border-radius:8px; font-size:13px; line-height:1.6; font-family:inherit; outline:none; resize:vertical; }
   .modal-foot { padding:14px 20px; border-top:1px solid var(--border-soft); display:flex; justify-content:flex-end; gap:10px; }
   .deny { text-align:center; padding:60px 20px; color:var(--muted); }
+  /* 产品资料库文件管理面板 */
+  .files { background:var(--primary-soft); border-top:1px solid var(--border-soft); }
+  .files-inner { padding:10px 18px; }
+  .frow { display:flex; align-items:center; gap:10px; padding:6px 0; }
+  .fnm { flex:1; font-size:13px; color:var(--text-soft); word-break:break-all; }
+  .ftsel { padding:4px 7px; border:1px solid var(--border); border-radius:6px; font-size:12px; background:white; }
+  .mini.danger { color:var(--danger); }
+  .mini.danger:hover { background:#fef2f2; border-color:var(--danger); }
+  .upload-row { display:flex; align-items:center; gap:8px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); }
+  .upload-row select { padding:6px 9px; border:1px solid var(--border); border-radius:7px; font-size:13px; background:white; }
 </style>
 </head>
 <body>
 
 <div id="appTopbar"></div>
+<input type="file" id="prodFileInput" multiple style="display:none" />
 
 <div class="container">
   <div id="content">
@@ -113,7 +124,10 @@ async function load() {
   render();
 }
 
+let _prodMap = {};
 function render() {
+  _prodMap = {};
+  brands.forEach(b => b.products.forEach(p => { _prodMap[p.id] = { brand: b.name, name: p.name }; }));
   document.getElementById('list').innerHTML = brands.map(b => `
     <div class="brand-sec">
       <div class="brand-head">
@@ -127,10 +141,70 @@ function render() {
           <span class="pname">${esc(p.name)}</span>
           <span class="pchars">${(p.content || '').length} 字</span>
           <button class="mini" onclick="editProduct(${p.id})">编辑卖点</button>
+          <button class="mini" onclick="toggleFiles(${p.id})">资料库</button>
           <button class="mini danger" onclick="delProduct(${p.id}, '${esc(p.name)}')">删除</button>
-        </div>`).join('')}
+        </div>
+        <div class="files" id="files-${p.id}" style="display:none"></div>`).join('')}
     </div>`).join('');
 }
+
+// ── 产品资料库文件管理 ──
+async function toggleFiles(pid) {
+  const panel = document.getElementById('files-' + pid);
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  panel.innerHTML = '<div class="files-inner"><span class="count">加载资料中...</span></div>';
+  await loadFiles(pid);
+}
+async function loadFiles(pid) {
+  const m = _prodMap[pid];
+  const r = await api('list_files', { brand: m.brand, product: m.name });
+  const files = (r.data && r.data.files) || [];
+  document.getElementById('files-' + pid).innerHTML = `
+    <div class="files-inner">
+      ${files.length ? files.map(f => fileRow(pid, f)).join('') : '<div class="count">暂无资料,可在下方上传</div>'}
+      <div class="upload-row">
+        <select id="ft-${pid}">${['单页','中文说明书','英文说明书','其他'].map(t => `<option>${t}</option>`).join('')}</select>
+        <button class="mini" onclick="pickFiles(${pid})">上传资料(可多选)</button>
+        <span class="count" id="fu-${pid}"></span>
+      </div>
+    </div>`;
+}
+function fileRow(pid, f) {
+  const opts = ['单页','中文说明书','英文说明书','其他'].map(t => `<option ${t === f.type ? 'selected' : ''}>${t}</option>`).join('');
+  return `<div class="frow">
+    <select class="ftsel" onchange="setFileType(${f.id}, this.value)">${opts}</select>
+    <span class="fnm">${esc(f.name)}</span>
+    <button class="mini" onclick="renameFile(${pid}, ${f.id})">改名</button>
+    <button class="mini danger" onclick="delFile(${pid}, ${f.id})">删除</button>
+  </div>`;
+}
+async function setFileType(fid, t) { await api('update_file', { id: fid, type: t }); App.toast('类型已更新'); }
+async function renameFile(pid, fid) {
+  const nn = prompt('新的文件名(业务下载时看到的名字):');
+  if (!nn) return;
+  const r = await api('update_file', { id: fid, name: nn });
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '改名失败'); return; }
+  App.toast('已改名'); await loadFiles(pid);
+}
+async function delFile(pid, fid) {
+  if (!confirm('确定删除这份资料?业务将无法下载它(COS 原文件不动)。')) return;
+  const r = await api('delete_file', { id: fid });
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '删除失败'); return; }
+  App.toast('已删除'); await loadFiles(pid);
+}
+let _fileTarget = null;
+function pickFiles(pid) {
+  const m = _prodMap[pid];
+  _fileTarget = { pid, brand: m.brand, product: m.name, type: document.getElementById('ft-' + pid).value };
+  const inp = document.getElementById('prodFileInput');
+  inp.value = ''; inp.click();
+}
+window.toggleFiles = toggleFiles;
+window.setFileType = setFileType;
+window.renameFile = renameFile;
+window.delFile = delFile;
+window.pickFiles = pickFiles;
 
 function findProduct(id) {
   for (const b of brands) { const p = b.products.find(x => x.id === id); if (p) return p; }
@@ -206,6 +280,29 @@ document.getElementById('reimportBtn').addEventListener('click', async () => {
   if (!r.ok || r.data.error) { App.toast(r.data.error || '导入失败'); return; }
   App.toast(`已重导入:${r.data.brands} 品牌 / ${r.data.products} 产品`);
   await load();
+});
+
+// 资料文件直传 COS
+document.getElementById('prodFileInput').addEventListener('change', async (e) => {
+  const files = [...e.target.files];
+  const t = _fileTarget; _fileTarget = null;
+  if (!files.length || !t) return;
+  const set = x => { const el = document.getElementById('fu-' + t.pid); if (el) el.textContent = x; };
+  set(`准备上传 ${files.length} 个...`);
+  const sr = await api('sign_file_upload', { brand: t.brand, product: t.product, files: files.map(f => f.name) });
+  if (!sr.ok || sr.data.error) { App.toast(sr.data.error || '签名失败'); set(''); return; }
+  const ups = sr.data.uploads;
+  const done = [];
+  for (let i = 0; i < files.length; i++) {
+    set(`上传中 ${i + 1}/${files.length}`);
+    try {
+      const resp = await fetch(ups[i].put_url, { method: 'PUT', body: files[i] });
+      if (resp.ok) done.push({ cos_key: ups[i].cos_key, filename: files[i].name, type: t.type, size: files[i].size });
+    } catch (err) {}
+  }
+  if (done.length) { await api('register_files', { brand: t.brand, product: t.product, items: done }); App.toast(`已上传 ${done.length}/${files.length} 个`); }
+  else App.toast('上传失败,请检查 COS 写权限 / 跨域(CORS)');
+  set(''); await loadFiles(t.pid);
 });
 </script>
 </body>

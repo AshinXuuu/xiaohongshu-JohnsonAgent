@@ -26,6 +26,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 MANIFEST_PATH = ROOT / "data" / "library_manifest.json"
 
 
@@ -127,8 +128,8 @@ class handler(BaseHTTPRequestHandler):
             qs = parse_qs(urlparse(self.path).query)
             action = (qs.get("action", ["manifest"])[0]).strip()
             if action in ("", "manifest"):
-                m = load_manifest()
-                return self._json(200, {"brands": m.get("brands", {})})
+                from lib.library_store import grouped
+                return self._json(200, {"brands": grouped()})
             return self._error(400, "未知 action")
         except Exception as e:
             self._error(500, str(e))
@@ -146,8 +147,8 @@ class handler(BaseHTTPRequestHandler):
             if not key:
                 return self._error(400, "缺少 key")
 
-            allow = allowed_keys(load_manifest())
-            info = allow.get(key)
+            from lib.library_store import allowed_keys as _allowed
+            info = _allowed().get(key)
             if not info:
                 # 不在白名单 → 拒绝(防止越权拿未开放资料)
                 return self._error(403, "该资料不在可下载范围内")
