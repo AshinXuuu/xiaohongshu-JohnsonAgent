@@ -584,7 +584,7 @@ function ctrlBar() {
   const opts = [[7, '近7天'], [30, '近30天'], [90, '近90天'], [0, '全部']];
   const tab = (k, l) => `<button class="app-tab ${a === k ? 'active' : ''}" onclick="switchApp('${k}')">${l}</button>`;
   return `<div class="app-tabs" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">
-    ${tab('overview', '总览')}${tab('all', '全部')}${tab('generate', '文案助手')}${tab('qa', '问答助手')}${tab('library', '资料库')}${tab('kos', 'KOS 任务')}
+    ${tab('overview', '总览')}${tab('generate', '文案助手')}${tab('qa', '问答助手')}${tab('library', '资料库')}${tab('kos', 'KOS 任务')}
     <span style="flex:1"></span>
     <select onchange="setDays(this.value)" style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:white">
       ${opts.map(([v, l]) => `<option value="${v}" ${__state.days == v ? 'selected' : ''}>${l}</option>`).join('')}
@@ -619,9 +619,24 @@ function renderOverview(o) {
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
       <div class="card"><div class="card-title">每日活跃趋势</div><div class="chart-box"><canvas id="ovDaily"></canvas></div></div>
-      <div class="card"><div class="card-title">最活跃的人(总操作)</div><div id="ovRank"></div></div>
+      <div class="card"><div class="card-title">最活跃的人(总操作)</div><div class="rank-list" id="ovRank"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">操作明细<span class="hint">全平台,可搜索 / 翻页</span></div>
+      <div class="table-toolbar">
+        <input type="text" id="filterText" placeholder="搜 姓名/工号/品牌/产品 ..." />
+        <button class="export-btn" onclick="exportCSV()">导出本页 CSV</button>
+        <span class="count" id="rowCount"></span>
+      </div>
+      <div class="table-scroll">
+        <table class="detail-table"><thead><tr>
+          <th style="width:130px">时间</th><th style="width:90px">动作</th><th style="width:150px">用户</th><th>详情</th>
+        </tr></thead><tbody id="detailBody"></tbody></table>
+      </div>
+      <div id="detailPager" style="display:flex;align-items:center;gap:10px;margin-top:10px"></div>
     </div>`;
   renderRank('ovRank', (o.top_users || []).map(u => ({ label: u.name || u.emp_id, sub: u.department || '', count: u.count })));
+  initDetail();
   const dd = (o.by_daily || []).slice().sort((a, b) => a.key.localeCompare(b.key));
   const da = (o.by_daily_active || []).slice().sort((a, b) => a.key.localeCompare(b.key));
   if (window.Chart && dd.length) {
@@ -649,7 +664,7 @@ function renderKos(k) {
       <div class="kpi b-amber"><div class="kpi-label">已发布笔记</div><div class="kpi-value">${k.published || 0}</div><div class="kpi-sub">完成率 ${pct}%</div></div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
-      <div class="card"><div class="card-title">笔记排行(发布数)</div><div id="kosRank"></div></div>
+      <div class="card"><div class="card-title">笔记排行(发布数)</div><div class="rank-list" id="kosRank"></div></div>
       <div class="card"><div class="card-title">每日发布笔记</div><div class="chart-box"><canvas id="kosDaily"></canvas></div></div>
     </div>
     <div class="card"><div class="card-title">素材库容量使用</div><div id="kosLibs"></div></div>`;
