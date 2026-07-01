@@ -139,18 +139,57 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(200, {"materials": kos_store.list_materials(req.get("library_id"))})
 
             if action == "delete_material":
-                mid = req.get("id")
-                if not mid:
+                if not req.get("id"):
                     return self._json(400, {"error": "缺少素材 id"})
-                # 软删除:active=0
-                import sqlite3
-                c = kos_store._conn()
-                try:
-                    c.execute("UPDATE kos_materials SET active=0 WHERE id=?", (mid,))
-                    c.commit()
-                finally:
-                    c.close()
+                kos_store.deactivate_material(req.get("id"))
                 return self._json(200, {"ok": True})
+
+            if action == "delete_library":
+                if not req.get("library_id"):
+                    return self._json(400, {"error": "缺少库 id"})
+                kos_store.deactivate_library(req.get("library_id"))
+                return self._json(200, {"ok": True})
+
+            if action == "sign_uploads":
+                # 为浏览器直传 COS 签发一批预签名 PUT 链接(需子账号有写权限)
+                lib = kos_store.get_library(req.get("library_id"))
+                if not lib:
+                    return self._json(404, {"error": "素材库不存在"})
+                role = (req.get("role") or "").strip()
+                if role not in (kos_store.ROLE_MAIN, kos_store.ROLE_TILE):
+                    return self._json(400, {"error": "角色不合法"})
+                files = req.get("files") or []
+                if not files:
+                    return self._json(400, {"error": "没有文件"})
+                try:
+                    client, bucket = _cos_client()
+                except RuntimeError as e:
+                    return self._json(503, {"error": str(e)})
+                import os as _os
+                import uuid
+                out = []
+                for fn in files:
+                    ext = _os.path.splitext(str(fn))[1].lower() or '.jpg'
+                    key = f"{lib['cos_prefix']}{role}/{uuid.uuid4().hex[:10]}{ext}"
+                    url = client.get_presigned_url(Method='PUT', Bucket=bucket, Key=key, Expired=900)
+                    out.append({"filename": fn, "cos_key": key, "put_url": url})
+                return self._json(200, {"ok": True, "uploads": out})
+
+            if action == "register_materials":
+                lib = kos_store.get_library(req.get("library_id"))
+                if not lib:
+                    return self._json(404, {"error": "素材库不存在"})
+                role = (req.get("role") or "").strip()
+                if role not in (kos_store.ROLE_MAIN, kos_store.ROLE_TILE):
+                    return self._json(400, {"error": "角色不合法"})
+                exist = kos_store.existing_cos_keys(lib['id'])
+                n = 0
+                for it in (req.get("items") or []):
+                    key = (it.get("cos_key") or "").strip()
+                    if key and key not in exist:
+                        kos_store.add_material(lib['id'], role, key, it.get("filename", ""))
+                        n += 1
+                return self._json(200, {"ok": True, "added": n, "capacity": kos_store.capacity(lib['id'])})
 
             if action == "create_task":
                 library_id = req.get("library_id")

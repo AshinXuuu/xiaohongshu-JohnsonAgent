@@ -140,6 +140,29 @@ def existing_cos_keys(library_id):
         c.close()
 
 
+def deactivate_library(library_id):
+    """停用素材库(软删除,记录保留;COS 原图不动)。"""
+    _ensure()
+    c = _conn()
+    try:
+        c.execute("UPDATE kos_libraries SET active=0 WHERE id=?", (library_id,))
+        c.commit()
+        return True
+    finally:
+        c.close()
+
+
+def deactivate_material(mid):
+    _ensure()
+    c = _conn()
+    try:
+        c.execute("UPDATE kos_materials SET active=0 WHERE id=?", (mid,))
+        c.commit()
+        return True
+    finally:
+        c.close()
+
+
 def list_libraries(brand=None, product=None):
     _ensure()
     c = _conn()

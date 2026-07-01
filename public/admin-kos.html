@@ -26,6 +26,9 @@
   .pill.ok { background:#f0fdf4; color:#15803d; }
   .mini { padding:5px 11px; border:1px solid var(--border); background:white; border-radius:7px; font-size:12.5px; cursor:pointer; color:var(--text-soft); }
   .mini:hover { background:var(--primary-soft); }
+  .mini.danger { color:var(--danger); }
+  .mini.danger:hover { background:#fef2f2; border-color:var(--danger); }
+  .lib-actions { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   .path { font-family:ui-monospace,monospace; font-size:12px; background:var(--primary-soft); padding:2px 7px; border-radius:6px; word-break:break-all; }
   .depts { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:4px; }
   .depts label { font-size:13px; color:var(--text-soft); display:flex; align-items:center; gap:4px; }
@@ -34,6 +37,7 @@
 </head>
 <body>
 <div id="appTopbar"></div>
+<input type="file" id="fileInput" accept="image/*" multiple style="display:none" />
 <div class="container">
   <div id="content">
     <div class="subbar">
@@ -128,9 +132,6 @@ async function loadLibs() {
   document.getElementById('tkLib').innerHTML = libraries.map(l =>
     `<option value="${l.id}">${esc(l.brand)} ${esc(l.product)}${l.code ? ' · '+esc(l.code) : ''}（容量${l.capacity.remaining}）</option>`).join('') || '<option value="">先建素材库</option>';
   document.getElementById('libs').innerHTML = libraries.length ? libraries.map(libRow).join('') : '<div class="muted2">还没有素材库</div>';
-  libraries.forEach(l => {
-    document.getElementById('scan'+l.id).onclick = () => scan(l.id);
-  });
 }
 
 function libRow(l) {
@@ -140,16 +141,66 @@ function libRow(l) {
   return `<div class="lib">
     <div class="lib-head">
       <span class="lib-name">${esc(l.brand)} ${esc(l.product)}</span>
-      ${l.code ? `<span class="muted2">批次 ${esc(l.code)}</span>` : ''}
+      ${l.code ? `<span class="muted2">${esc(l.code)}</span>` : ''}
       <span class="pill">主图 ${cap.mains}</span>
       <span class="pill ${enough?'ok':'warn'}">可拼图 ${cap.tiles}${enough?'':' (需≥4)'}</span>
       <div class="cap-bar"><div class="cap-fill" style="width:${pct}%"></div></div>
       <span class="muted2">容量 ${cap.remaining}/${cap.total} 人·篇</span>
-      <button class="mini" id="scan${l.id}">扫描登记</button>
     </div>
-    <div class="muted2" style="margin-top:6px">上传到 COS:<span class="path">${esc(l.cos_prefix||'')}</span>(文件名含「主图」/「可拼图」)</div>
+    <div class="lib-actions">
+      <button class="mini" onclick="pickUpload(${l.id}, '主图')">上传主图</button>
+      <button class="mini" onclick="pickUpload(${l.id}, '可拼图')">上传拼图素材</button>
+      <button class="mini" onclick="scan(${l.id})">扫描COS目录</button>
+      <span class="muted2" id="up${l.id}"></span>
+      <span style="flex:1"></span>
+      <button class="mini danger" onclick="delLib(${l.id})">删除库</button>
+    </div>
+    <div class="muted2" style="margin-top:6px">支持一次选多张/整个文件夹。COS 目录:<span class="path">${esc(l.cos_prefix||'')}</span></div>
   </div>`;
 }
+
+let _uploadTarget = null;
+function pickUpload(libId, role) {
+  _uploadTarget = { libId, role };
+  const inp = document.getElementById('fileInput');
+  inp.value = '';
+  inp.click();
+}
+function delLib(id) {
+  if (!confirm('确定删除该素材库?(记录停用,COS 上的原图不动)')) return;
+  api('delete_library', { library_id: id }).then(r => {
+    if (!r.ok || r.data.error) { App.toast(r.data.error || '删除失败'); return; }
+    App.toast('已删除'); loadLibs();
+  });
+}
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const files = [...e.target.files].filter(f => f.type.startsWith('image/'));
+  const t = _uploadTarget;
+  _uploadTarget = null;
+  if (!files.length || !t) return;
+  const set = txt => { const el = document.getElementById('up' + t.libId); if (el) el.textContent = txt; };
+  set(`准备上传 ${files.length} 张...`);
+  const sr = await api('sign_uploads', { library_id: t.libId, role: t.role, files: files.map(f => f.name) });
+  if (!sr.ok || sr.data.error) { App.toast(sr.data.error || '签名失败'); set(''); return; }
+  const uploads = sr.data.uploads;
+  const done = [];
+  for (let i = 0; i < files.length; i++) {
+    set(`上传中 ${i + 1}/${files.length}`);
+    try {
+      const resp = await fetch(uploads[i].put_url, { method: 'PUT', body: files[i] });
+      if (resp.ok) done.push({ cos_key: uploads[i].cos_key, filename: files[i].name });
+    } catch (err) {}
+  }
+  if (done.length) {
+    await api('register_materials', { library_id: t.libId, role: t.role, items: done });
+    App.toast(`已上传 ${done.length}/${files.length} 张${t.role}`);
+  } else {
+    App.toast('上传失败,请检查 COS 写权限 / 跨域(CORS)配置');
+  }
+  set('');
+  await loadLibs();
+});
 
 async function scan(id) {
   App.toast('扫描中...');
