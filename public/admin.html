@@ -577,7 +577,58 @@ if (me && !['org_admin', 'super_admin'].includes(App.roleOf(me))) {
 }
 
 // ─── 数据加载 ─────────────────────────────────────────
-let __state = { data: null, charts: {}, app: 'all' };
+let __state = { data: null, charts: {}, app: 'all', days: 30 };
+
+function ctrlBar() {
+  const a = __state.app;
+  const opts = [[7, '近7天'], [30, '近30天'], [90, '近90天'], [0, '全部']];
+  const tab = (k, l) => `<button class="app-tab ${a === k ? 'active' : ''}" onclick="switchApp('${k}')">${l}</button>`;
+  return `<div class="app-tabs" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">
+    ${tab('all', '全部')}${tab('generate', '文案助手')}${tab('qa', '问答助手')}${tab('library', '资料库')}${tab('kos', 'KOS 任务')}
+    <span style="flex:1"></span>
+    <select onchange="setDays(this.value)" style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:white">
+      ${opts.map(([v, l]) => `<option value="${v}" ${__state.days == v ? 'selected' : ''}>${l}</option>`).join('')}
+    </select>
+  </div>`;
+}
+function setDays(v) { __state.days = parseInt(v); loadStats(); }
+window.setDays = setDays;
+
+function renderKos(k) {
+  const pct = k.completion_pct || 0;
+  $('mainArea').innerHTML = `
+    ${ctrlBar()}
+    <div class="kpi-grid">
+      <div class="kpi b-blue"><div class="kpi-label">任务数</div><div class="kpi-value">${k.tasks || 0}</div><div class="kpi-sub">进行中 ${k.open_tasks || 0}</div></div>
+      <div class="kpi b-green"><div class="kpi-label">已领取素材包</div><div class="kpi-value">${k.issued || 0}</div><div class="kpi-sub">时间范围内</div></div>
+      <div class="kpi b-amber"><div class="kpi-label">已发布笔记</div><div class="kpi-value">${k.published || 0}</div><div class="kpi-sub">完成率 ${pct}%</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+      <div class="card"><div class="card-title">笔记排行(发布数)</div><div id="kosRank"></div></div>
+      <div class="card"><div class="card-title">每日发布笔记</div><div class="chart-box"><canvas id="kosDaily"></canvas></div></div>
+    </div>
+    <div class="card"><div class="card-title">素材库容量使用</div><div id="kosLibs"></div></div>`;
+  renderRank('kosRank', (k.by_user || []).map(u => ({ label: u.name || '', sub: u.department || '', count: u.count })));
+  const libs = k.by_library || [];
+  $('kosLibs').innerHTML = libs.length ? libs.map(l => {
+    const p = l.total ? Math.round(l.used / l.total * 100) : 0;
+    return `<div style="padding:8px 0;border-top:1px solid var(--border-soft)">
+      <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;flex-wrap:wrap">
+        <span>${escapeHtml(l.brand)} ${escapeHtml(l.product)} <span style="color:var(--muted)">${escapeHtml(l.code || '')}</span></span>
+        <span style="color:var(--muted)">主图${l.mains} / 可拼图${l.tiles} · 已用 ${l.used}/${l.total}</span>
+      </div>
+      <div style="height:6px;background:var(--border-soft);border-radius:99px;margin-top:5px;overflow:hidden"><div style="height:100%;width:${p}%;background:var(--accent)"></div></div>
+    </div>`;
+  }).join('') : '<div style="color:var(--muted);padding:12px 0">暂无素材库</div>';
+  const dd = (k.by_daily || []).slice().sort((a, b) => a.key.localeCompare(b.key));
+  if (window.Chart && dd.length) {
+    __state.charts.kos = new Chart($('kosDaily'), {
+      type: 'line',
+      data: { labels: dd.map(x => x.key.slice(5)), datasets: [{ data: dd.map(x => x.count), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)', fill: true, tension: 0.3, pointRadius: 2 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+    });
+  }
+}
 
 const APP_LABELS = {
   'all':      { label: '全部',     icon: '' },
@@ -603,6 +654,7 @@ async function loadStats() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         app: __state.app,
+        days: __state.days,
         _user: {
           department: me.department,
           name: me.name,
@@ -632,6 +684,8 @@ function render(d) {
   // 销毁旧 chart
   Object.values(__state.charts).forEach(c => c && c.destroy && c.destroy());
   __state.charts = {};
+
+  if (__state.app === 'kos') { renderKos(d.kos || {}); return; }
 
   const app = __state.app;
   // ── 各应用下的 KPI 不同 ──
@@ -683,12 +737,8 @@ function render(d) {
   const qaCount  = (app === 'qa')       ? (d.total || 0) : '';
 
   $('mainArea').innerHTML = `
-    <!-- 应用切换 -->
-    <div class="app-tabs">
-      <button class="app-tab ${app==='all'?'active':''}"      onclick="switchApp('all')">全部</button>
-      <button class="app-tab ${app==='generate'?'active':''}" onclick="switchApp('generate')">文案助手</button>
-      <button class="app-tab ${app==='qa'?'active':''}"       onclick="switchApp('qa')">问答助手</button>
-    </div>
+    <!-- 应用切换 + 时间范围 -->
+    ${ctrlBar()}
 
     <!-- KPI 卡片 -->
     <div class="kpi-grid">

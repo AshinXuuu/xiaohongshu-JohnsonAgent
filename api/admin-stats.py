@@ -41,6 +41,7 @@ APP_ACTION_MAP = {
     'all':      None,  # 不过滤
     'generate': ['generate', 'generate_failed', 'cover_fields', 'cover_generate'],
     'qa':       ['qa', 'qa_failed'],
+    'library':  ['download'],   # 产品资料库下载
 }
 
 
@@ -102,15 +103,28 @@ class handler(BaseHTTPRequestHandler):
                     "message": "本地 SQLite 数据库初始化失败,请检查 data/ 目录权限。",
                 })
 
-            # 应用过滤:all / generate / qa
+            # 时间范围(天),<=0 全部
+            try:
+                days = int(req.get('days', 30))
+            except Exception:
+                days = 30
+
             app = (req.get('app') or 'all').strip().lower()
+
+            # KOS 是独立数据源(kos_packs/tasks),单独返回
+            if app == 'kos':
+                from lib.kos_store import kos_dashboard
+                return self._json(200, {"app": "kos", "days": days, "kv_configured": True,
+                                        "kos": kos_dashboard(days)})
+
             if app not in APP_ACTION_MAP:
                 app = 'all'
             action_filter = APP_ACTION_MAP[app]
 
-            stats = get_stats(action_filter=action_filter)
+            stats = get_stats(action_filter=action_filter, days=days)
             stats = enrich_user_data(stats)
             stats['app'] = app
+            stats['days'] = days
 
             # 算今日/本月汇总
             today_key = datetime.datetime.now().strftime("%Y-%m-%d")

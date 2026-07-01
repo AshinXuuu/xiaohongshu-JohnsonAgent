@@ -213,21 +213,25 @@ def get_counter(key: str) -> int:
     return 0
 
 
-def get_stats(action_filter=None):
+def get_stats(action_filter=None, days=30):
     """聚合所有维度数据,供 /api/admin-stats 返回。
     action_filter: 可选,只统计这些 action 的事件;None = 全部。
+    days: 时间范围(天),<=0 表示全部历史。
     """
     try:
-        # 构造可复用的 WHERE 片段
+        # 动作过滤 + 时间范围,合并成统一 WHERE 片段
+        conds, params = [], []
         if action_filter:
             placeholders = ','.join(['?'] * len(action_filter))
-            base_where = f" WHERE action IN ({placeholders}) "
-            base_params = tuple(action_filter)
-            and_where = f" AND action IN ({placeholders}) "
-        else:
-            base_where = ""
-            base_params = ()
-            and_where = ""
+            conds.append(f"action IN ({placeholders})")
+            params += list(action_filter)
+        if days and days > 0:
+            since_ms = int((datetime.datetime.now().timestamp() - days * 86400) * 1000)
+            conds.append("time_ms >= ?")
+            params.append(since_ms)
+        base_where = (" WHERE " + " AND ".join(conds) + " ") if conds else ""
+        and_where = (" AND " + " AND ".join(conds) + " ") if conds else ""
+        base_params = tuple(params)
 
         conn = _get_conn()
         try:

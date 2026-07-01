@@ -481,3 +481,38 @@ def leaderboard(org='johnson'):
         return board
     finally:
         c.close()
+
+
+def kos_dashboard(days=30):
+    """KOS 看板聚合(时间范围内):任务/领取/发布/完成率 + 笔记排行 + 素材库用量 + 每日发布。"""
+    _ensure()
+    since = int(time.time() - days * 86400) if days and days > 0 else 0
+    c = _conn()
+    try:
+        tasks = c.execute("SELECT COUNT(*) FROM kos_tasks").fetchone()[0]
+        open_tasks = c.execute("SELECT COUNT(*) FROM kos_tasks WHERE status='open'").fetchone()[0]
+        issued = c.execute("SELECT COUNT(*) FROM kos_packs WHERE created_at>=?", (since,)).fetchone()[0]
+        published = c.execute(
+            "SELECT COUNT(*) FROM kos_packs WHERE status='published' AND COALESCE(published_at,created_at)>=?",
+            (since,)).fetchone()[0]
+        rows = c.execute(
+            "SELECT user_name, department, COUNT(*) c FROM kos_packs "
+            "WHERE status='published' AND COALESCE(published_at,created_at)>=? "
+            "GROUP BY emp_id ORDER BY c DESC LIMIT 20", (since,)).fetchall()
+        by_user = [{"name": r["user_name"], "department": r["department"], "count": r["c"]} for r in rows]
+        by_library = []
+        for l in c.execute("SELECT id,brand,product,code FROM kos_libraries WHERE active=1 ORDER BY created_at DESC").fetchall():
+            cap = capacity(l["id"])
+            by_library.append({"brand": l["brand"], "product": l["product"], "code": l["code"],
+                               "used": cap["used"], "total": cap["total"],
+                               "tiles": cap["tiles"], "mains": cap["mains"]})
+        drows = c.execute(
+            "SELECT strftime('%Y-%m-%d', COALESCE(published_at,created_at),'unixepoch','localtime') d, COUNT(*) c "
+            "FROM kos_packs WHERE status='published' AND COALESCE(published_at,created_at)>=? "
+            "GROUP BY d ORDER BY d DESC LIMIT 30", (since,)).fetchall()
+        by_daily = [{"key": r["d"], "count": r["c"]} for r in drows]
+        return {"tasks": tasks, "open_tasks": open_tasks, "issued": issued, "published": published,
+                "completion_pct": (round(published / issued * 100) if issued else 0),
+                "by_user": by_user, "by_library": by_library, "by_daily": by_daily}
+    finally:
+        c.close()
