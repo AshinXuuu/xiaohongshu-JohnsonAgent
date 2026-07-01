@@ -111,6 +111,25 @@ class handler(BaseHTTPRequestHandler):
 
             app = (req.get('app') or 'all').strip().lower()
 
+            # 平台总览:活跃人数 + 各模块用量
+            if app == 'overview':
+                from lib.kv_store import get_overview
+                from lib.users_store import all_users
+                ov = get_overview(days)
+                info = {str(u.get('emp_id')): u for u in all_users()}
+                ov['top_users'] = [{
+                    'emp_id': x['key'],
+                    'name': (info.get(x['key']) or {}).get('name', '未知'),
+                    'department': (info.get(x['key']) or {}).get('department', ''),
+                    'count': x['count'],
+                } for x in ov.pop('top_users_raw', [])]
+                try:
+                    from lib.kos_store import kos_dashboard
+                    ov['modules']['kos'] = kos_dashboard(days).get('published', 0)
+                except Exception:
+                    ov['modules']['kos'] = 0
+                return self._json(200, {"app": "overview", "days": days, "kv_configured": True, "overview": ov})
+
             # KOS 是独立数据源(kos_packs/tasks),单独返回
             if app == 'kos':
                 from lib.kos_store import kos_dashboard

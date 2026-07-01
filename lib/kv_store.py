@@ -213,6 +213,59 @@ def get_counter(key: str) -> int:
     return 0
 
 
+def get_overview(days=30):
+    """平台总览:活跃人数(去重)+ 各模块用量 + 每日趋势 + 最活跃的人。"""
+    try:
+        now = datetime.datetime.now()
+        today = now.strftime('%Y-%m-%d')
+        week_since = int((now.timestamp() - 7 * 86400) * 1000)
+        range_since = int((now.timestamp() - days * 86400) * 1000) if days and days > 0 else 0
+        real_user = "emp_id IS NOT NULL AND emp_id NOT IN ('unknown','')"
+        conn = _get_conn()
+        try:
+            def scalar(sql, p=()):
+                return conn.execute(sql, p).fetchone()[0]
+
+            active_today = scalar(
+                f"SELECT COUNT(DISTINCT emp_id) FROM events WHERE day=? AND {real_user}", (today,))
+            active_week = scalar(
+                f"SELECT COUNT(DISTINCT emp_id) FROM events WHERE time_ms>=? AND {real_user}", (week_since,))
+            active_range = scalar(
+                f"SELECT COUNT(DISTINCT emp_id) FROM events WHERE time_ms>=? AND {real_user}", (range_since,))
+
+            def cnt(actions):
+                ph = ','.join(['?'] * len(actions))
+                return scalar(f"SELECT COUNT(*) FROM events WHERE action IN ({ph}) AND time_ms>=?",
+                              tuple(actions) + (range_since,))
+
+            modules = {
+                "content": cnt(['generate', 'cover_generate', 'cover_fields']),
+                "qa": cnt(['qa']),
+                "library": cnt(['download']),
+            }
+
+            by_daily = [{'key': r[0], 'count': r[1]} for r in conn.execute(
+                "SELECT day, COUNT(*) FROM events WHERE time_ms>=? GROUP BY day ORDER BY day DESC LIMIT 45",
+                (range_since,)).fetchall()]
+            by_daily_active = [{'key': r[0], 'count': r[1]} for r in conn.execute(
+                f"SELECT day, COUNT(DISTINCT emp_id) FROM events WHERE time_ms>=? AND {real_user} "
+                "GROUP BY day ORDER BY day DESC LIMIT 45", (range_since,)).fetchall()]
+            top_users_raw = [{'key': r[0], 'count': r[1]} for r in conn.execute(
+                f"SELECT emp_id, COUNT(*) c FROM events WHERE time_ms>=? AND {real_user} "
+                "GROUP BY emp_id ORDER BY c DESC LIMIT 20", (range_since,)).fetchall()]
+        finally:
+            conn.close()
+        return {
+            "active_today": active_today, "active_week": active_week, "active_range": active_range,
+            "modules": modules, "by_daily": by_daily, "by_daily_active": by_daily_active,
+            "top_users_raw": top_users_raw,
+        }
+    except Exception as e:
+        print(f"[kv_store] get_overview 失败:{e}", flush=True)
+        return {"active_today": 0, "active_week": 0, "active_range": 0, "modules": {},
+                "by_daily": [], "by_daily_active": [], "top_users_raw": []}
+
+
 def get_stats(action_filter=None, days=30):
     """聚合所有维度数据,供 /api/admin-stats 返回。
     action_filter: 可选,只统计这些 action 的事件;None = 全部。

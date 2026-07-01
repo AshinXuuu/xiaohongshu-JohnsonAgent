@@ -577,14 +577,14 @@ if (me && !['org_admin', 'super_admin'].includes(App.roleOf(me))) {
 }
 
 // ─── 数据加载 ─────────────────────────────────────────
-let __state = { data: null, charts: {}, app: 'all', days: 30 };
+let __state = { data: null, charts: {}, app: 'overview', days: 30 };
 
 function ctrlBar() {
   const a = __state.app;
   const opts = [[7, '近7天'], [30, '近30天'], [90, '近90天'], [0, '全部']];
   const tab = (k, l) => `<button class="app-tab ${a === k ? 'active' : ''}" onclick="switchApp('${k}')">${l}</button>`;
   return `<div class="app-tabs" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">
-    ${tab('all', '全部')}${tab('generate', '文案助手')}${tab('qa', '问答助手')}${tab('library', '资料库')}${tab('kos', 'KOS 任务')}
+    ${tab('overview', '总览')}${tab('all', '全部')}${tab('generate', '文案助手')}${tab('qa', '问答助手')}${tab('library', '资料库')}${tab('kos', 'KOS 任务')}
     <span style="flex:1"></span>
     <select onchange="setDays(this.value)" style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:white">
       ${opts.map(([v, l]) => `<option value="${v}" ${__state.days == v ? 'selected' : ''}>${l}</option>`).join('')}
@@ -593,6 +593,51 @@ function ctrlBar() {
 }
 function setDays(v) { __state.days = parseInt(v); loadStats(); }
 window.setDays = setDays;
+
+function modCard(label, val, color) {
+  return `<div style="border:1px solid var(--border-soft);border-radius:10px;padding:12px 14px">
+    <div style="font-size:12px;color:var(--muted)">${label}</div>
+    <div style="font-size:22px;font-weight:700;color:${color}">${val}</div></div>`;
+}
+
+function renderOverview(o) {
+  const m = o.modules || {};
+  $('mainArea').innerHTML = `
+    ${ctrlBar()}
+    <div class="kpi-grid">
+      <div class="kpi b-blue"><div class="kpi-label">今日活跃人数</div><div class="kpi-value">${o.active_today || 0}</div><div class="kpi-sub">今天用过平台的人</div></div>
+      <div class="kpi b-green"><div class="kpi-label">本周活跃人数</div><div class="kpi-value">${o.active_week || 0}</div><div class="kpi-sub">近 7 天去重</div></div>
+      <div class="kpi b-amber"><div class="kpi-label">范围内活跃人数</div><div class="kpi-value">${o.active_range || 0}</div><div class="kpi-sub">当前时间范围去重</div></div>
+    </div>
+    <div class="card"><div class="card-title">各模块使用(时间范围内)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px">
+        ${modCard('小红书生成', m.content || 0, '#be185d')}
+        ${modCard('销售问答', m.qa || 0, '#4338ca')}
+        ${modCard('资料下载', m.library || 0, '#0f766e')}
+        ${modCard('KOS 发布笔记', m.kos || 0, '#b45309')}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+      <div class="card"><div class="card-title">每日活跃趋势</div><div class="chart-box"><canvas id="ovDaily"></canvas></div></div>
+      <div class="card"><div class="card-title">最活跃的人(总操作)</div><div id="ovRank"></div></div>
+    </div>`;
+  renderRank('ovRank', (o.top_users || []).map(u => ({ label: u.name || u.emp_id, sub: u.department || '', count: u.count })));
+  const dd = (o.by_daily || []).slice().sort((a, b) => a.key.localeCompare(b.key));
+  const da = (o.by_daily_active || []).slice().sort((a, b) => a.key.localeCompare(b.key));
+  if (window.Chart && dd.length) {
+    __state.charts.ov = new Chart($('ovDaily'), {
+      type: 'line',
+      data: {
+        labels: dd.map(x => x.key.slice(5)),
+        datasets: [
+          { label: '操作数', data: dd.map(x => x.count), borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.10)', fill: true, tension: 0.3, pointRadius: 2 },
+          { label: '活跃人数', data: da.map(x => x.count), borderColor: '#10b981', fill: false, tension: 0.3, pointRadius: 2 },
+        ],
+      },
+      options: { plugins: { legend: { display: true } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+    });
+  }
+}
 
 function renderKos(k) {
   const pct = k.completion_pct || 0;
@@ -685,6 +730,7 @@ function render(d) {
   Object.values(__state.charts).forEach(c => c && c.destroy && c.destroy());
   __state.charts = {};
 
+  if (__state.app === 'overview') { renderOverview(d.overview || {}); return; }
   if (__state.app === 'kos') { renderKos(d.kos || {}); return; }
 
   const app = __state.app;
