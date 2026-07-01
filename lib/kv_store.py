@@ -213,6 +213,48 @@ def get_counter(key: str) -> int:
     return 0
 
 
+def get_events_page(action_filter=None, keyword='', days=30, page=0, page_size=50):
+    """分页 + 关键词搜索的事件明细。keyword 匹配姓名/工号/详情。"""
+    try:
+        conds, params = [], []
+        if action_filter:
+            ph = ','.join(['?'] * len(action_filter))
+            conds.append(f"action IN ({ph})")
+            params += list(action_filter)
+        if days and days > 0:
+            since = int((datetime.datetime.now().timestamp() - days * 86400) * 1000)
+            conds.append("time_ms>=?")
+            params.append(since)
+        kw = (keyword or '').strip()
+        if kw:
+            conds.append("(user_name LIKE ? OR emp_id LIKE ? OR details_json LIKE ?)")
+            like = f"%{kw}%"
+            params += [like, like, like]
+        where = (" WHERE " + " AND ".join(conds)) if conds else ""
+        page = max(0, int(page))
+        ps = max(1, min(int(page_size), 200))
+        conn = _get_conn()
+        try:
+            total = conn.execute(f"SELECT COUNT(*) FROM events{where}", tuple(params)).fetchone()[0]
+            rows = conn.execute(
+                f"SELECT time_ms,action,emp_id,user_name,department,details_json FROM events{where} "
+                "ORDER BY time_ms DESC LIMIT ? OFFSET ?", tuple(params) + (ps, page * ps)).fetchall()
+        finally:
+            conn.close()
+        out = []
+        for r in rows:
+            details = json.loads(r[5]) if r[5] else {}
+            if details.get('product'):
+                details['product'] = _canon_product(details['product'])
+            out.append({'time': r[0], 'action': r[1],
+                        'user': {'emp_id': r[2], 'name': r[3], 'department': r[4]}, 'details': details})
+        return {'events': out, 'total': total, 'page': page,
+                'pages': (total + ps - 1) // ps, 'page_size': ps}
+    except Exception as e:
+        print(f"[kv_store] get_events_page 失败:{e}", flush=True)
+        return {'events': [], 'total': 0, 'page': 0, 'pages': 0, 'page_size': page_size}
+
+
 def get_overview(days=30):
     """平台总览:活跃人数(去重)+ 各模块用量 + 每日趋势 + 最活跃的人。"""
     try:

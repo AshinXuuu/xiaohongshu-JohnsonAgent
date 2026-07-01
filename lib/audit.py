@@ -71,8 +71,9 @@ def log(user, category, action, summary, detail=None):
         print(f"[audit] 记录失败:{e}", flush=True)
 
 
-def recent(days=RETENTION_DAYS, category=None, limit=800):
-    """返回近 days 天的审计记录(倒序),并顺手清理超期记录。"""
+def recent(days=RETENTION_DAYS, category=None, operator='', page=0, page_size=50):
+    """近 days 天的审计记录(倒序,分页),并顺手清理超期记录。
+    operator:按操作人姓名/工号模糊筛。返回 {logs,total,page,pages}。"""
     try:
         with _lock:
             c = _conn()
@@ -82,16 +83,25 @@ def recent(days=RETENTION_DAYS, category=None, limit=800):
                 c.execute("DELETE FROM admin_audit WHERE time_ms < ?", (cutoff,))
                 c.commit()
                 since = int((time.time() - days * 86400) * 1000)
-                q = "SELECT * FROM admin_audit WHERE time_ms >= ?"
+                conds = ["time_ms >= ?"]
                 args = [since]
                 if category and category != '全部':
-                    q += " AND category = ?"
+                    conds.append("category = ?")
                     args.append(category)
-                q += " ORDER BY time_ms DESC LIMIT ?"
-                args.append(limit)
-                rows = c.execute(q, args).fetchall()
-                return [dict(r) for r in rows]
+                op = (operator or '').strip()
+                if op:
+                    conds.append("(name LIKE ? OR emp_id LIKE ?)")
+                    args += [f"%{op}%", f"%{op}%"]
+                where = " WHERE " + " AND ".join(conds)
+                total = c.execute(f"SELECT COUNT(*) FROM admin_audit{where}", args).fetchone()[0]
+                page = max(0, int(page))
+                ps = max(1, min(int(page_size), 200))
+                rows = c.execute(
+                    f"SELECT * FROM admin_audit{where} ORDER BY time_ms DESC LIMIT ? OFFSET ?",
+                    args + [ps, page * ps]).fetchall()
+                return {"logs": [dict(r) for r in rows], "total": total,
+                        "page": page, "pages": (total + ps - 1) // ps}
             finally:
                 c.close()
     except Exception:
-        return []
+        return {"logs": [], "total": 0, "page": 0, "pages": 0}

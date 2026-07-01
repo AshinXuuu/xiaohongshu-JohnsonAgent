@@ -33,13 +33,15 @@
     <div class="subbar">
       <a class="btn back" href="/admin.html">← 数据看板</a>
       <div class="tabs" id="tabs"></div>
+      <input id="opSearch" placeholder="搜操作人(姓名/工号)" style="padding:6px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none" />
       <span class="count" id="count"></span>
     </div>
     <table>
       <thead><tr><th>时间</th><th>操作人</th><th>类别</th><th>操作内容</th></tr></thead>
       <tbody id="rows"><tr><td colspan="4" class="count" style="padding:24px">加载中...</td></tr></tbody>
     </table>
-    <div class="count" style="margin-top:10px">仅保留近 30 天记录。</div>
+    <div id="pager" style="display:flex;align-items:center;gap:10px;margin-top:12px"></div>
+    <div class="count" style="margin-top:8px">仅保留近 30 天记录。</div>
   </div>
 </div>
 
@@ -65,7 +67,7 @@ function renderTabs() {
   document.getElementById('tabs').innerHTML = CATS.map(c =>
     `<div class="tab ${c === cat ? 'active' : ''}" data-c="${c}">${c}</div>`).join('');
   document.querySelectorAll('#tabs .tab').forEach(el => {
-    el.onclick = () => { cat = el.dataset.c; renderTabs(); load(); };
+    el.onclick = () => { cat = el.dataset.c; page = 0; renderTabs(); load(); };
   });
 }
 
@@ -76,13 +78,16 @@ function fmt(ms) {
 }
 const ROLE = { super_admin: '超管', org_admin: '管理员', dept_manager: '部门管理', staff: '' };
 
+let page = 0, operator = '';
 async function load() {
   const r = await App.api('/api/audit-log', {
     method: 'POST',
-    body: { category: cat, _user: { department: me.department, name: me.name, emp_id: me.emp_id } },
+    body: { category: cat, operator, page, _user: { department: me.department, name: me.name, emp_id: me.emp_id } },
   });
   const logs = (r.data && r.data.logs) || [];
-  document.getElementById('count').textContent = `共 ${logs.length} 条`;
+  const total = (r.data && r.data.total) || 0;
+  const pages = (r.data && r.data.pages) || 0;
+  document.getElementById('count').textContent = `共 ${total} 条`;
   document.getElementById('rows').innerHTML = logs.length ? logs.map(l => `
     <tr>
       <td class="tm">${fmt(l.time_ms)}</td>
@@ -90,7 +95,19 @@ async function load() {
       <td><span class="cat ${esc(l.category)}">${esc(l.category || '')}</span></td>
       <td>${esc(l.summary || '')}</td>
     </tr>`).join('') : '<tr><td colspan="4" class="count" style="padding:24px">暂无记录</td></tr>';
+  document.getElementById('pager').innerHTML = pages > 1 ? `
+    <button class="tab" ${page <= 0 ? 'disabled' : ''} onclick="goPage(${page - 1})">上一页</button>
+    <span class="count">第 ${page + 1} / ${pages} 页</span>
+    <button class="tab" ${page >= pages - 1 ? 'disabled' : ''} onclick="goPage(${page + 1})">下一页</button>` : '';
 }
+function goPage(p) { page = Math.max(0, p); load(); }
+window.goPage = goPage;
+
+let _opTimer;
+document.getElementById('opSearch').addEventListener('input', e => {
+  operator = e.target.value.trim(); page = 0;
+  clearTimeout(_opTimer); _opTimer = setTimeout(load, 300);
+});
 </script>
 </body>
 </html>

@@ -888,24 +888,10 @@ function render(d) {
 
     <!-- 明细表 -->
     <div class="card">
-      <div class="card-title">
-        最近操作明细
-        <span class="hint">最多 200 条</span>
-      </div>
+      <div class="card-title">操作明细<span class="hint">当前 tab + 时间范围内,可搜索/翻页</span></div>
       <div class="table-toolbar">
-        <input type="text" id="filterText" placeholder="搜索 姓名/品牌/产品 ..." />
-        <select id="filterAction">
-          <option value="">全部动作</option>
-          <option value="generate">文案生成</option>
-          <option value="cover_generate">封面生成</option>
-          <option value="cover_fields">一键导入</option>
-          <option value="login">登录</option>
-          <option value="generate_failed">失败</option>
-        </select>
-        <select id="filterDept">
-          <option value="">全部部门</option>
-        </select>
-        <button class="export-btn" onclick="exportCSV()">导出 CSV</button>
+        <input type="text" id="filterText" placeholder="搜 姓名/工号/品牌/产品 ..." />
+        <button class="export-btn" onclick="exportCSV()">导出本页 CSV</button>
         <span class="count" id="rowCount"></span>
       </div>
       <div class="table-scroll">
@@ -921,6 +907,7 @@ function render(d) {
           <tbody id="detailBody"></tbody>
         </table>
       </div>
+      <div id="detailPager" style="display:flex;align-items:center;gap:10px;margin-top:10px"></div>
     </div>
   `;
 
@@ -952,9 +939,8 @@ function render(d) {
     })));
   }
 
-  // 明细表
-  initDetailFilters(d);
-  renderDetail(d.recent || []);
+  // 明细表(服务端分页)
+  initDetail();
 }
 
 // ─── 排行渲染 ────────────────────────────────────────
@@ -1125,69 +1111,69 @@ function chartCommonOptions(scales) {
 }
 
 // ─── 明细表 ──────────────────────────────────────────
-function initDetailFilters(d) {
-  // 填充部门下拉
-  const sel = $('filterDept');
-  (d.by_dept || []).forEach(x => {
-    const opt = document.createElement('option');
-    opt.value = x.key;
-    opt.textContent = x.key;
-    sel.appendChild(opt);
-  });
-  // 监听变化
-  ['filterText', 'filterAction', 'filterDept'].forEach(id => {
-    $(id).addEventListener('input', () => renderDetail(__state.data.recent || []));
-  });
+function initDetail() {
+  __state.detailPage = 0; __state.detailKw = ''; __state.detailRows = [];
+  const inp = $('filterText');
+  if (inp) {
+    inp.value = '';
+    inp.oninput = () => {
+      clearTimeout(__state._dt);
+      __state._dt = setTimeout(() => { __state.detailKw = inp.value.trim(); __state.detailPage = 0; loadDetail(); }, 300);
+    };
+  }
+  loadDetail();
 }
 
-function renderDetail(rows) {
-  const tBody = $('detailBody');
-  const q = ($('filterText').value || '').trim().toLowerCase();
-  const fa = $('filterAction').value;
-  const fd = $('filterDept').value;
-
-  const filtered = rows.filter(r => {
-    if (fa && r.action !== fa) return false;
-    if (fd && (r.user?.department || '') !== fd) return false;
-    if (q) {
-      const blob = [
-        r.user?.name, r.user?.department,
-        r.details?.brand, r.details?.product, r.details?.copy_type, r.details?.style
-      ].filter(Boolean).join(' ').toLowerCase();
-      if (!blob.includes(q)) return false;
-    }
-    return true;
-  });
-
-  $('rowCount').textContent = `共 ${filtered.length} 条 / 全部 ${rows.length} 条`;
-
-  if (!filtered.length) {
-    tBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">没有匹配的记录</td></tr>`;
-    return;
+async function loadDetail() {
+  const tBody = $('detailBody'); if (!tBody) return;
+  tBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">加载中...</td></tr>`;
+  try {
+    const resp = await fetch('/api/admin-events', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        app: __state.app, days: __state.days, keyword: __state.detailKw, page: __state.detailPage,
+        _user: { department: me.department, name: me.name, emp_id: me.emp_id },
+      }),
+    });
+    const d = await resp.json();
+    __state.detailRows = d.events || [];
+    renderDetailRows(__state.detailRows);
+    $('rowCount').textContent = `共 ${d.total || 0} 条`;
+    const pages = d.pages || 0, page = d.page || 0;
+    $('detailPager').innerHTML = pages > 1 ? `
+      <button class="export-btn" ${page <= 0 ? 'disabled' : ''} onclick="detailGoto(${page - 1})">上一页</button>
+      <span class="count">第 ${page + 1} / ${pages} 页</span>
+      <button class="export-btn" ${page >= pages - 1 ? 'disabled' : ''} onclick="detailGoto(${page + 1})">下一页</button>` : '';
+  } catch (e) {
+    tBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#991b1b;padding:20px">加载失败</td></tr>`;
   }
+}
+function detailGoto(p) { __state.detailPage = Math.max(0, p); loadDetail(); }
+window.detailGoto = detailGoto;
 
-  tBody.innerHTML = filtered.map(r => {
+function renderDetailRows(rows) {
+  const tBody = $('detailBody');
+  if (!rows.length) { tBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">没有记录</td></tr>`; return; }
+  tBody.innerHTML = rows.map(r => {
     const action = r.action || 'unknown';
-    const detailBits = [];
-    if (r.details?.brand)      detailBits.push(`<span class="pill">${escapeHtml(r.details.brand)}</span>`);
-    if (r.details?.product)    detailBits.push(`<span class="pill">${escapeHtml(r.details.product)}</span>`);
-    if (r.details?.copy_type)  detailBits.push(`<span class="pill">${escapeHtml(r.details.copy_type)}</span>`);
-    if (r.details?.style)      detailBits.push(`<span class="pill">${escapeHtml(r.details.style)}</span>`);
-    if (r.details?.reason)     detailBits.push(`<span style="color:#991b1b">${escapeHtml(r.details.reason).slice(0,80)}</span>`);
-    return `
-      <tr>
-        <td style="color:var(--muted);font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.time))}</td>
-        <td><span class="pill ${escapeHtml(action)}">${escapeHtml(ACTION_LABEL[action] || action)}</span></td>
-        <td>${escapeHtml(r.user?.name || '未知')}<br><small style="color:var(--muted)">${escapeHtml(r.user?.department || '')}</small></td>
-        <td>${detailBits.join(' ') || '<span style="color:var(--muted)">—</span>'}</td>
-      </tr>
-    `;
+    const bits = [];
+    if (r.details?.brand)     bits.push(`<span class="pill">${escapeHtml(r.details.brand)}</span>`);
+    if (r.details?.product)   bits.push(`<span class="pill">${escapeHtml(r.details.product)}</span>`);
+    if (r.details?.copy_type) bits.push(`<span class="pill">${escapeHtml(r.details.copy_type)}</span>`);
+    if (r.details?.file)      bits.push(`<span class="pill">${escapeHtml(r.details.file)}</span>`);
+    if (r.details?.reason)    bits.push(`<span style="color:#991b1b">${escapeHtml(r.details.reason).slice(0, 80)}</span>`);
+    return `<tr>
+      <td style="color:var(--muted);font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.time))}</td>
+      <td><span class="pill ${escapeHtml(action)}">${escapeHtml(ACTION_LABEL[action] || action)}</span></td>
+      <td>${escapeHtml(r.user?.name || '未知')}<br><small style="color:var(--muted)">${escapeHtml(r.user?.department || '')}</small></td>
+      <td>${bits.join(' ') || '<span style="color:var(--muted)">—</span>'}</td>
+    </tr>`;
   }).join('');
 }
 
 // ─── CSV 导出 ────────────────────────────────────────
 function exportCSV() {
-  const rows = __state.data?.recent || [];
+  const rows = __state.detailRows || [];
   if (!rows.length) { alert('暂无数据可导出'); return; }
   const header = ['时间', '动作', '员工号', '姓名', '部门', '品牌', '产品', '文案类型', '风格', '失败原因'];
   const lines = [header.join(',')];

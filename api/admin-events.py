@@ -1,6 +1,6 @@
-"""POST /api/audit-log —— 查询管理员操作审计日志(仅管理员,近30天)。
+"""POST /api/admin-events —— 分页 + 关键词搜索的操作明细(用量事件,仅管理员)。
 
-请求:{ "_user": {...}, "category": "全部|用户|产品|任务" }
+请求:{ "_user":{...}, "app":"all|generate|qa|library", "days":30, "keyword":"", "page":0 }
 """
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
@@ -9,7 +9,14 @@ import json
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lib.auth import is_admin
-from lib import audit
+from lib.kv_store import get_events_page
+
+APP_MAP = {
+    'all':      None,
+    'generate': ['generate', 'generate_failed', 'cover_fields', 'cover_generate'],
+    'qa':       ['qa', 'qa_failed'],
+    'library':  ['download'],
+}
 
 
 class handler(BaseHTTPRequestHandler):
@@ -26,10 +33,14 @@ class handler(BaseHTTPRequestHandler):
             req = json.loads(self.rfile.read(length).decode("utf-8") if length else "{}")
             if not is_admin(req.get("_user") or {}):
                 return self._json(403, {"error": "无权访问,仅管理员可查看"})
-            category = (req.get("category") or "全部").strip()
-            res = audit.recent(days=30, category=category,
-                               operator=req.get("operator", ""), page=req.get("page", 0))
-            res["days"] = 30
+            app = (req.get("app") or "all").strip().lower()
+            action_filter = APP_MAP.get(app)  # 未知(如 kos/overview)按全部
+            try:
+                days = int(req.get("days", 30))
+            except Exception:
+                days = 30
+            page = req.get("page", 0)
+            res = get_events_page(action_filter, req.get("keyword", ""), days, page, 50)
             return self._json(200, res)
         except Exception as e:
             self._json(500, {"error": str(e)})
