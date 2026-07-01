@@ -161,8 +161,8 @@ async function changeRole(id, role) {
   const r = await api('update', { id, role, name: u ? u.name : '' });
   if (!r.ok || r.data.error) { App.toast(r.data.error || '修改失败'); await load(); return; }
   App.toast('角色已更新');
-  // 更新本地缓存,避免整表重渲染打断
-  const u = users.find(x => x.id === id); if (u) u.role = role;
+  // 更新本地缓存,避免整表重渲染打断(复用上方的 u)
+  if (u) u.role = role;
   render();
 }
 
