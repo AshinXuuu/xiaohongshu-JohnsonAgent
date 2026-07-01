@@ -50,7 +50,7 @@
 const me = App.requireSession();
 const esc = App.escapeHtml;
 const CATS = ['全部', '用户', '产品', '任务'];
-let cat = '全部';
+let cat = '全部', page = 0, operator = '';
 
 if (me) {
   App.mountTopbar();
@@ -78,7 +78,6 @@ function fmt(ms) {
 }
 const ROLE = { super_admin: '超管', org_admin: '管理员', dept_manager: '部门管理', staff: '' };
 
-let page = 0, operator = '';
 async function load() {
   const r = await App.api('/api/audit-log', {
     method: 'POST',
