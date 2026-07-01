@@ -44,12 +44,11 @@
     <h2 class="sec">素材库</h2>
     <div class="card2">
       <div class="row">
-        <div class="fld"><label>品牌</label><input id="lbBrand" placeholder="如 乔山Johnson" /></div>
-        <div class="fld"><label>产品</label><input id="lbProduct" placeholder="如 智能跑步机TX-5" /></div>
-        <div class="fld"><label>批次编号</label><input id="lbCode" placeholder="如 20260627" /></div>
+        <div class="fld"><label>品牌</label><select id="lbBrand"></select></div>
+        <div class="fld"><label>产品</label><select id="lbProduct"></select></div>
         <button class="btn btn-primary" id="lbAdd">新建素材库</button>
       </div>
-      <div class="muted2" id="lbHint" style="margin-top:8px"></div>
+      <div class="muted2" id="lbHint" style="margin-top:8px">建库自动用「品牌 / 产品 / 日期时间」命名,不会重名。</div>
     </div>
     <div id="libs"><div class="muted2">加载中...</div></div>
 
@@ -78,7 +77,7 @@
 <script>
 const me = App.requireSession();
 const esc = App.escapeHtml;
-let libraries = [], departments = [];
+let libraries = [], departments = [], productMap = {};
 
 if (me) {
   App.mountTopbar();
@@ -98,8 +97,28 @@ async function init() {
   try { const r = await App.api('/api/login'); departments = (r.data && r.data.departments) || []; } catch(e){}
   document.getElementById('tkDepts').innerHTML = departments.map(d =>
     `<label><input type="checkbox" value="${esc(d)}" />${esc(d)}</label>`).join('');
+  await loadProductCatalog();
   await loadLibs();
   await loadTasks();
+}
+
+// 产品目录 → 品牌/产品下拉(和产品目录完全一致,保证文案能找到)
+async function loadProductCatalog() {
+  try {
+    const r = await App.api('/api/products');
+    const brands = (r.data && r.data.brands) || [];
+    productMap = {};
+    brands.forEach(b => { productMap[b.name] = (b.products || []).map(p => p.name); });
+    const bsel = document.getElementById('lbBrand');
+    bsel.innerHTML = Object.keys(productMap).map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+    bsel.onchange = fillProducts;
+    fillProducts();
+  } catch (e) {}
+}
+function fillProducts() {
+  const b = document.getElementById('lbBrand').value;
+  document.getElementById('lbProduct').innerHTML =
+    (productMap[b] || []).map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
 }
 
 async function loadLibs() {
@@ -141,14 +160,12 @@ async function scan(id) {
 }
 
 document.getElementById('lbAdd').onclick = async () => {
-  const brand = document.getElementById('lbBrand').value.trim();
-  const product = document.getElementById('lbProduct').value.trim();
-  const code = document.getElementById('lbCode').value.trim();
-  if (!brand || !product) { App.toast('请填品牌和产品'); return; }
-  const r = await api('create_library', { brand, product, code });
+  const brand = document.getElementById('lbBrand').value;
+  const product = document.getElementById('lbProduct').value;
+  if (!brand || !product) { App.toast('请选择品牌和产品'); return; }
+  const r = await api('create_library', { brand, product });   // 不传批次,后端自动用日期时间
   if (!r.ok || r.data.error) { App.toast(r.data.error || '建库失败'); return; }
   document.getElementById('lbHint').innerHTML = `已建库。请把素材上传到 COS:<span class="path">${esc(r.data.cos_prefix)}</span> 然后点该库的「扫描登记」。`;
-  document.getElementById('lbProduct').value = ''; document.getElementById('lbCode').value = '';
   await loadLibs();
 };
 

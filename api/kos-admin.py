@@ -91,8 +91,11 @@ class handler(BaseHTTPRequestHandler):
                 product = (req.get("product") or "").strip()
                 code = (req.get("code") or "").strip()
                 if not (brand and product):
-                    return self._json(400, {"error": "请填写品牌和产品"})
-                prefix = f"{KOS_PREFIX}{brand}/{product}/{code}/" if code else f"{KOS_PREFIX}{brand}/{product}/"
+                    return self._json(400, {"error": "请选择品牌和产品"})
+                if not code:
+                    import datetime
+                    code = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')  # 日期时间批次,天然不重名
+                prefix = f"{KOS_PREFIX}{brand}/{product}/{code}/"
                 lib_id = kos_store.create_library(brand, product, code, req.get("note") or "", prefix)
                 return self._json(200, {"ok": True, "id": lib_id, "cos_prefix": prefix})
 
