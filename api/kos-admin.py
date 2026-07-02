@@ -70,14 +70,15 @@ def _classify(key):
 
 def _sync_library(lib):
     """把该库的 COS 目录与数据库素材对账:COS 有的登记进来,COS 删掉的下架。
-    返回 True 表示成功读到了 COS(数量已与桶对齐);False 表示 COS 不可达(退回数据库现有记录)。"""
+    返回 (ok, err):ok=True 表示成功读到 COS(数量已与桶对齐);
+    ok=False 时 err 为失败原因字符串,便于前端显示定位。"""
     try:
         client, bucket = _cos_client()
-    except Exception:
-        return False
+    except Exception as e:
+        return False, f"COS 未配置或初始化失败:{e}"
     prefix = lib.get('cos_prefix') or ''
     if not prefix:
-        return False
+        return False, "该库缺少 COS 目录(cos_prefix)"
     keys = []
     marker = ''
     try:
@@ -90,21 +91,25 @@ def _sync_library(lib):
                 marker = r.get('NextMarker', '')
             else:
                 break
-    except Exception:
-        return False
+    except Exception as e:
+        return False, f"读取 COS 目录失败:{type(e).__name__}: {e}"
     cos_set = set(keys)
-    existing = {m['cos_key']: m for m in kos_store.list_materials(lib['id'])}
-    idx = {kos_store.ROLE_MAIN: 0, kos_store.ROLE_TILE: 0}
-    # COS 有、库没有 → 登记
-    for k in sorted(cos_set - set(existing)):
-        role = _classify(k)
-        if role:
-            kos_store.add_material(lib['id'], role, k, k.rsplit('/', 1)[-1], idx[role])
-            idx[role] += 1
-    # 库有、COS 已删 → 下架
-    for k, m in existing.items():
-        if k not in cos_set:
-            kos_store.deactivate_material(m['id'])
+    try:
+        existing = {m['cos_key']: m for m in kos_store.list_materials(lib['id'])}
+        idx = {kos_store.ROLE_MAIN: 0, kos_store.ROLE_TILE: 0}
+        # COS 有、库没有 → 登记
+        for k in sorted(cos_set - set(existing)):
+            role = _classify(k)
+            if role:
+                kos_store.add_material(lib['id'], role, k, k.rsplit('/', 1)[-1], idx[role])
+                idx[role] += 1
+        # 库有、COS 已删 → 下架
+        for k, m in existing.items():
+            if k not in cos_set:
+                kos_store.deactivate_material(m['id'])
+    except Exception as e:
+        return False, f"对账写库失败:{type(e).__name__}: {e}"
+    return True, None
 
 
 def _users_in_scope(scope, depts):
@@ -169,15 +174,22 @@ class handler(BaseHTTPRequestHandler):
             if action == "list_libraries":
                 libs = kos_store.list_libraries()
                 any_synced = False
+                cos_error = None
                 for lib in libs:                     # 打开页面即与 COS 对账,数量实时反映桶内实际
                     try:
-                        ok = _sync_library(lib)
-                    except Exception:
-                        ok = False
+                        ok, err = _sync_library(lib)
+                    except Exception as e:
+                        ok, err = False, f"{type(e).__name__}: {e}"
                     any_synced = any_synced or ok
+                    if err and not cos_error:
+                        cos_error = err
                     lib['capacity'] = kos_store.capacity(lib['id'])
                     lib['cos_synced'] = ok
-                return self._json(200, {"libraries": libs, "cos_synced": any_synced or not libs})
+                return self._json(200, {
+                    "libraries": libs,
+                    "cos_synced": any_synced or not libs,
+                    "cos_error": cos_error,
+                })
 
             if action == "scan_library":
                 lib = kos_store.get_library(req.get("library_id"))

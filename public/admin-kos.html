@@ -130,11 +130,12 @@ async function loadLibs() {
   const r = await api('list_libraries');
   libraries = (r.data && r.data.libraries) || [];
   const synced = !!(r.data && r.data.cos_synced);
+  const cosErr = r.data && r.data.cos_error;
   const note = document.getElementById('syncNote');
   if (note) {
     note.textContent = synced
       ? '数量已与 COS 桶实时对齐(打开或刷新即自动同步,新上传自动登记、桶内删除自动下架)。'
-      : '⚠ 暂时读取不到 COS,当前数量为上次记录,可能与桶内实际不一致。';
+      : '⚠ 暂时读取不到 COS,当前数量为上次记录,可能与桶内实际不一致。' + (cosErr ? '(原因:' + cosErr + ')' : '');
     note.style.color = synced ? 'var(--muted)' : 'var(--danger)';
   }
   // 任务表单的库下拉
