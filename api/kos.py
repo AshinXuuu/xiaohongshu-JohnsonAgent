@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from lib import kos_store, products_store
 from lib.auth import is_admin
-from lib.image_compose import stack_vertical, grid_2x2
+from lib.image_compose import stack_vertical, grid_2x2, crop_cover
 
 KOS_OUT = ROOT / 'data' / 'kos_out'
 IMG_SECRET = os.environ.get('KOS_IMG_SECRET', 'kos-johnson-img-secret')
@@ -224,11 +224,10 @@ class handler(BaseHTTPRequestHandler):
         # 落库占用(拿到 pack_id 命名成品图)
         pack_id = kos_store.record_pack(task["library_id"], combo, task["id"], user, mine, copy_json)
 
-        # 出图(本地):主图原样直出;2合1 横版上下拼;4合1 竖版田字拼(均不裁切/不翻转)
+        # 出图(本地):主图/2合1/4合1 全部裁成 3:4(填满裁切,不翻转)
         KOS_OUT.mkdir(parents=True, exist_ok=True)
-        cover_ext = _ext(cover_key)
         try:
-            shutil.copyfile(cover_p, str(KOS_OUT / f"{pack_id}_cover{cover_ext}"))   # 主图直出
+            crop_cover(cover_p, str(KOS_OUT / f"{pack_id}_cover.jpg"))
             stack_vertical(two_p, str(KOS_OUT / f"{pack_id}_two.jpg"))
             grid_2x2(four_p, str(KOS_OUT / f"{pack_id}_four.jpg"))
         except Exception as e:

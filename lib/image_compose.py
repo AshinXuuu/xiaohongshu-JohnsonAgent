@@ -1,12 +1,11 @@
-"""KOS 出图引擎(直出版,固定 3:4 画布,不裁切/不翻转/不变形)。
+"""KOS 出图引擎(固定 3:4 画布,填满裁切,不翻转、不变形)。
 
-三类成品:
-  主图     —— 原图直出(不经本模块,调用方直接拷贝原文件字节,零改动)
-  2合1横版 —— 两张横版图【上下】各占一半,拼进 3:4 画布(等比缩放 + 居中留白,不裁切)
-  4合1竖版 —— 四张竖版图【田字】2×2,拼进 3:4 画布(等比缩放 + 居中留白,不裁切)
+三类成品(均输出小红书竖图 3:4,默认 1080×1440):
+  主图     —— 单张图裁成 3:4(cover 居中裁切)
+  2合1横版 —— 两张横版图上下各占一半,每张填满裁成对应格,整体 3:4
+  4合1竖版 —— 四张竖版图 2×2 田字,每张填满裁成对应格,整体 3:4
 
-成品统一为小红书竖图 3:4(默认 1080×1440)。为保证"不裁切、不变形",
-图片按 contain(整张放进单元格)方式缩放,比例不合处以白底居中留白填充。
+填充方式:cover —— 等比放大到铺满单元格,居中裁掉多余部分(不留白、不变形、不翻转)。
 """
 from PIL import Image
 
@@ -19,19 +18,25 @@ def _open_rgb(path):
     return Image.open(path).convert("RGB")
 
 
-def _fit_contain(img, cw, ch, bg=WHITE):
-    """把整张图等比缩放到能放进 cw×ch(不裁切、不变形),再居中贴到 cw×ch 的底图上。"""
+def _fit_cover(img, cw, ch):
+    """把图等比放大到铺满 cw×ch,再居中裁掉多余(不留白、不变形、不翻转)。"""
     iw, ih = img.size
-    scale = min(cw / iw, ch / ih)
-    nw, nh = max(1, round(iw * scale)), max(1, round(ih * scale))
+    scale = max(cw / iw, ch / ih)
+    nw, nh = max(cw, round(iw * scale)), max(ch, round(ih * scale))
     resized = img.resize((nw, nh), Image.LANCZOS)
-    cell = Image.new("RGB", (cw, ch), bg)
-    cell.paste(resized, ((cw - nw) // 2, (ch - nh) // 2))
-    return cell
+    ox, oy = (nw - cw) // 2, (nh - ch) // 2
+    return resized.crop((ox, oy, ox + cw, oy + ch))
+
+
+def crop_cover(path, out_path, canvas=DEFAULT_CANVAS, quality=92):
+    """主图:单张图裁成 3:4(cover 居中裁切)后输出。"""
+    cw, ch = canvas
+    _fit_cover(_open_rgb(path), cw, ch).save(out_path, "JPEG", quality=quality, optimize=True)
+    return out_path
 
 
 def stack_vertical(paths, out_path, canvas=DEFAULT_CANVAS, gutter=0, bg=WHITE, quality=92):
-    """2合1:两张横版图上下各占一半,拼进固定 3:4 画布。不裁切、不翻转、不变形。"""
+    """2合1:两张横版图上下各占一半,填满裁切,整体固定 3:4。"""
     if len(paths) != 2:
         raise ValueError(f"2合1 需要 2 张,收到 {len(paths)}")
     cw, ch = canvas
@@ -39,13 +44,13 @@ def stack_vertical(paths, out_path, canvas=DEFAULT_CANVAS, gutter=0, bg=WHITE, q
     base = Image.new("RGB", (cw, ch), bg)
     ys = [0, cell_h + gutter]
     for p, y in zip(paths, ys):
-        base.paste(_fit_contain(_open_rgb(p), cw, cell_h, bg), (0, y))
+        base.paste(_fit_cover(_open_rgb(p), cw, cell_h), (0, y))
     base.save(out_path, "JPEG", quality=quality, optimize=True)
     return out_path
 
 
 def grid_2x2(paths, out_path, canvas=DEFAULT_CANVAS, gutter=0, bg=WHITE, quality=92):
-    """4合1:四张竖版图 2×2 田字,拼进固定 3:4 画布。不裁切、不翻转、不变形。"""
+    """4合1:四张竖版图 2×2 田字,填满裁切,整体固定 3:4。"""
     if len(paths) != 4:
         raise ValueError(f"4合1 需要 4 张,收到 {len(paths)}")
     cw, ch = canvas
@@ -54,6 +59,6 @@ def grid_2x2(paths, out_path, canvas=DEFAULT_CANVAS, gutter=0, bg=WHITE, quality
     base = Image.new("RGB", (cw, ch), bg)
     cells = [(0, 0), (cell_w + gutter, 0), (0, cell_h + gutter), (cell_w + gutter, cell_h + gutter)]
     for p, (cx, cy) in zip(paths, cells):
-        base.paste(_fit_contain(_open_rgb(p), cell_w, cell_h, bg), (cx, cy))
+        base.paste(_fit_cover(_open_rgb(p), cell_w, cell_h), (cx, cy))
     base.save(out_path, "JPEG", quality=quality, optimize=True)
     return out_path
