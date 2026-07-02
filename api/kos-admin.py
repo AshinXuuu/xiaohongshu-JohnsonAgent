@@ -168,11 +168,16 @@ class handler(BaseHTTPRequestHandler):
 
             if action == "list_libraries":
                 libs = kos_store.list_libraries()
+                any_synced = False
                 for lib in libs:                     # 打开页面即与 COS 对账,数量实时反映桶内实际
-                    _sync_library(lib)
+                    try:
+                        ok = _sync_library(lib)
+                    except Exception:
+                        ok = False
+                    any_synced = any_synced or ok
                     lib['capacity'] = kos_store.capacity(lib['id'])
-                    lib['cos_synced'] = _COS_OK
-                return self._json(200, {"libraries": libs, "cos_synced": _COS_OK})
+                    lib['cos_synced'] = ok
+                return self._json(200, {"libraries": libs, "cos_synced": any_synced or not libs})
 
             if action == "scan_library":
                 lib = kos_store.get_library(req.get("library_id"))
