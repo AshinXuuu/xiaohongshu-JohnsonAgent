@@ -18,19 +18,26 @@ import os
 import sys
 import json
 import hashlib
-import random
+import shutil
 import tempfile
+import mimetypes
 import importlib.util
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from lib import kos_store, products_store
 from lib.auth import is_admin
-from lib.image_compose import compose
+from lib.image_compose import stack_vertical, grid_2x2
 
 KOS_OUT = ROOT / 'data' / 'kos_out'
 IMG_SECRET = os.environ.get('KOS_IMG_SECRET', 'kos-johnson-img-secret')
 COPY_TYPE = '种草'
+_IMG_EXT = ('.jpg', '.jpeg', '.png', '.webp')
+
+
+def _ext(key):
+    e = os.path.splitext(key)[1].lower()
+    return e if e in _IMG_EXT else '.jpg'
 
 
 def _token(pack_id, emp_id):
@@ -101,12 +108,21 @@ class handler(BaseHTTPRequestHandler):
                 pack = kos_store.get_pack(pack_id)
                 if not pack or tok != _token(pack['id'], pack['emp_id']):
                     return self._err(403, "无权访问")
-                fpath = KOS_OUT / f"{pack['id']}_{kind}.jpg"
+                if kind == 'cover':
+                    # 主图直出:保持原始格式(可能是 png/webp/jpg)
+                    matches = sorted(KOS_OUT.glob(f"{pack['id']}_cover.*"))
+                    if not matches:
+                        return self._err(404, "图片不存在")
+                    fpath = matches[0]
+                    ctype = mimetypes.guess_type(str(fpath))[0] or "image/jpeg"
+                else:
+                    fpath = KOS_OUT / f"{pack['id']}_{kind}.jpg"
+                    ctype = "image/jpeg"
                 if not fpath.exists():
                     return self._err(404, "图片不存在")
                 data = fpath.read_bytes()
                 self.send_response(200)
-                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Type", ctype)
                 self.send_header("Content-Length", str(len(data)))
                 self.send_header("Cache-Control", "private, max-age=86400")
                 self.end_headers()
@@ -136,8 +152,10 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(200, {"packs": kos_store.my_packs(emp, req.get("task_id"))})
 
             if action == "complete":
-                ok = kos_store.publish_pack(req.get("pack_id"), emp, req.get("note_url") or "")
-                if not ok:
+                res = kos_store.publish_pack(req.get("pack_id"), emp, req.get("note_url") or "")
+                if res == 'bad_url':
+                    return self._json(400, {"error": "链接无效:仅接受小红书链接(手机端 xhslink.com 或电脑端 xiaohongshu.com)"})
+                if res == 'not_owner' or res is False:
                     return self._json(400, {"error": "回填失败(记录不存在或非本人)"})
                 return self._json(200, {"ok": True})
 
@@ -168,7 +186,7 @@ class handler(BaseHTTPRequestHandler):
             two_keys = [mats[i]["cos_key"] for i in combo["combo2"]]
             four_keys = [mats[i]["cos_key"] for i in combo["combo4"]]
         except KeyError:
-            return self._json(500, {"error": "素材记录缺失,请管理员重新扫描登记"})
+            return self._json(500, {"error": "素材记录缺失,请管理员重新同步素材库"})
 
         # 拉源图
         try:
@@ -177,9 +195,9 @@ class handler(BaseHTTPRequestHandler):
             return self._json(503, {"error": str(e)})
         tmp = Path(tempfile.mkdtemp(prefix="kospack_"))
         try:
-            cover_p = _download(client, bucket, cover_key, str(tmp / "cover_src.jpg"))
-            two_p = [_download(client, bucket, k, str(tmp / f"two_{i}.jpg")) for i, k in enumerate(two_keys)]
-            four_p = [_download(client, bucket, k, str(tmp / f"four_{i}.jpg")) for i, k in enumerate(four_keys)]
+            cover_p = _download(client, bucket, cover_key, str(tmp / ("cover_src" + _ext(cover_key))))
+            two_p = [_download(client, bucket, k, str(tmp / f"two_{i}{_ext(k)}")) for i, k in enumerate(two_keys)]
+            four_p = [_download(client, bucket, k, str(tmp / f"four_{i}{_ext(k)}")) for i, k in enumerate(four_keys)]
         except Exception as e:
             return self._json(502, {"error": f"COS 拉取素材失败:{e}"})
 
@@ -189,13 +207,13 @@ class handler(BaseHTTPRequestHandler):
         # 落库占用(拿到 pack_id 命名成品图)
         pack_id = kos_store.record_pack(task["library_id"], combo, task["id"], user, mine, copy_json)
 
-        # 出图(本地)
+        # 出图(本地):主图原样直出;2合1 横版上下拼;4合1 竖版田字拼(均不裁切/不翻转)
         KOS_OUT.mkdir(parents=True, exist_ok=True)
-        rng_seed = random.randrange(1 << 30)
+        cover_ext = _ext(cover_key)
         try:
-            compose([cover_p], str(KOS_OUT / f"{pack_id}_cover.jpg"), seed=rng_seed)
-            compose(two_p, str(KOS_OUT / f"{pack_id}_two.jpg"), seed=rng_seed + 1)
-            compose(four_p, str(KOS_OUT / f"{pack_id}_four.jpg"), seed=rng_seed + 2)
+            shutil.copyfile(cover_p, str(KOS_OUT / f"{pack_id}_cover{cover_ext}"))   # 主图直出
+            stack_vertical(two_p, str(KOS_OUT / f"{pack_id}_two.jpg"))
+            grid_2x2(four_p, str(KOS_OUT / f"{pack_id}_four.jpg"))
         except Exception as e:
             return self._json(500, {"error": f"出图失败:{e}"})
 

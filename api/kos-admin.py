@@ -2,16 +2,17 @@
 
 action:
   create_library {brand,product,code,note}     建库,返回应上传到的 COS 目录
-  list_libraries                                列库(含容量)
-  scan_library  {library_id}                    扫描该库 COS 目录,登记主图/可拼图
+  list_libraries                                列库(打开即与 COS 自动对账,含容量)
+  sign_uploads {library_id,role,files}          浏览器直传预签名(role=主图/2合1/4合1)
+  register_materials {library_id,role,items}    直传成功后登记
   list_materials {library_id}
   delete_material {id}
   create_task   {title,brand,product,library_id,scope,depts,per_person,deadline}
   list_tasks
   close_task    {id}
 
-素材命名约定:文件名含「主图」→ 主图;含「可拼图」→ 可拼图;其余跳过。
-COS 目录约定:kos/<品牌>/<产品>/<批次code>/  (建库时返回,管理员照此上传)
+素材三分类(按 COS 子目录判定):主图/ → 主图直出;2合1/ → 横版上下拼;4合1/ → 竖版田字拼。
+COS 目录约定:kos/<品牌>/<产品>/<批次code>/{主图|2合1|4合1}/  (建库时返回前缀)
 """
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
@@ -55,16 +56,14 @@ def _list_cos(prefix):
 
 
 def _classify(key):
-    """按 COS key 判定角色:优先看 主图/ 或 可拼图/ 子目录(网页上传),再看文件名关键词。"""
+    """按 COS 子目录判定角色:主图/ → 主图;2合1/ → 2合1横版;4合1/ → 4合1竖版。
+    旧版 可拼图/ 目录已弃用(方向不明),一律忽略(返回 None,不登记)。"""
     if '/主图/' in key or key.startswith('主图/'):
         return kos_store.ROLE_MAIN
-    if '/可拼图/' in key or key.startswith('可拼图/'):
-        return kos_store.ROLE_TILE
-    fn = key.rsplit('/', 1)[-1]
-    if '主图' in fn:
-        return kos_store.ROLE_MAIN
-    if '可拼图' in fn:
-        return kos_store.ROLE_TILE
+    if '/2合1/' in key or key.startswith('2合1/'):
+        return kos_store.ROLE_TWO
+    if '/4合1/' in key or key.startswith('4合1/'):
+        return kos_store.ROLE_FOUR
     return None
 
 
@@ -96,7 +95,8 @@ def _sync_library(lib):
     cos_set = set(keys)
     try:
         existing = {m['cos_key']: m for m in kos_store.list_materials(lib['id'])}
-        idx = {kos_store.ROLE_MAIN: 0, kos_store.ROLE_TILE: 0}
+        from collections import defaultdict
+        idx = defaultdict(int)
         # COS 有、库没有 → 登记
         for k in sorted(cos_set - set(existing)):
             role = _classify(k)
@@ -191,39 +191,6 @@ class handler(BaseHTTPRequestHandler):
                     "cos_error": cos_error,
                 })
 
-            if action == "scan_library":
-                lib = kos_store.get_library(req.get("library_id"))
-                if not lib:
-                    return self._json(404, {"error": "素材库不存在"})
-                try:
-                    keys = _list_cos(lib['cos_prefix'])
-                except RuntimeError as e:
-                    return self._json(503, {"error": str(e)})
-                exist = kos_store.existing_cos_keys(lib['id'])
-                added = {kos_store.ROLE_MAIN: 0, kos_store.ROLE_TILE: 0}
-                skipped = 0
-                idx = {kos_store.ROLE_MAIN: 0, kos_store.ROLE_TILE: 0}
-                for key in sorted(keys):
-                    fn = key.rsplit('/', 1)[-1]
-                    if not fn.lower().endswith(IMG_EXT):
-                        continue
-                    if key in exist:
-                        continue
-                    role = _classify(key)
-                    if not role:
-                        skipped += 1
-                        continue
-                    kos_store.add_material(lib['id'], role, key, fn, idx[role])
-                    idx[role] += 1
-                    added[role] += 1
-                return self._json(200, {
-                    "ok": True,
-                    "added_mains": added[kos_store.ROLE_MAIN],
-                    "added_tiles": added[kos_store.ROLE_TILE],
-                    "skipped": skipped,
-                    "capacity": kos_store.capacity(lib['id']),
-                })
-
             if action == "list_materials":
                 return self._json(200, {"materials": kos_store.list_materials(req.get("library_id"))})
 
@@ -263,7 +230,7 @@ class handler(BaseHTTPRequestHandler):
                 if not lib:
                     return self._json(404, {"error": "素材库不存在"})
                 role = (req.get("role") or "").strip()
-                if role not in (kos_store.ROLE_MAIN, kos_store.ROLE_TILE):
+                if role not in (kos_store.ROLE_MAIN, kos_store.ROLE_TWO, kos_store.ROLE_FOUR):
                     return self._json(400, {"error": "角色不合法"})
                 files = req.get("files") or []
                 if not files:
@@ -287,7 +254,7 @@ class handler(BaseHTTPRequestHandler):
                 if not lib:
                     return self._json(404, {"error": "素材库不存在"})
                 role = (req.get("role") or "").strip()
-                if role not in (kos_store.ROLE_MAIN, kos_store.ROLE_TILE):
+                if role not in (kos_store.ROLE_MAIN, kos_store.ROLE_TWO, kos_store.ROLE_FOUR):
                     return self._json(400, {"error": "角色不合法"})
                 exist = kos_store.existing_cos_keys(lib['id'])
                 n = 0

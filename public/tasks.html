@@ -40,12 +40,23 @@
   .imgs figcaption { font-size:11px; color:var(--muted); text-align:center; margin-top:4px; }
   .imgs a { display:block; text-align:center; font-size:12px; color:var(--accent-strong); margin-top:3px; text-decoration:none; }
   .tip { font-size:12px; color:var(--muted); margin:10px 0; }
-  .copybox { background:var(--primary-soft); border-radius:10px; padding:12px; margin-top:10px; }
-  .copybox .t { font-weight:600; font-size:13px; margin-bottom:4px; }
-  .copybox .body { font-size:13px; white-space:pre-wrap; line-height:1.6; }
-  .copybox .tags { font-size:12.5px; color:var(--accent-strong); margin-top:6px; }
+  .cbox { background:var(--primary-soft); border-radius:10px; padding:10px 12px; margin-top:10px; }
+  .cbox .chead { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .cbox .t { font-weight:600; font-size:12.5px; color:var(--text-soft); }
+  .cbox .copybtn { margin-left:auto; font-size:12px; padding:3px 10px; border:1px solid var(--border); background:white; border-radius:7px; cursor:pointer; color:var(--accent-strong); }
+  .cbox .copybtn:hover { border-color:var(--accent); }
+  .cbox .val { font-size:13px; white-space:pre-wrap; line-height:1.6; }
+  .cbox .val.tags { color:var(--accent-strong); }
   .fillrow { display:flex; gap:8px; margin-top:14px; }
   .fillrow input { flex:1; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; }
+  .taken { display:flex; flex-direction:column; gap:8px; }
+  .taken .item { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border-soft); border-radius:10px; }
+  .taken .item .lbl { font-weight:600; font-size:13.5px; }
+  .taken .item .st { font-size:12px; }
+  .taken .item .st.pub { color:#15803d; }
+  .taken .item .st.no { color:var(--muted); }
+  .backbtn { font-size:12.5px; color:var(--accent-strong); cursor:pointer; background:none; border:none; padding:0; margin-bottom:8px; }
+  .linkline { font-size:12.5px; margin-top:12px; word-break:break-all; }
   .deny { text-align:center; padding:60px 20px; color:var(--muted); }
 </style>
 </head>
@@ -68,7 +79,7 @@
 
 <div class="modal" id="modal">
   <div class="pack">
-    <h3>本篇素材包 <button class="x" onclick="closePack()">×</button></h3>
+    <h3 id="packTitle">本篇素材包 <button class="x" onclick="closePack()">×</button></h3>
     <div class="pack-body" id="packBody"></div>
   </div>
 </div>
@@ -91,19 +102,24 @@ async function load() {
   renderBoard((b.data && b.data.board) || []);
 }
 
+let _tasks = [];
 function renderTasks(tasks) {
-  // 顶部统计:本期完成任务 = 我已完成的任务数;笔记数从排行里取(下方 renderBoard 也会算)
-  let done = 0, notes = 0;
+  _tasks = tasks;
+  let done = 0;
   tasks.forEach(t => { if (t.my_published >= t.per_person) done++; });
   document.getElementById('sDone').textContent = done;
   document.getElementById('tasks').innerHTML = tasks.length ? tasks.map(taskRow).join('')
     : '<div class="muted2">暂无待办任务,等管理员发布。</div>';
-  tasks.forEach(t => { const btn = document.getElementById('take'+t.id); if (btn) btn.onclick = () => issue(t.id, btn); });
+  tasks.forEach(t => {
+    const b1 = document.getElementById('take'+t.id); if (b1) b1.onclick = () => issue(t.id, b1);
+    const b2 = document.getElementById('view'+t.id); if (b2) b2.onclick = () => viewTaken(t.id);
+  });
 }
 
 function taskRow(t) {
   const done = t.my_published >= t.per_person;
   const canTake = t.my_issued < t.per_person && t.remaining_cap > 0;
+  const localN = getLocalPacks(t.id).length;
   return `<div class="task">
     <div class="task-top">
       <span class="task-name">${esc(t.title || (t.brand+' '+t.product))}</span>
@@ -114,69 +130,130 @@ function taskRow(t) {
       <span class="prog">进度 ${t.my_published}/${t.per_person} 篇</span>
       <span class="muted2">已领 ${t.my_issued}</span>
       <span style="flex:1"></span>
-      ${canTake ? `<button class="btn btn-primary" id="take${t.id}">领取素材包</button>`
-                : (done ? '' : `<span class="muted2">${t.remaining_cap<=0?'素材已发尽':'已领满,去发布吧'}</span>`)}
+      ${localN ? `<button class="btn" id="view${t.id}">已领素材包 (${localN})</button>` : ''}
+      ${canTake ? `<button class="btn btn-primary" id="take${t.id}">领取新素材包</button>`
+                : `<span class="muted2">${t.remaining_cap<=0?'素材已发尽':'已领满'}</span>`}
     </div>
   </div>`;
+}
+
+// ───────── 本地存储:已领素材包可重复查看 ─────────
+function lkey() { return 'kospacks:' + (me.emp_id || ''); }
+function allLocal() { try { return JSON.parse(localStorage.getItem(lkey()) || '{}'); } catch(e) { return {}; } }
+function saveLocal(o) { try { localStorage.setItem(lkey(), JSON.stringify(o)); } catch(e){} }
+function getLocalPacks(taskId) { return allLocal()[taskId] || []; }
+function addLocalPack(taskId, pack) { const o = allLocal(); (o[taskId] = o[taskId] || []).push(pack); saveLocal(o); }
+function updateLocalNote(taskId, packId, url) {
+  const o = allLocal(); (o[taskId] || []).forEach(p => { if (p.pack_id === packId) p.note_url = url; }); saveLocal(o);
 }
 
 async function issue(taskId, btn) {
   btn.disabled = true; btn.textContent = '生成中...(约10秒)';
   const r = await api('issue', { task_id: taskId });
-  btn.disabled = false; btn.textContent = '领取素材包';
+  btn.disabled = false; btn.textContent = '领取新素材包';
   if (!r.ok || r.data.error) { App.toast(r.data.error || '领取失败'); return; }
-  showPack(r.data);
+  const d = r.data;
+  const pack = { pack_id: d.pack_id, post_index: d.post_index, per_person: d.per_person,
+                 images: d.images, copy: d.copy || {}, task_id: taskId, note_url: '', at: Date.now() };
+  addLocalPack(taskId, pack);
+  showPack(pack, taskId, false);
   load();
 }
 
-function showPack(d) {
-  const c = d.copy || {};
-  const title = (c.titles && c.titles[0]) || '';
-  const tags = (c.tags || []).join(' ');
-  const fullCopy = [title, '', c.body || '', '', tags].join('\n');
+const KINDS = [['cover','主图'], ['two','2合1'], ['four','4合1']];
+
+// 已领列表
+function viewTaken(taskId) {
+  const packs = getLocalPacks(taskId);
+  const t = _tasks.find(x => x.id === taskId);
+  document.getElementById('packTitle').innerHTML = '已领素材包 <button class="x" onclick="closePack()">×</button>';
   document.getElementById('packBody').innerHTML = `
-    <div class="muted2">第 ${d.post_index}/${d.per_person} 篇 · 长按图片保存到手机</div>
-    <div class="imgs">
-      ${['cover','two','four'].map((k,i) => `
-        <figure>
-          <img src="${esc(d.images[k])}" alt="${['封面','2合1','4合1'][i]}" />
-          <figcaption>${['封面','2合1','4合1'][i]}</figcaption>
-          <a href="${esc(d.images[k])}" download="kos_${d.pack_id}_${k}.jpg">下载</a>
-        </figure>`).join('')}
-    </div>
-    <div class="tip">手机长按图片即可保存;电脑可点「下载」。</div>
-    <div class="copybox">
-      <div class="t">文案(点下方复制)</div>
-      <div class="body" id="copyText">${esc(fullCopy.trim())}</div>
-      ${(c.titles && c.titles.length>1) ? `<div class="muted2" style="margin-top:8px">备选标题:${c.titles.slice(1).map(esc).join(' / ')}</div>` : ''}
-    </div>
-    <button class="btn btn-primary" style="margin-top:10px" onclick="copyCopy(this)">复制文案</button>
-    <div class="fillrow">
-      <input id="noteUrl" placeholder="发布后把小红书笔记链接贴这里" />
-      <button class="btn" onclick="completePack(${d.pack_id}, this)">标记完成</button>
+    <div class="muted2" style="margin-bottom:10px">${esc((t&&(t.title||(t.brand+' '+t.product)))||'')} · 共 ${packs.length} 份</div>
+    <div class="taken">
+      ${packs.map((p, i) => `
+        <div class="item">
+          <span class="lbl">第 ${p.post_index || i+1} 篇</span>
+          <span class="st ${p.note_url?'pub':'no'}">${p.note_url?'已回填链接':'未回填'}</span>
+          <span style="flex:1"></span>
+          <button class="btn" onclick="openTaken(${taskId}, ${i})">查看 / 回填</button>
+        </div>`).join('')}
     </div>`;
-  window._curCopy = fullCopy.trim();
   document.getElementById('modal').classList.add('show');
 }
+window.viewTaken = viewTaken;
+function openTaken(taskId, i) { showPack(getLocalPacks(taskId)[i], taskId, true); }
+window.openTaken = openTaken;
+
+function showPack(p, taskId, fromList) {
+  const c = p.copy || {};
+  const title = (c.titles && c.titles[0]) || '';
+  const body = c.body || '';
+  const tags = (c.tags || []).join(' ');
+  document.getElementById('packTitle').innerHTML = '素材包 <button class="x" onclick="closePack()">×</button>';
+  document.getElementById('packBody').innerHTML = `
+    ${fromList ? `<button class="backbtn" onclick="viewTaken(${taskId})">← 返回已领列表</button>` : ''}
+    <div class="muted2">第 ${p.post_index}/${p.per_person} 篇 · 长按图片保存到手机</div>
+    <div class="imgs">
+      ${KINDS.map(([k,label]) => `
+        <figure>
+          <img src="${esc(p.images[k])}" alt="${label}" />
+          <figcaption>${label}</figcaption>
+          <a href="${esc(p.images[k])}" download="kos_${p.pack_id}_${k}">下载</a>
+        </figure>`).join('')}
+    </div>
+    <div class="tip">手机长按图片即可保存;电脑可点「下载」。主图为原图直出。</div>
+
+    <div class="cbox">
+      <div class="chead"><span class="t">标题</span><button class="copybtn" onclick="copyText(this)" data-c="${esc(title)}">复制标题</button></div>
+      <div class="val">${esc(title) || '<span style="color:var(--muted)">(无)</span>'}</div>
+      ${(c.titles && c.titles.length>1) ? `<div class="muted2" style="margin-top:6px">备选:${c.titles.slice(1).map(esc).join(' / ')}</div>` : ''}
+    </div>
+    <div class="cbox">
+      <div class="chead"><span class="t">正文</span><button class="copybtn" onclick="copyText(this)" data-c="${esc(body)}">复制正文</button></div>
+      <div class="val">${esc(body) || '<span style="color:var(--muted)">(无)</span>'}</div>
+    </div>
+    <div class="cbox">
+      <div class="chead"><span class="t">标签</span><button class="copybtn" onclick="copyText(this)" data-c="${esc(tags)}">复制标签</button></div>
+      <div class="val tags">${esc(tags) || '<span style="color:var(--muted)">(无)</span>'}</div>
+    </div>
+
+    <div style="margin-top:16px;border-top:1px solid var(--border-soft);padding-top:12px">
+      <div class="t" style="font-weight:600;font-size:13px">发布后回收笔记链接</div>
+      ${p.note_url ? `<div class="linkline">已回填:<a href="${esc(p.note_url)}" target="_blank" rel="noopener">${esc(p.note_url)}</a></div>` : ''}
+      <div class="fillrow">
+        <input id="noteUrl" placeholder="粘贴小红书链接(xhslink.com 或 xiaohongshu.com)" value="${esc(p.note_url||'')}" />
+        <button class="btn btn-primary" onclick="completePack(${p.pack_id}, ${taskId}, this)">回收链接</button>
+      </div>
+      <div class="muted2" style="margin-top:6px">仅接受小红书链接:手机端「xhslink.com」或电脑端「xiaohongshu.com」。</div>
+    </div>`;
+  document.getElementById('modal').classList.add('show');
+}
+window.showPack = showPack;
 
 function closePack() { document.getElementById('modal').classList.remove('show'); }
 window.closePack = closePack;
 
-async function copyCopy(btn) {
-  try { await navigator.clipboard.writeText(window._curCopy || ''); btn.textContent = '已复制'; setTimeout(()=>btn.textContent='复制文案',1500); }
+async function copyText(btn) {
+  const txt = btn.getAttribute('data-c') || '';
+  if (!txt) { App.toast('内容为空'); return; }
+  try { await navigator.clipboard.writeText(txt); const o = btn.textContent; btn.textContent = '已复制'; setTimeout(()=>btn.textContent=o, 1500); }
   catch(e){ App.toast('复制失败,请手动选择'); }
 }
-window.copyCopy = copyCopy;
+window.copyText = copyText;
 
-async function completePack(packId, btn) {
-  const url = document.getElementById('noteUrl').value.trim();
-  if (!url) { App.toast('请先贴上笔记链接'); return; }
-  btn.disabled = true;
+const XHS_RE = /(?:xhslink\.com|xiaohongshu\.com)/i;
+async function completePack(packId, taskId, btn) {
+  const url = (document.getElementById('noteUrl').value || '').trim();
+  if (!url) { App.toast('请先粘贴笔记链接'); return; }
+  if (!XHS_RE.test(url)) { App.toast('链接无效:仅接受小红书链接(xhslink.com 或 xiaohongshu.com)'); return; }
+  btn.disabled = true; const o = btn.textContent; btn.textContent = '提交中...';
   const r = await api('complete', { pack_id: packId, note_url: url });
-  btn.disabled = false;
+  btn.disabled = false; btn.textContent = o;
   if (!r.ok || r.data.error) { App.toast(r.data.error || '提交失败'); return; }
-  App.toast('已标记完成,计入统计');
-  closePack(); load();
+  updateLocalNote(taskId, packId, url);
+  App.toast('已回收链接,计入统计');
+  load();
+  showPack(getLocalPacks(taskId).find(x => x.pack_id === packId) || {}, taskId, true);
 }
 window.completePack = completePack;
 

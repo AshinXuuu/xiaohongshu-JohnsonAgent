@@ -1,15 +1,20 @@
 """KOS 任务中心数据层(usage.db 内新增 4 张表)。
 
   kos_libraries   素材库(一个产品可有多个批次库)
-  kos_materials   素材(主图 / 可拼图,指向 COS 对象 key)
+  kos_materials   素材(主图 / 2合1横版 / 4合1竖版,指向 COS 对象 key)
   kos_tasks       任务(管理员发起,绑定一个库)
   kos_packs       领取记录 = 严格唯一组合消耗 + 完成回填
 
+素材三分类(均直出,不裁切不翻转):
+  主图      —— 一张原图直出(可复用,不计消耗)
+  2合1横版  —— 两张横版图上下拼(一份占一对,唯一不复用)
+  4合1竖版  —— 四张竖版图田字拼(一份占一组四张,唯一不复用)
+
 容量与唯一性(严格,不重复消耗):
-  每人每篇成品 = 1 封面(主图→封面生成,不占组合)+ 1 个「2合1」+ 1 个「4合1」。
-  组合以"可拼图源图的无序集合"为单位:2合1 = 一对;4合1 = 一组四张。
-  单库可支持「人·篇」总数 = min(C(n,2), C(n,4)),n = 该库在用可拼图数(需 n≥4)。
-  每发一份,占用一对 + 一组四张,永不复用。
+  每人每篇成品 = 1 主图(直出,可复用)+ 1 个「2合1」+ 1 个「4合1」。
+  组合以"源图的无序集合"为单位:2合1 = 一对横版;4合1 = 一组四张竖版。
+  单库可支持「人·篇」总数 = min(C(h,2), C(v,4)),h=在用横版数(需≥2),v=在用竖版数(需≥4)。
+  每发一份,占用一对横版 + 一组四张竖版,永不复用;主图随机取一张、可重复。
 """
 import json
 import math
@@ -27,7 +32,9 @@ _lock = threading.Lock()
 _schema_ready = False
 
 ROLE_MAIN = '主图'
-ROLE_TILE = '可拼图'
+ROLE_TWO = '2合1'      # 横版,上下拼
+ROLE_FOUR = '4合1'     # 竖版,田字拼
+ROLE_TILE = '可拼图'   # 旧版遗留分类(已弃用,仅兼容历史数据读取)
 
 
 def _conn():
@@ -209,39 +216,39 @@ def list_materials(library_id, role=None):
         c.close()
 
 
-def _tile_ids(c, library_id):
+def _ids_by_role(c, library_id, role):
     rows = c.execute("SELECT id FROM kos_materials WHERE library_id=? AND role=? AND active=1 ORDER BY id",
-                     (library_id, ROLE_TILE)).fetchall()
+                     (library_id, role)).fetchall()
     return [r['id'] for r in rows]
 
 
 def _main_ids(c, library_id):
-    rows = c.execute("SELECT id FROM kos_materials WHERE library_id=? AND role=? AND active=1 ORDER BY id",
-                     (library_id, ROLE_MAIN)).fetchall()
-    return [r['id'] for r in rows]
+    return _ids_by_role(c, library_id, ROLE_MAIN)
 
 
-def _cap_from_n(n):
-    """单库可支持「人·篇」总数:每份需一对(2合1)+ 一组四张(4合1)。需 n≥4。"""
-    if n < 4:
+def _cap_from(h, v):
+    """单库可支持「人·篇」总数:每份需一对横版(2合1)+ 一组四张竖版(4合1)。需 h≥2 且 v≥4。"""
+    if h < 2 or v < 4:
         return 0
-    return min(math.comb(n, 2), math.comb(n, 4))
+    return min(math.comb(h, 2), math.comb(v, 4))
 
 
 def capacity(library_id):
-    """返回 {tiles, mains, total, used, remaining, enough_min}。"""
+    """返回 {mains, two, four, total, used, remaining, need_two_min, need_four_min}。
+    tiles 字段保留兼容(= two+four),旧调用不至于报错。"""
     _ensure()
     c = _conn()
     try:
-        tiles = _tile_ids(c, library_id)
         mains = _main_ids(c, library_id)
-        n = len(tiles)
-        total = _cap_from_n(n)
+        two = _ids_by_role(c, library_id, ROLE_TWO)
+        four = _ids_by_role(c, library_id, ROLE_FOUR)
+        h, v = len(two), len(four)
+        total = _cap_from(h, v)
         used = c.execute("SELECT COUNT(*) FROM kos_packs WHERE library_id=?", (library_id,)).fetchone()[0]
         return {
-            "tiles": n, "mains": len(mains),
+            "mains": len(mains), "two": h, "four": v, "tiles": h + v,
             "total": total, "used": used, "remaining": max(0, total - used),
-            "need_tiles_min": 4,
+            "need_two_min": 2, "need_four_min": 4,
         }
     finally:
         c.close()
@@ -262,22 +269,23 @@ def _used_combos(c, library_id, col):
 
 def pick_combo(library_id, rng=None):
     """为一份成品挑一组未用过的素材:返回 {cover, combo2, combo4} 的 material id,
-    或 None(库已发尽 / 可拼图不足)。不在此处落库;调用方在事务里 record_pack 占用。"""
+    或 None(库已发尽 / 素材不足)。不在此处落库;调用方在事务里 record_pack 占用。
+    cover = 随机取一张主图(可复用);combo2 = 一对横版(唯一);combo4 = 一组四张竖版(唯一)。"""
     _ensure()
     rng = rng or random.Random()
     c = _conn()
     try:
-        tiles = _tile_ids(c, library_id)
         mains = _main_ids(c, library_id)
-        n = len(tiles)
-        if n < 4 or not mains:
+        two = _ids_by_role(c, library_id, ROLE_TWO)
+        four = _ids_by_role(c, library_id, ROLE_FOUR)
+        if not mains or len(two) < 2 or len(four) < 4:
             return None
         used2 = _used_combos(c, library_id, 'combo2')
         used4 = _used_combos(c, library_id, 'combo4')
-        if len(used2) >= math.comb(n, 2) or len(used4) >= math.comb(n, 4):
+        if len(used2) >= math.comb(len(two), 2) or len(used4) >= math.comb(len(four), 4):
             return None
-        pair = _sample_unused(tiles, 2, used2, rng)
-        quad = _sample_unused(tiles, 4, used4, rng)
+        pair = _sample_unused(two, 2, used2, rng)
+        quad = _sample_unused(four, 4, used4, rng)
         if pair is None or quad is None:
             return None
         cover = rng.choice(mains)
@@ -429,16 +437,31 @@ def get_pack(pack_id):
         c.close()
 
 
+import re as _re
+
+# 只接受小红书链接:手机端 xhslink.com 短链 / 电脑端 xiaohongshu.com
+_XHS_RE = _re.compile(r'https?://[^\s]*\b(?:xhslink\.com|(?:www\.)?xiaohongshu\.com)\b', _re.I)
+
+
+def valid_note_url(url):
+    """小红书链接规则校验:必须是 xhslink.com 或 xiaohongshu.com。"""
+    return bool(_XHS_RE.search((url or '').strip()))
+
+
 def publish_pack(pack_id, emp_id, note_url):
-    """业务回填小红书链接 → 标记已发布。仅本人可操作。"""
+    """业务回填小红书链接 → 标记已发布。仅本人可操作,且链接须符合小红书规则。
+    返回 True / 'not_owner' / 'bad_url'。"""
     _ensure()
+    note_url = (note_url or '').strip()
+    if not valid_note_url(note_url):
+        return 'bad_url'
     c = _conn()
     try:
         r = c.execute("SELECT emp_id FROM kos_packs WHERE id=?", (pack_id,)).fetchone()
         if not r or r['emp_id'] != emp_id:
-            return False
+            return 'not_owner'
         c.execute("UPDATE kos_packs SET status='published', note_url=?, published_at=? WHERE id=?",
-                  ((note_url or '').strip(), int(time.time()), pack_id))
+                  (note_url, int(time.time()), pack_id))
         c.commit()
         return True
     finally:
@@ -505,14 +528,28 @@ def kos_dashboard(days=30):
             cap = capacity(l["id"])
             by_library.append({"brand": l["brand"], "product": l["product"], "code": l["code"],
                                "used": cap["used"], "total": cap["total"],
-                               "tiles": cap["tiles"], "mains": cap["mains"]})
+                               "mains": cap["mains"], "two": cap["two"], "four": cap["four"]})
         drows = c.execute(
             "SELECT strftime('%Y-%m-%d', COALESCE(published_at,created_at),'unixepoch','localtime') d, COUNT(*) c "
             "FROM kos_packs WHERE status='published' AND COALESCE(published_at,created_at)>=? "
             "GROUP BY d ORDER BY d DESC LIMIT 30", (since,)).fetchall()
         by_daily = [{"key": r["d"], "count": r["c"]} for r in drows]
+        # 任务笔记链接:已发布且有链接的记录,管理员统一点开查看
+        nrows = c.execute(
+            "SELECT p.user_name, p.department, p.note_url, p.published_at, "
+            "       t.title, t.brand, t.product "
+            "FROM kos_packs p LEFT JOIN kos_tasks t ON p.task_id=t.id "
+            "WHERE p.status='published' AND p.note_url IS NOT NULL AND p.note_url<>'' "
+            "AND COALESCE(p.published_at,p.created_at)>=? "
+            "ORDER BY COALESCE(p.published_at,p.created_at) DESC LIMIT 300", (since,)).fetchall()
+        task_notes = [{
+            "name": r["user_name"], "department": r["department"], "url": r["note_url"],
+            "at": r["published_at"],
+            "task": (r["title"] or ((r["brand"] or '') + ' ' + (r["product"] or ''))).strip(),
+        } for r in nrows]
         return {"tasks": tasks, "open_tasks": open_tasks, "issued": issued, "published": published,
                 "completion_pct": (round(published / issued * 100) if issued else 0),
-                "by_user": by_user, "by_library": by_library, "by_daily": by_daily}
+                "by_user": by_user, "by_library": by_library, "by_daily": by_daily,
+                "task_notes": task_notes}
     finally:
         c.close()

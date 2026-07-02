@@ -667,7 +667,8 @@ function renderKos(k) {
       <div class="card"><div class="card-title">笔记排行(发布数)</div><div class="rank-list" id="kosRank"></div></div>
       <div class="card"><div class="card-title">每日发布笔记</div><div class="chart-box"><canvas id="kosDaily"></canvas></div></div>
     </div>
-    <div class="card"><div class="card-title">素材库容量使用</div><div id="kosLibs"></div></div>`;
+    <div class="card"><div class="card-title">素材库容量使用</div><div id="kosLibs"></div></div>
+    <div class="card"><div class="card-title">任务笔记链接<span style="color:var(--muted);font-weight:400;font-size:12px" id="kosNotesCount"></span></div><div id="kosNotes"></div></div>`;
   renderRank('kosRank', (k.by_user || []).map(u => ({ label: u.name || '', sub: u.department || '', count: u.count })));
   const libs = k.by_library || [];
   $('kosLibs').innerHTML = libs.length ? libs.map(l => {
@@ -675,11 +676,24 @@ function renderKos(k) {
     return `<div style="padding:8px 0;border-top:1px solid var(--border-soft)">
       <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;flex-wrap:wrap">
         <span>${escapeHtml(l.brand)} ${escapeHtml(l.product)} <span style="color:var(--muted)">${escapeHtml(l.code || '')}</span></span>
-        <span style="color:var(--muted)">主图${l.mains} / 可拼图${l.tiles} · 已用 ${l.used}/${l.total}</span>
+        <span style="color:var(--muted)">主图${l.mains} / 2合1 ${l.two} / 4合1 ${l.four} · 已用 ${l.used}/${l.total}</span>
       </div>
       <div style="height:6px;background:var(--border-soft);border-radius:99px;margin-top:5px;overflow:hidden"><div style="height:100%;width:${p}%;background:var(--accent)"></div></div>
     </div>`;
   }).join('') : '<div style="color:var(--muted);padding:12px 0">暂无素材库</div>';
+  const notes = k.task_notes || [];
+  $('kosNotesCount').textContent = notes.length ? '  共 ' + notes.length + ' 条' : '';
+  $('kosNotes').innerHTML = notes.length ? notes.map(n => {
+    const d = n.at ? new Date(n.at * 1000) : null;
+    const pad = x => String(x).padStart(2, '0');
+    const tm = d ? `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
+    return `<div style="display:flex;gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--border-soft);font-size:13px;flex-wrap:wrap">
+      <span style="min-width:110px">${escapeHtml(n.name || '')} <span style="color:var(--muted)">${escapeHtml(n.department || '')}</span></span>
+      <span style="color:var(--muted);min-width:120px">${escapeHtml(n.task || '')}</span>
+      <a href="${escapeHtml(n.url)}" target="_blank" rel="noopener" style="color:var(--accent-strong);word-break:break-all;flex:1">${escapeHtml(n.url)}</a>
+      <span style="color:var(--muted);font-size:12px">${tm}</span>
+    </div>`;
+  }).join('') : '<div style="color:var(--muted);padding:12px 0">时间范围内还没有回填的笔记链接</div>';
   const dd = (k.by_daily || []).slice().sort((a, b) => a.key.localeCompare(b.key));
   if (window.Chart && dd.length) {
     __state.charts.kos = new Chart($('kosDaily'), {
