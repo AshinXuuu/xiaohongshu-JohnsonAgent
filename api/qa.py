@@ -48,6 +48,8 @@ _SSL_CTX = _build_ssl_context()
 
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 DB_PATH = ROOT / 'data' / 'usage.db'
 
 DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
@@ -377,7 +379,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
 
     def do_GET(self):
@@ -401,7 +403,10 @@ class handler(BaseHTTPRequestHandler):
             brand = (req.get("brand") or "").strip()
             product = (req.get("product") or "").strip()
             question = (req.get("question") or "").strip()
-            user = req.get("_user") or {}
+            from lib.session import user_from_headers
+            user = user_from_headers(self.headers)
+            if not user:
+                return self._error(401, "未登录或登录已过期,请重新登录")
 
             print(
                 f"[USAGE] action=qa user={user.get('emp_id')}/{user.get('name')}/{user.get('department')} "

@@ -41,7 +41,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
 
     def do_POST(self):
@@ -50,7 +50,10 @@ class handler(BaseHTTPRequestHandler):
             body = self.rfile.read(length).decode("utf-8") if length else "{}"
             req = json.loads(body)
 
-            caller = req.get("_user") or {}
+            from lib.session import user_from_headers
+            caller = user_from_headers(self.headers)
+            if not caller:
+                return self._json(401, {"error": "未登录或登录已过期,请重新登录"})
             if not is_admin(caller):
                 return self._json(403, {"error": "无权访问,仅管理员可操作"})
             caller_role = role_of(caller)

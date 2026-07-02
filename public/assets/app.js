@@ -11,8 +11,36 @@
   "use strict";
 
   var USER_KEY = "xhsAgent:user";
+  var TOKEN_KEY = "xhsAgent:token";
   var SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24h
   var _org = null;
+
+  // ---------- 会话 Token ----------
+  function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (_) { return ""; } }
+  function setToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); } catch (_) {} }
+  function clearToken() { try { localStorage.removeItem(TOKEN_KEY); } catch (_) {} }
+
+  // 全局给所有 /api/ 请求自动带上 Authorization: Bearer <token>。
+  // 覆盖所有页面(含各页自定义 fetch 与 App.api),后端据此验签鉴权,不再信任请求体身份。
+  (function patchFetch() {
+    var _origFetch = global.fetch ? global.fetch.bind(global) : null;
+    if (!_origFetch) return;
+    global.fetch = function (url, opts) {
+      opts = opts || {};
+      try {
+        if (String(url).indexOf("/api/") !== -1) {
+          var tok = getToken();
+          if (tok) {
+            opts.headers = Object.assign({}, opts.headers || {});
+            if (!opts.headers["Authorization"] && !opts.headers["authorization"]) {
+              opts.headers["Authorization"] = "Bearer " + tok;
+            }
+          }
+        }
+      } catch (_) {}
+      return _origFetch(url, opts);
+    };
+  })();
 
   // ---------- 工具 ----------
   function escapeHtml(s) {
@@ -60,7 +88,7 @@
   function isSessionValid(me) {
     return !!(me && me.emp_id && me.loginAt && (Date.now() - me.loginAt) < SESSION_TTL_MS);
   }
-  function logout() { localStorage.removeItem(USER_KEY); location.replace("/"); }
+  function logout() { localStorage.removeItem(USER_KEY); clearToken(); location.replace("/"); }
 
   // 会话无效直接跳门户;有效则返回 me
   function requireSession() {
@@ -161,6 +189,9 @@
     api: api,
     getMe: getMe,
     setMe: setMe,
+    getToken: getToken,
+    setToken: setToken,
+    clearToken: clearToken,
     isSessionValid: isSessionValid,
     requireSession: requireSession,
     logout: logout,

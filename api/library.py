@@ -119,7 +119,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
 
     def do_GET(self):
@@ -143,7 +143,10 @@ class handler(BaseHTTPRequestHandler):
             req = json.loads(body)
 
             key = (req.get("key") or "").strip()
-            user = req.get("_user") or {}
+            from lib.session import user_from_headers
+            user = user_from_headers(self.headers)
+            if not user:
+                return self._error(401, "未登录或登录已过期,请重新登录")
             if not key:
                 return self._error(400, "缺少 key")
 

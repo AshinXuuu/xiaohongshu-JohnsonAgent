@@ -21,6 +21,9 @@ import urllib.error
 
 
 ROOT = Path(__file__).resolve().parent.parent
+import sys as _sys_boot
+if str(ROOT) not in _sys_boot.path:
+    _sys_boot.path.insert(0, str(ROOT))
 PROMPT_FILE = ROOT / "prompts" / "封面字段.txt"
 PRODUCTS_FILE = ROOT / "data" / "products.json"
 
@@ -84,7 +87,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
 
     def do_POST(self):
@@ -98,7 +101,10 @@ class handler(BaseHTTPRequestHandler):
             copy_type = (req.get("copy_type") or "").strip()
             extra = (req.get("extra") or "").strip()
 
-            user = req.get("_user") or {}
+            from lib.session import user_from_headers
+            user = user_from_headers(self.headers)
+            if not user:
+                return self._json(401, {"error": "未登录或登录已过期,请重新登录"})
             print(f"[USAGE] action=cover_fields user={user.get('emp_id')}/{user.get('name')}/{user.get('department')} brand={brand_name} product={product_name}", flush=True)
             try:
                 import sys as _sys

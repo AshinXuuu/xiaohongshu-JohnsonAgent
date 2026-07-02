@@ -18,6 +18,11 @@ import random
 import urllib.request
 import urllib.error
 import threading
+import sys as _sys_boot
+from pathlib import Path as _Path_boot
+_ROOT_BOOT = _Path_boot(__file__).resolve().parent.parent
+if str(_ROOT_BOOT) not in _sys_boot.path:
+    _sys_boot.path.insert(0, str(_ROOT_BOOT))
 
 
 DOUBAO_URL = 'https://ark.cn-beijing.volces.com/api/v3/images/generations'
@@ -518,7 +523,10 @@ class handler(BaseHTTPRequestHandler):
             else:
                 style = (req.get('style') or '').strip() or DEFAULT_STYLE
 
-            user = req.get('_user') or {}
+            from lib.session import user_from_headers
+            user = user_from_headers(self.headers)
+            if not user:
+                return self._json(401, {"error": "未登录或登录已过期,请重新登录"})
             print(
                 f"[USAGE] action=cover_generate "
                 f"user={user.get('emp_id')}/{user.get('name')}/{user.get('department')} "

@@ -632,6 +632,7 @@ async function doLogin() {
       return;
     }
     setMe(data.user);
+    if (data.token) { try { App.setToken(data.token); } catch (_) { localStorage.setItem('xhsAgent:token', data.token); } }
     showPortal(data.user);
   } catch (e) {
     showLoginError('网络错误:' + e.message);
@@ -691,6 +692,7 @@ async function renderPortalCards(me) {
 function logout() {
   if (!confirm('确定要退出登录吗?')) return;
   localStorage.removeItem(USER_KEY);
+  try { App.clearToken(); } catch (_) { localStorage.removeItem('xhsAgent:token'); }
   location.reload();
 }
 window.logout = logout;

@@ -1162,6 +1162,7 @@ async function doLogin() {
     }
     currentUser = data.user;
     localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+    if (data.token) { try { App.setToken(data.token); } catch (_) { localStorage.setItem('xhsAgent:token', data.token); } }
     showApp();
   } catch (e) {
     err.textContent = '网络错误:' + e.message;
@@ -1175,6 +1176,7 @@ async function doLogin() {
 function logout() {
   if (!confirm('确定要退出登录吗?')) return;
   localStorage.removeItem(USER_KEY);
+  try { App.clearToken(); } catch (_) { localStorage.removeItem('xhsAgent:token'); }
   currentUser = null;
   loadDepartments().then(showLogin);
 }

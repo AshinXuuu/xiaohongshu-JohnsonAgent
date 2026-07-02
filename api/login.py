@@ -44,12 +44,21 @@ def find_user(department, name, emp_id, id_last6=None):
         - 未配置 → 暂不校验(过渡期)
     """
     from lib.users_store import get_user
+    ADMIN_ROLES = ("org_admin", "super_admin")
     id6 = str(id_last6 or "").strip().upper()  # 末位 X 统一大写
     u = get_user(department, name, emp_id)
     if not u:
         return None, '工号或姓名与所选部门不匹配'
+    role = u.get("role") or ("org_admin" if u.get("is_admin") else "staff")
     expect_id6 = str(u.get("id_last6") or "").strip().upper()
-    if expect_id6 and expect_id6 != id6:
+    # 管理员必须启用身份证后 6 位二次验证:未配置则禁止登录(需超管补录),已配置则必须匹配
+    if role in ADMIN_ROLES:
+        if not expect_id6:
+            return None, '管理员账号未配置身份证后 6 位,请联系超级管理员补录后再登录'
+        if expect_id6 != id6:
+            return None, '身份证后 6 位不正确'
+    # 普通用户:配置了才校验(过渡期)
+    elif expect_id6 and expect_id6 != id6:
         return None, '身份证后 6 位不正确'
     return {
         "department": u["department"],
@@ -71,7 +80,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
 
     def do_GET(self):
@@ -115,7 +124,9 @@ class handler(BaseHTTPRequestHandler):
 
             # 登录成功才记录到 KV(失败的不记)
             log_event('login', user)
-            self._json(200, {"ok": True, "user": user})
+            from lib.session import issue_token
+            token = issue_token(user)
+            self._json(200, {"ok": True, "user": user, "token": token})
 
         except Exception as e:
             self._json(500, {"error": str(e)})
