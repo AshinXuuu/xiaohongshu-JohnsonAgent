@@ -17,7 +17,7 @@ import os
 import sys
 import importlib.util
 from pathlib import Path
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parent.parent
 PORT = int(os.environ.get("PORT", "8000"))
@@ -35,13 +35,20 @@ def load_env():
             os.environ.setdefault(k.strip(), v.strip())
 
 
+_HANDLER_CACHE = {}
+
+
 def load_handler(api_file: str):
-    """动态加载 api/*.py 的 handler 类"""
+    """动态加载 api/*.py 的 handler 类,并缓存(避免每次请求重新 exec 模块、重复 import PIL 等)。
+    代码更新在部署时随进程重启生效。"""
+    cached = _HANDLER_CACHE.get(api_file)
+    if cached is not None:
+        return cached
     path = ROOT / "api" / api_file
-    # 使用唯一 module name 避免缓存冲突
     spec = importlib.util.spec_from_file_location(f"api_{api_file}", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    _HANDLER_CACHE[api_file] = mod.handler
     return mod.handler
 
 
@@ -191,7 +198,9 @@ def main():
     for a in apis:
         print(f"     - /api/{a}")
     print(f"   按 Ctrl+C 停止\n")
-    HTTPServer(("0.0.0.0", PORT), Router).serve_forever()
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), Router)
+    server.daemon_threads = True     # 请求并发处理:图片/接口互不阻塞;慢的领取生成也不再卡住图片
+    server.serve_forever()
 
 
 if __name__ == "__main__":
