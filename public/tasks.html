@@ -197,16 +197,14 @@ function showPack(p, taskId, fromList) {
       ${KINDS.map(([k,label]) => `
         <figure>
           <img src="${esc(p.images[k])}" alt="${label}" />
-          <figcaption>${label}</figcaption>
           <a href="${esc(p.images[k])}" download="kos_${p.pack_id}_${k}">下载</a>
         </figure>`).join('')}
     </div>
-    <div class="tip">手机长按图片即可保存;电脑可点「下载」。主图为原图直出。</div>
+    <div class="tip">手机长按图片即可保存;电脑可点「下载」。</div>
 
     <div class="cbox">
       <div class="chead"><span class="t">标题</span><button class="copybtn" onclick="copyText(this)" data-c="${esc(title)}">复制标题</button></div>
       <div class="val">${esc(title) || '<span style="color:var(--muted)">(无)</span>'}</div>
-      ${(c.titles && c.titles.length>1) ? `<div class="muted2" style="margin-top:6px">备选:${c.titles.slice(1).map(esc).join(' / ')}</div>` : ''}
     </div>
     <div class="cbox">
       <div class="chead"><span class="t">正文</span><button class="copybtn" onclick="copyText(this)" data-c="${esc(body)}">复制正文</button></div>
@@ -221,10 +219,9 @@ function showPack(p, taskId, fromList) {
       <div class="t" style="font-weight:600;font-size:13px">发布后回收笔记链接</div>
       ${p.note_url ? `<div class="linkline">已回填:<a href="${esc(p.note_url)}" target="_blank" rel="noopener">${esc(p.note_url)}</a></div>` : ''}
       <div class="fillrow">
-        <input id="noteUrl" placeholder="粘贴小红书链接(xhslink.com 或 xiaohongshu.com)" value="${esc(p.note_url||'')}" />
+        <input id="noteUrl" placeholder="粘贴小红书链接" value="${esc(p.note_url||'')}" />
         <button class="btn btn-primary" onclick="completePack(${p.pack_id}, ${taskId}, this)">回收链接</button>
       </div>
-      <div class="muted2" style="margin-top:6px">仅接受小红书链接:手机端「xhslink.com」或电脑端「xiaohongshu.com」。</div>
     </div>`;
   document.getElementById('modal').classList.add('show');
 }
@@ -245,7 +242,7 @@ const XHS_RE = /(?:xhslink\.com|xiaohongshu\.com)/i;
 async function completePack(packId, taskId, btn) {
   const url = (document.getElementById('noteUrl').value || '').trim();
   if (!url) { App.toast('请先粘贴笔记链接'); return; }
-  if (!XHS_RE.test(url)) { App.toast('链接无效:仅接受小红书链接(xhslink.com 或 xiaohongshu.com)'); return; }
+  if (!XHS_RE.test(url)) { App.toast('链接无效,请粘贴正确的小红书笔记链接。'); return; }
   btn.disabled = true; const o = btn.textContent; btn.textContent = '提交中...';
   const r = await api('complete', { pack_id: packId, note_url: url });
   btn.disabled = false; btn.textContent = o;

@@ -439,21 +439,31 @@ def get_pack(pack_id):
 
 import re as _re
 
-# 只接受小红书链接:手机端 xhslink.com 短链 / 电脑端 xiaohongshu.com
-_XHS_RE = _re.compile(r'https?://[^\s]*\b(?:xhslink\.com|(?:www\.)?xiaohongshu\.com)\b', _re.I)
+# 只接受小红书链接:手机端 xhslink.com 短链 / 电脑端 xiaohongshu.com。
+# 小红书分享出来的是"一段口令+链接+文字",这里只把其中的链接抽出来存,避免整段被当成 URL。
+_URLCH = r"[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%\-]"
+_XHS_RE = _re.compile(r'https?://' + _URLCH + r'*?(?:xhslink\.com|xiaohongshu\.com)' + _URLCH + r'*', _re.I)
+
+
+def extract_note_url(text):
+    """从粘贴的分享文案中抽出真正的小红书链接;抽不到返回空串。"""
+    m = _XHS_RE.search(text or '')
+    if not m:
+        return ''
+    return m.group(0).strip().rstrip('.,;:!)')   # 去掉可能粘连的尾部符号
 
 
 def valid_note_url(url):
-    """小红书链接规则校验:必须是 xhslink.com 或 xiaohongshu.com。"""
-    return bool(_XHS_RE.search((url or '').strip()))
+    """小红书链接规则校验:文本里必须含 xhslink.com 或 xiaohongshu.com 链接。"""
+    return bool(extract_note_url(url))
 
 
 def publish_pack(pack_id, emp_id, note_url):
     """业务回填小红书链接 → 标记已发布。仅本人可操作,且链接须符合小红书规则。
-    返回 True / 'not_owner' / 'bad_url'。"""
+    存库时只存抽取出的纯链接。返回 True / 'not_owner' / 'bad_url'。"""
     _ensure()
-    note_url = (note_url or '').strip()
-    if not valid_note_url(note_url):
+    note_url = extract_note_url(note_url)
+    if not note_url:
         return 'bad_url'
     c = _conn()
     try:
@@ -543,7 +553,8 @@ def kos_dashboard(days=30):
             "AND COALESCE(p.published_at,p.created_at)>=? "
             "ORDER BY COALESCE(p.published_at,p.created_at) DESC LIMIT 300", (since,)).fetchall()
         task_notes = [{
-            "name": r["user_name"], "department": r["department"], "url": r["note_url"],
+            "name": r["user_name"], "department": r["department"],
+            "url": extract_note_url(r["note_url"]) or r["note_url"],   # 兼容历史脏数据,展示纯链接
             "at": r["published_at"],
             "task": (r["title"] or ((r["brand"] or '') + ' ' + (r["product"] or ''))).strip(),
         } for r in nrows]

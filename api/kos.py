@@ -18,6 +18,7 @@ import os
 import sys
 import json
 import hashlib
+import random
 import shutil
 import tempfile
 import mimetypes
@@ -68,15 +69,31 @@ def _gen_module():
     return m
 
 
+# 种草角度池:每次领取随机取一个,保证同一产品每个人拿到的文案各不相同(整体仍是种草)
+_COPY_ANGLES = [
+    "从真实使用场景切入,突出日常怎么用、用起来的感受",
+    "从使用前后的效果对比切入,描述看得见的变化",
+    "从适合人群切入,说清楚谁最需要、为什么适合",
+    "从新手小白视角切入,讲第一次上手的体验和顾虑打消",
+    "从和同类产品对比切入,突出这款的差异化亮点",
+    "从一个具体生活痛点切入,讲这款怎么解决",
+    "从性价比与长期价值切入,算一笔值不值的账",
+    "从坚持打卡/习惯养成切入,带出陪伴感和成就感",
+]
+
+
 def _make_copy(brand_name, product_name):
-    """复用文案生成;失败返回空结构,不阻塞出图。"""
+    """复用生成助手能力产出【种草】文案;每次随机换一个种草角度 → 每人不同。
+    失败返回空结构,不阻塞出图。"""
     try:
         gen = _gen_module()
         brand, product = products_store.find_product(brand_name, product_name)
         if not product:
             return {"titles": [], "body": "", "tags": []}
+        angle = random.choice(_COPY_ANGLES)
         sysp = gen.load_prompt(COPY_TYPE)
-        userp = gen.build_user_message(brand, product, COPY_TYPE, '')
+        userp = gen.build_user_message(brand, product, COPY_TYPE,
+                                       f"本篇请{angle}。语气自然口语、真实分享,避免与常见模板雷同。")
         raw = gen.call_deepseek(sysp, userp)
         return gen.parse_model_output(raw)
     except Exception:
@@ -154,7 +171,7 @@ class handler(BaseHTTPRequestHandler):
             if action == "complete":
                 res = kos_store.publish_pack(req.get("pack_id"), emp, req.get("note_url") or "")
                 if res == 'bad_url':
-                    return self._json(400, {"error": "链接无效:仅接受小红书链接(手机端 xhslink.com 或电脑端 xiaohongshu.com)"})
+                    return self._json(400, {"error": "链接无效,请粘贴正确的小红书笔记链接。"})
                 if res == 'not_owner' or res is False:
                     return self._json(400, {"error": "回填失败(记录不存在或非本人)"})
                 return self._json(200, {"ok": True})
