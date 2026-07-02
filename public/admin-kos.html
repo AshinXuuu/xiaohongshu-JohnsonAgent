@@ -167,7 +167,7 @@ function pickUpload(libId, role) {
   inp.click();
 }
 function delLib(id) {
-  if (!confirm('确定删除该素材库?(记录停用,COS 上的原图不动)')) return;
+  if (!confirm('确定删除该素材库?会一并删除 COS 上该目录的所有素材文件,不可恢复。')) return;
   api('delete_library', { library_id: id }).then(r => {
     if (!r.ok || r.data.error) { App.toast(r.data.error || '删除失败'); return; }
     App.toast('已删除'); loadLibs();

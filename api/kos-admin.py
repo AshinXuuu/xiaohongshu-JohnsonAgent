@@ -54,10 +54,16 @@ def _list_cos(prefix):
     return keys
 
 
-def _classify(filename):
-    if '主图' in filename:
+def _classify(key):
+    """按 COS key 判定角色:优先看 主图/ 或 可拼图/ 子目录(网页上传),再看文件名关键词。"""
+    if '/主图/' in key or key.startswith('主图/'):
         return kos_store.ROLE_MAIN
-    if '可拼图' in filename:
+    if '/可拼图/' in key or key.startswith('可拼图/'):
+        return kos_store.ROLE_TILE
+    fn = key.rsplit('/', 1)[-1]
+    if '主图' in fn:
+        return kos_store.ROLE_MAIN
+    if '可拼图' in fn:
         return kos_store.ROLE_TILE
     return None
 
@@ -142,7 +148,7 @@ class handler(BaseHTTPRequestHandler):
                         continue
                     if key in exist:
                         continue
-                    role = _classify(fn)
+                    role = _classify(key)
                     if not role:
                         skipped += 1
                         continue
@@ -167,10 +173,28 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(200, {"ok": True})
 
             if action == "delete_library":
-                if not req.get("library_id"):
-                    return self._json(400, {"error": "缺少库 id"})
-                kos_store.deactivate_library(req.get("library_id"))
-                return self._json(200, {"ok": True})
+                lib = kos_store.get_library(req.get("library_id"))
+                if not lib:
+                    return self._json(400, {"error": "素材库不存在"})
+                # 一并删除该库 COS 目录下所有对象(有写权限)
+                deleted = 0
+                try:
+                    client, bucket = _cos_client()
+                    marker = ''
+                    while True:
+                        r = client.list_objects(Bucket=bucket, Prefix=lib['cos_prefix'], Marker=marker, MaxKeys=1000)
+                        objs = r.get('Contents', [])
+                        if objs:
+                            client.delete_objects(Bucket=bucket, Delete={'Object': [{'Key': o['Key']} for o in objs]})
+                            deleted += len(objs)
+                        if r.get('IsTruncated') == 'true':
+                            marker = r.get('NextMarker', '')
+                        else:
+                            break
+                except Exception:
+                    pass  # COS 删除失败不阻塞记录停用
+                kos_store.deactivate_library(lib['id'])
+                return self._json(200, {"ok": True, "cos_deleted": deleted})
 
             if action == "sign_uploads":
                 # 为浏览器直传 COS 签发一批预签名 PUT 链接(需子账号有写权限)
