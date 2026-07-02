@@ -45,7 +45,8 @@
       <span class="muted2" id="topinfo"></span>
     </div>
 
-    <h2 class="sec">素材库</h2>
+    <h2 class="sec">素材库 <button class="mini" id="libRefresh" style="font-weight:normal;margin-left:8px">↻ 刷新桶内数量</button></h2>
+    <div class="muted2" id="syncNote" style="margin:-6px 0 10px"></div>
     <div class="card2">
       <div class="row">
         <div class="fld"><label>品牌</label><select id="lbBrand"></select></div>
@@ -128,6 +129,14 @@ function fillProducts() {
 async function loadLibs() {
   const r = await api('list_libraries');
   libraries = (r.data && r.data.libraries) || [];
+  const synced = !!(r.data && r.data.cos_synced);
+  const note = document.getElementById('syncNote');
+  if (note) {
+    note.textContent = synced
+      ? '数量已与 COS 桶实时对齐(打开或刷新即自动同步,新上传自动登记、桶内删除自动下架)。'
+      : '⚠ 暂时读取不到 COS,当前数量为上次记录,可能与桶内实际不一致。';
+    note.style.color = synced ? 'var(--muted)' : 'var(--danger)';
+  }
   // 任务表单的库下拉
   document.getElementById('tkLib').innerHTML = libraries.map(l =>
     `<option value="${l.id}">${esc(l.brand)} ${esc(l.product)}${l.code ? ' · '+esc(l.code) : ''}（容量${l.capacity.remaining}）</option>`).join('') || '<option value="">先建素材库</option>';
@@ -150,12 +159,11 @@ function libRow(l) {
     <div class="lib-actions">
       <button class="mini" onclick="pickUpload(${l.id}, '主图')">上传主图</button>
       <button class="mini" onclick="pickUpload(${l.id}, '可拼图')">上传拼图素材</button>
-      <button class="mini" onclick="scan(${l.id})">扫描COS目录</button>
       <span class="muted2" id="up${l.id}"></span>
       <span style="flex:1"></span>
       <button class="mini danger" onclick="delLib(${l.id})">删除库</button>
     </div>
-    <div class="muted2" style="margin-top:6px">支持一次选多张/整个文件夹。COS 目录:<span class="path">${esc(l.cos_prefix||'')}</span></div>
+    <div class="muted2" style="margin-top:6px">上方数量已与 COS 桶实时对齐。支持一次选多张/整个文件夹。COS 目录:<span class="path">${esc(l.cos_prefix||'')}</span></div>
   </div>`;
 }
 
@@ -202,13 +210,13 @@ document.getElementById('fileInput').addEventListener('change', async (e) => {
   await loadLibs();
 });
 
-async function scan(id) {
-  App.toast('扫描中...');
-  const r = await api('scan_library', { library_id: id });
-  if (!r.ok || r.data.error) { App.toast(r.data.error || '扫描失败'); return; }
-  App.toast(`登记:主图+${r.data.added_mains} 可拼图+${r.data.added_tiles}${r.data.skipped?(' 跳过'+r.data.skipped):''}`);
+document.getElementById('libRefresh').onclick = async () => {
+  const btn = document.getElementById('libRefresh');
+  btn.disabled = true; const t = btn.textContent; btn.textContent = '同步中...';
   await loadLibs();
-}
+  btn.disabled = false; btn.textContent = t;
+  App.toast('已与 COS 桶同步');
+};
 
 document.getElementById('lbAdd').onclick = async () => {
   const brand = document.getElementById('lbBrand').value;
@@ -216,7 +224,7 @@ document.getElementById('lbAdd').onclick = async () => {
   if (!brand || !product) { App.toast('请选择品牌和产品'); return; }
   const r = await api('create_library', { brand, product });   // 不传批次,后端自动用日期时间
   if (!r.ok || r.data.error) { App.toast(r.data.error || '建库失败'); return; }
-  document.getElementById('lbHint').innerHTML = `已建库。请把素材上传到 COS:<span class="path">${esc(r.data.cos_prefix)}</span> 然后点该库的「扫描登记」。`;
+  document.getElementById('lbHint').innerHTML = `已建库。用下方「上传主图 / 上传拼图素材」把图片直传即可,数量会自动同步。COS 目录:<span class="path">${esc(r.data.cos_prefix)}</span>`;
   await loadLibs();
 };
 

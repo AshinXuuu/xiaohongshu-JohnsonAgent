@@ -68,6 +68,45 @@ def _classify(key):
     return None
 
 
+def _sync_library(lib):
+    """把该库的 COS 目录与数据库素材对账:COS 有的登记进来,COS 删掉的下架。
+    返回 True 表示成功读到了 COS(数量已与桶对齐);False 表示 COS 不可达(退回数据库现有记录)。"""
+    try:
+        client, bucket = _cos_client()
+    except Exception:
+        return False
+    prefix = lib.get('cos_prefix') or ''
+    if not prefix:
+        return False
+    keys = []
+    marker = ''
+    try:
+        while True:
+            r = client.list_objects(Bucket=bucket, Prefix=prefix, Marker=marker, MaxKeys=1000)
+            for o in r.get('Contents', []):
+                if o['Key'].lower().endswith(IMG_EXT):
+                    keys.append(o['Key'])
+            if r.get('IsTruncated') == 'true':
+                marker = r.get('NextMarker', '')
+            else:
+                break
+    except Exception:
+        return False
+    cos_set = set(keys)
+    existing = {m['cos_key']: m for m in kos_store.list_materials(lib['id'])}
+    idx = {kos_store.ROLE_MAIN: 0, kos_store.ROLE_TILE: 0}
+    # COS 有、库没有 → 登记
+    for k in sorted(cos_set - set(existing)):
+        role = _classify(k)
+        if role:
+            kos_store.add_material(lib['id'], role, k, k.rsplit('/', 1)[-1], idx[role])
+            idx[role] += 1
+    # 库有、COS 已删 → 下架
+    for k, m in existing.items():
+        if k not in cos_set:
+            kos_store.deactivate_material(m['id'])
+
+
 def _users_in_scope(scope, depts):
     allu = users_store.all_users()
     if scope == 'dept' and depts:
@@ -128,7 +167,12 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(200, {"ok": True, "id": lib_id, "cos_prefix": prefix})
 
             if action == "list_libraries":
-                return self._json(200, {"libraries": kos_store.list_libraries()})
+                libs = kos_store.list_libraries()
+                for lib in libs:                     # 打开页面即与 COS 对账,数量实时反映桶内实际
+                    _sync_library(lib)
+                    lib['capacity'] = kos_store.capacity(lib['id'])
+                    lib['cos_synced'] = _COS_OK
+                return self._json(200, {"libraries": libs, "cos_synced": _COS_OK})
 
             if action == "scan_library":
                 lib = kos_store.get_library(req.get("library_id"))
