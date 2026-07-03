@@ -116,6 +116,11 @@
   }
   .submit-btn:hover { opacity: 0.92; }
   .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; margin-top: 8px; }
+  .btn-row .submit-btn { margin-top: 0; flex: 1; }
+  .submit-btn.alt { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+  .submit-btn.alt:hover { background: var(--primary-soft, #f3f0ff); opacity: 1; }
+  @media (max-width: 480px) { .btn-row { flex-direction: column; } }
   .result-section {
     display: none;
   }
@@ -813,7 +818,10 @@
       <textarea id="extra" placeholder="例如:主打春季减脂场景 / 双 11 满减活动 / 目标 30+ 职场女性 ..."></textarea>
     </div>
 
-    <button class="submit-btn" id="submit">一键生成文案</button>
+    <div class="btn-row">
+      <button class="submit-btn" id="submit">一键生成文案</button>
+      <button class="submit-btn alt" id="coverBtn">一键生成封面图</button>
+    </div>
   </div>
 
   <div class="card result-section" id="result">
@@ -928,6 +936,13 @@ document.querySelectorAll('.type-btn').forEach(btn => {
 });
 
 submitBtn.addEventListener('click', generate);
+
+// 一键生成封面图:选完品牌/产品即可直接进封面面板(封面仍需业务自己上传照片)
+$('coverBtn').addEventListener('click', () => {
+  if (!brandSel.value) return showToast('请先选择品牌');
+  if (!productSel.value) return showToast('请先选择产品');
+  openCoverPanel();
+});
 
 async function generate() {
   if (!brandSel.value) return showToast('请先选择品牌');
