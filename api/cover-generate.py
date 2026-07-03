@@ -26,7 +26,7 @@ if str(_ROOT_BOOT) not in _sys_boot.path:
 
 
 DOUBAO_URL = 'https://ark.cn-beijing.volces.com/api/v3/images/generations'
-DOUBAO_MODEL = os.environ.get('DOUBAO_MODEL', 'doubao-seedream-5-0-lite-260128')
+DOUBAO_MODEL = os.environ.get('DOUBAO_MODEL', 'doubao-seedream-4-5-251128')
 SIZE = os.environ.get('DOUBAO_IMAGE_SIZE', '1920x2560')
 MAX_PHOTO_BYTES = 4 * 1024 * 1024
 
