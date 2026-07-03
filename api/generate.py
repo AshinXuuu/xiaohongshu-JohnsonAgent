@@ -67,7 +67,7 @@ def build_user_message(brand, product, copy_type, extra):
     return "\n".join(parts)
 
 
-def call_deepseek(system_prompt, user_prompt):
+def call_deepseek(system_prompt, user_prompt, temperature=0.85):
     api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("环境变量 DEEPSEEK_API_KEY 未配置")
@@ -78,7 +78,7 @@ def call_deepseek(system_prompt, user_prompt):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "temperature": 0.85,
+        "temperature": temperature,
         "max_tokens": 2000,
         "response_format": {"type": "json_object"},
     }

@@ -7,7 +7,7 @@
 
 填充方式:cover —— 等比放大到铺满单元格,居中裁掉多余部分(不留白、不变形、不翻转)。
 """
-from PIL import Image
+from PIL import Image, ImageOps
 
 # 小红书竖图 3:4
 DEFAULT_CANVAS = (1080, 1440)
@@ -15,7 +15,10 @@ WHITE = (255, 255, 255)
 
 
 def _open_rgb(path):
-    return Image.open(path).convert("RGB")
+    img = Image.open(path)
+    # 手机照片常带 EXIF 方向标记;按标记物理旋正,避免重编码去掉 EXIF 后画面被转向
+    img = ImageOps.exif_transpose(img)
+    return img.convert("RGB")
 
 
 def _fit_cover(img, cw, ch):

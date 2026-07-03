@@ -99,22 +99,45 @@ _COPY_ANGLES = [
 ]
 
 
+# 固定标签批次:每次领取的标签都一样(品牌 + 产品 + 一组通用种草标签),不随 AI 变动、不会缺失
+_KOS_FIXED_TAGS = ["#居家健身", "#健身好物", "#科学健身", "#自律生活", "#运动日常", "#健身打卡"]
+
+
+def _fixed_tags(brand_name, product_name):
+    return [f"#{brand_name}", f"#{product_name}"] + _KOS_FIXED_TAGS
+
+
 def _make_copy(brand_name, product_name):
-    """复用生成助手能力产出【种草】文案;每次随机换一个种草角度 → 每人不同。
-    失败返回空结构,不阻塞出图。"""
+    """标题+正文:每人各不相同(高随机 + 随机种草角度 + 变体编号,失败重试);
+    标签:固定同一批(品牌 + 产品 + 通用标签),永不缺失、每次一致。"""
+    tags = _fixed_tags(brand_name, product_name)
     try:
         gen = _gen_module()
         brand, product = products_store.find_product(brand_name, product_name)
         if not product:
-            return {"titles": [], "body": "", "tags": []}
+            return {"titles": [], "body": "", "tags": tags}
         angle = random.choice(_COPY_ANGLES)
+        nonce = random.randint(1000, 9999)
+        extra = (f"本篇请{angle}。用**全新的开场和表达**,避免与常见模板或上一篇雷同,"
+                 f"语气自然口语、像真实用户分享。(变体编号 {nonce},仅用于强制区分,不要写进文案)")
         sysp = gen.load_prompt(COPY_TYPE)
-        userp = gen.build_user_message(brand, product, COPY_TYPE,
-                                       f"本篇请{angle}。语气自然口语、真实分享,避免与常见模板雷同。")
-        raw = gen.call_deepseek(sysp, userp)
-        return gen.parse_model_output(raw)
+        userp = gen.build_user_message(brand, product, COPY_TYPE, extra)
+        raw = None
+        for _ in range(2):        # 失败重试一次,避免返回空文案(空文案会显得"重复/缺失")
+            try:
+                raw = gen.call_deepseek(sysp, userp, temperature=1.05)
+                break
+            except Exception:
+                continue
+        if not raw:
+            return {"titles": [], "body": "", "tags": tags}
+        parsed = gen.parse_model_output(raw)
+        titles = [gen.clean_inline(t) for t in (parsed.get("titles") or [])
+                  if isinstance(t, str) and t.strip()]
+        body = gen.normalize_body(parsed.get("body", "") or "")
+        return {"titles": titles, "body": body, "tags": tags}   # 标签强制用固定批次
     except Exception:
-        return {"titles": [], "body": "", "tags": []}
+        return {"titles": [], "body": "", "tags": tags}
 
 
 def _img_url(pack_id, kind, emp_id):
