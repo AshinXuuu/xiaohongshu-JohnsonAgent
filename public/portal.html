@@ -481,7 +481,7 @@
   <div class="portal-bar">
     <h1>乔山销售助手 <span class="dot">·</span> 工作台</h1>
     <div class="spacer"></div>
-    <button class="version-badge" id="versionBadge" onclick="openVersionModal()">v3.0 新</button>
+    <button class="version-badge" id="versionBadge" onclick="openVersionModal()">v3.2 新</button>
     <span class="me" id="meLabel"></span>
     <button class="logout" onclick="logout()">退出</button>
   </div>
@@ -699,8 +699,33 @@ window.logout = logout;
 
 // ─────────── 版本更新公告 ───────────
 const SEEN_VERSION_KEY = 'xhsAgent:seenVersion';
-const APP_VERSION = 'v3.0';
+const APP_VERSION = 'v3.2';
 const CHANGELOG = [
+  {
+    version: 'v3.2',
+    date: '2026-07-03',
+    title: 'KOS 与小红书助手大打磨 + 账号安全升级',
+    intro: '这一版围绕「KOS 任务中心」和「小红书生成助手」做了一大批体验优化,并完成了一次账号安全升级——领取、出图、封面、排行都更顺手了。',
+    highlights: [
+      { icon: '', title: '账号更安全', desc: '登录后系统用加密凭证确认身份,别人无法再冒用你的工号或管理员身份。有效期 24 小时,过期重新登录即可,平时无感。' },
+      { icon: '', title: 'KOS 素材三分类 + 成品统一 3:4', desc: '素材分「主图 / 2合1 横版 / 4合1 竖版」分开上传;成品统一裁成小红书竖图 3:4,先把每张裁到精确尺寸再无缝拼接;还修复了手机竖拍照片被转向的问题。' },
+      { icon: '', title: '领取页改「本期」口径 + 自发布笔记', desc: '顶部改为「本期任务(已完成/需完成)」和「本期自发布」两张卡;新增自发布笔记板块,把自己发的小红书链接贴进来登记、计数、进排行。每人 1 篇的任务点开直接看素材包。' },
+      { icon: '', title: '回收链接更省心', desc: '只认小红书链接(手机端 xhslink.com / 电脑端 xiaohongshu.com),会自动从你粘贴的整段口令里提取真正的链接——修复了之前点链接跳到乱码页、打不开的问题。' },
+      { icon: '', title: '文案每次都不同、标签更稳', desc: '一键生成文案每次角度都不一样,整体都是种草向;话题标签固定为「品牌 + 产品 + 通用标签」一批,不再时有时无。标题 / 正文 / 标签分栏,各自一键复制。' },
+      { icon: '', title: '封面生成大升级', desc: '选完产品即可一键生成封面(仍需你上传产品照,主体不变);「一键导入」有没有写过文案都能出封面文字;中文字渲染更稳;18 套配色方案、主副标多色分层 + 关键词高亮,每次随机出 3 张。' },
+      { icon: '', title: '更快更干净', desc: '服务器多线程并发,多图并行加载、别人领素材也不卡你,页面明显更快;修复刷新时闪现历史登录页的问题;界面去除了技术名词。' },
+    ],
+    tech: [
+      '鉴权重构:登录签发 HMAC-SHA256 会话 Token(24h),各接口一律从 Authorization 头取已认证身份,不再信任请求体身份',
+      'KOS 素材三分类(主图/2合1/4合1),容量 = min(C(横,2), C(竖,4));出图 cover 先裁到单元格再拼,统一 3:4;开图按 EXIF 方向自动转正',
+      '领取页「本期」口径(最近周四起);新增 kos_self_posts(自发布笔记);排行按本期任务完成 + 自发布',
+      '回链只存提取后的纯链接(正则抽取 xhslink/xiaohongshu),前后端双校验',
+      '文案随机种草角度 + 变体 nonce + 失败重试;标签固定批次;正文/标题清洗',
+      '封面出图模型升级(中文字更稳);提示词按版式设计思维重做:18 套配色 + 三级文字一字不差 + 强制简体、不加滤镜',
+      '服务器改 ThreadingHTTPServer 并发 + 接口模块缓存;成品图浏览器缓存',
+      '前端移除全部技术模型名词',
+    ],
+  },
   {
     version: 'v3.0',
     date: '2026-06-27',
