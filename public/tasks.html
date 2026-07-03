@@ -222,6 +222,9 @@ const KINDS = [['cover','主图'], ['two','2合1'], ['four','4合1']];
 function viewTaken(taskId) {
   const packs = getLocalPacks(taskId);
   const t = _tasks.find(x => x.id === taskId);
+  // 每人 1 篇:直接打开那份素材包(不走列表);多篇:显示已领列表
+  const single = (t ? t.per_person <= 1 : packs.length === 1);
+  if (single && packs.length) { showPack(packs[0], taskId, false); return; }
   document.getElementById('packTitle').innerHTML = '已领素材包 <button class="x" onclick="closePack()">×</button>';
   document.getElementById('packBody').innerHTML = `
     <div class="muted2" style="margin-bottom:10px">${esc((t&&(t.title||(t.brand+' '+t.product)))||'')} · 共 ${packs.length} 份</div>
