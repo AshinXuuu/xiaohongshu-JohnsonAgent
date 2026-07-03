@@ -527,6 +527,10 @@ class handler(BaseHTTPRequestHandler):
             user = user_from_headers(self.headers)
             if not user:
                 return self._json(401, {"error": "未登录或登录已过期,请重新登录"})
+            from lib.ratelimit import check as _rl_check
+            _ok, _msg = _rl_check(user, self.client_address[0] if self.client_address else '', 'cover_generate')
+            if not _ok:
+                return self._json(429, {"error": _msg})
             print(
                 f"[USAGE] action=cover_generate "
                 f"user={user.get('emp_id')}/{user.get('name')}/{user.get('department')} "

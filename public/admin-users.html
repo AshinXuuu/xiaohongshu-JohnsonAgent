@@ -130,7 +130,7 @@ function render() {
       <td>${esc(u.department)}</td>
       <td>${esc(u.name)}${isAdmin ? '<span class="tag-admin">' + (ROLE_LABEL[u.role] || '') + '</span>' : ''}</td>
       <td>${esc(u.emp_id)}</td>
-      <td>${esc(u.id_last6 || '')}</td>
+      <td>${u.has_id6 ? '已设置' : '未设置'}</td>
       <td><select class="role-sel" onchange="changeRole(${u.id}, this.value)">${roleOptions(u.role)}</select></td>
       <td><button class="del-btn" onclick="deactivate(${u.id}, '${esc(u.name)}')">停用</button></td>
     </tr>`;

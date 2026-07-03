@@ -37,6 +37,10 @@ def load_env():
 
 _HANDLER_CACHE = {}
 
+# 请求体大小上限(字节):防止超大 body 打爆内存。
+# 封面生成会带 base64 图片(单张上限 4MB),留足冗余取 12MB。
+MAX_BODY_SIZE = int(os.environ.get("MAX_BODY_SIZE", str(12 * 1024 * 1024)))
+
 
 def load_handler(api_file: str):
     """动态加载 api/*.py 的 handler 类,并缓存(避免每次请求重新 exec 模块、重复 import PIL 等)。
@@ -75,40 +79,74 @@ def resolve_api_file(path: str):
 
 
 class Router(BaseHTTPRequestHandler):
+    # 允许对外提供的静态文件后缀白名单;不在名单内的一律 404,
+    # 避免把 .py / .env / .db 等源码或配置当静态文件下载。
+    _STATIC_CTYPES = {
+        ".html": "text/html; charset=utf-8",
+        ".css": "text/css",
+        ".js": "application/javascript",
+        ".json": "application/json; charset=utf-8",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".svg": "image/svg+xml",
+        ".ico": "image/x-icon",
+    }
+    _PUBLIC_DIR = (ROOT / "public").resolve()
+
     def _serve_static(self, rel_path):
-        full = ROOT / "public" / rel_path
+        # 防路径穿越:归一化后必须仍在 public/ 目录内。
+        # 直接挡掉 ../ 逃逸(如 /../.env、/../data/users.json),不依赖前置 Nginx 归一化。
+        from urllib.parse import unquote
+        rel_path = unquote(rel_path or "")
+        full = (self._PUBLIC_DIR / rel_path).resolve()
+        if full != self._PUBLIC_DIR and self._PUBLIC_DIR not in full.parents:
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b"Forbidden")
+            return
         if not full.exists() or not full.is_file():
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b"Not Found")
             return
         ext = full.suffix.lower()
-        ctypes = {
-            ".html": "text/html; charset=utf-8",
-            ".css": "text/css",
-            ".js": "application/javascript",
-            ".json": "application/json; charset=utf-8",
-            ".png": "image/png",
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".svg": "image/svg+xml",
-            ".ico": "image/x-icon",
-        }
+        # 后缀白名单:未知类型不提供,避免源码/配置被下载
+        if ext not in self._STATIC_CTYPES:
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b"Not Found")
+            return
         self.send_response(200)
-        self.send_header("Content-Type", ctypes.get(ext, "application/octet-stream"))
+        self.send_header("Content-Type", self._STATIC_CTYPES[ext])
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(full.read_bytes())
 
     def _proxy_to_api(self, api_file):
+        import json
+        # 请求体大小上限:超限直接 413,避免超大 body 读入内存(DoS)。
+        try:
+            clen = int(self.headers.get("Content-Length", "0") or "0")
+        except ValueError:
+            clen = 0
+        if clen > MAX_BODY_SIZE:
+            self.send_response(413)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "请求体过大"}, ensure_ascii=False).encode("utf-8"))
+            return
         try:
             HandlerCls = load_handler(api_file)
         except Exception as e:
+            # 详情只进服务端日志,客户端给通用文案,避免泄露路径/栈信息
+            sys.stderr.write(f"[LOAD-ERROR] {api_file}: {e}\n")
             self.send_response(500)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            import json
-            self.wfile.write(json.dumps({"error": f"Failed to load {api_file}: {e}"}).encode("utf-8"))
+            self.wfile.write(json.dumps({"error": "服务暂时不可用,请稍后再试"}, ensure_ascii=False).encode("utf-8"))
             return
 
         # 构造一个 handler 实例,代理本次请求的 IO
@@ -132,9 +170,10 @@ class Router(BaseHTTPRequestHandler):
         try:
             method()
         except Exception as e:
+            # 详情只进服务端日志;此时响应头可能已由 handler 部分写出,尽力回通用文案
+            sys.stderr.write(f"[HANDLER-ERROR] {api_file}: {e}\n")
             try:
-                import json
-                self.wfile.write(json.dumps({"error": f"Handler error: {e}"}).encode("utf-8"))
+                self.wfile.write(json.dumps({"error": "服务器内部错误"}, ensure_ascii=False).encode("utf-8"))
             except Exception:
                 pass
 

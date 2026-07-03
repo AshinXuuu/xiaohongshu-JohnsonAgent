@@ -44,13 +44,13 @@ def find_user(department, name, emp_id, id_last6=None):
         - 未配置 → 暂不校验(过渡期)
     """
     from lib.users_store import get_user
-    id6 = str(id_last6 or "").strip().upper()  # 末位 X 统一大写
+    from lib.idhash import verify_id6
     u = get_user(department, name, emp_id)
     if not u:
         return None, '工号或姓名与所选部门不匹配'
-    expect_id6 = str(u.get("id_last6") or "").strip().upper()
-    # 身份证后 6 位:配置了就必须匹配;未配置则不校验(管理员亦同,按业务要求不强制补录)
-    if expect_id6 and expect_id6 != id6:
+    # 身份证后 6 位:存储为加盐哈希(兼容遗留明文)。
+    # 配置了就必须匹配(verify 返回 False);未配置(返回 None)则不校验,维持过渡期宽松。
+    if verify_id6(id_last6, u.get("id_last6")) is False:
         return None, '身份证后 6 位不正确'
     return {
         "department": u["department"],

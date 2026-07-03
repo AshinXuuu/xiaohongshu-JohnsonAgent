@@ -93,7 +93,7 @@ def _ensure_seeded():
                                 "role,is_admin,active,sort_order,created_at,updated_at) "
                                 "VALUES(?,?,?,?,?,?,?,1,?,?,?)",
                                 (u.get('org') or 'johnson', dept, (u.get('name') or '').strip(),
-                                 str(u.get('emp_id') or '').strip(), (u.get('id_last6') or '').strip(),
+                                 str(u.get('emp_id') or '').strip(), _hash_id6(u.get('id_last6')),
                                  _role_of_record(u), 1 if u.get('is_admin') else 0, order, now, now))
                             order += 1
                     c.commit()
@@ -105,12 +105,24 @@ def _ensure_seeded():
 
 
 def _row_to_user(r):
+    # 内部用:保留存储的 id_last6(现为哈希),登录校验需要它。
+    # 面向后台/客户端的 all_users 会把该值抹掉,只留 has_id6 布尔。
     return {
         "id": r["id"],
         "department": r["department"], "name": r["name"], "emp_id": r["emp_id"],
-        "id_last6": r["id_last6"], "role": r["role"], "is_admin": bool(r["is_admin"]),
+        "id_last6": r["id_last6"], "has_id6": bool((r["id_last6"] or "").strip()),
+        "role": r["role"], "is_admin": bool(r["is_admin"]),
         "org": r["org"], "active": bool(r["active"]),
     }
+
+
+def _hash_id6(raw):
+    """写库前把后 6 位转成加盐哈希;失败(密钥未配置等)时退回明文,保证不阻断写入。"""
+    try:
+        from lib.idhash import hash_id6
+        return hash_id6(raw)
+    except Exception:
+        return (raw or '').strip()
 
 
 # ──────────────── 读 ────────────────
@@ -192,7 +204,8 @@ def all_users():
         try:
             rows = c.execute("SELECT * FROM app_users WHERE active=1 ORDER BY sort_order").fetchall()
             if rows:
-                return [_row_to_user(r) for r in rows]
+                # 面向后台展示:抹掉 id_last6 哈希值,只保留 has_id6
+                return [{**_row_to_user(r), "id_last6": ""} for r in rows]
         finally:
             c.close()
     except Exception:
@@ -201,7 +214,8 @@ def all_users():
     for dept, lst in _load_json().get('users_by_dept', {}).items():
         for u in lst:
             out.append({"department": dept, "name": u.get('name'), "emp_id": str(u.get('emp_id') or ''),
-                        "id_last6": u.get('id_last6'), "role": _role_of_record(u),
+                        "id_last6": "", "has_id6": bool((u.get('id_last6') or '').strip()),
+                        "role": _role_of_record(u),
                         "is_admin": bool(u.get('is_admin')), "org": u.get('org') or 'johnson', "active": True})
     return out
 
@@ -217,7 +231,7 @@ def add_user(department, name, emp_id, id_last6='', role='staff', org='johnson')
         cur = c.execute(
             "INSERT INTO app_users(org,department,name,emp_id,id_last6,role,is_admin,active,"
             "sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,1,?,?,?)",
-            (org, department.strip(), name.strip(), str(emp_id).strip(), (id_last6 or '').strip(),
+            (org, department.strip(), name.strip(), str(emp_id).strip(), _hash_id6(id_last6),
              role, 1 if role in ADMIN_ROLES else 0, mx + 1, now, now))
         c.commit()
         return cur.lastrowid
@@ -231,6 +245,8 @@ def update_user(uid, **fields):
     sets, vals = [], []
     for k, v in fields.items():
         if k in allowed:
+            if k == 'id_last6':
+                v = _hash_id6(v)   # 后台改身份证后6位:同样存哈希
             sets.append(f"{k}=?")
             vals.append(v)
     if 'role' in fields:
@@ -275,7 +291,7 @@ def reimport_from_json():
                     "INSERT INTO app_users(org,department,name,emp_id,id_last6,role,is_admin,active,"
                     "sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,1,?,?,?)",
                     (u.get('org') or 'johnson', dept, (u.get('name') or '').strip(),
-                     str(u.get('emp_id') or '').strip(), (u.get('id_last6') or '').strip(),
+                     str(u.get('emp_id') or '').strip(), _hash_id6(u.get('id_last6')),
                      _role_of_record(u), 1 if u.get('is_admin') else 0, order, now, now))
                 order += 1
                 n += 1

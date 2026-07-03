@@ -31,9 +31,24 @@ from lib.auth import is_admin
 from lib.image_compose import stack_vertical, grid_2x2, crop_cover
 
 KOS_OUT = ROOT / 'data' / 'kos_out'
-IMG_SECRET = os.environ.get('KOS_IMG_SECRET', 'kos-johnson-img-secret')
 COPY_TYPE = '种草'
 _IMG_EXT = ('.jpg', '.jpeg', '.png', '.webp')
+
+import hmac
+
+
+def _img_secret() -> bytes:
+    """成品图下载令牌的签名密钥。
+    去掉了原先的硬编码兜底('kos-johnson-img-secret')—— 那是可预测值,
+    加上 pack_id(自增)、emp_id(可枚举)后任何人都能离线算出令牌、越权下载他人成品图。
+    现在优先读专用密钥 KOS_IMG_SECRET,回退到已有的高熵 SESSION_SECRET;都没有则直接报错,
+    绝不使用可预测的常量。"""
+    s = (os.environ.get('KOS_IMG_SECRET')
+         or os.environ.get('SESSION_SECRET')
+         or os.environ.get('DEEPSEEK_API_KEY'))
+    if not s:
+        raise RuntimeError('KOS 图片令牌密钥未配置,请在 .env 设置 KOS_IMG_SECRET')
+    return s.encode('utf-8')
 
 
 def _ext(key):
@@ -42,7 +57,9 @@ def _ext(key):
 
 
 def _token(pack_id, emp_id):
-    return hashlib.sha256(f"{pack_id}:{emp_id}:{IMG_SECRET}".encode('utf-8')).hexdigest()[:16]
+    # 完整 HMAC-SHA256(不再截断),消息与密钥分离
+    msg = f"{pack_id}:{emp_id}".encode('utf-8')
+    return hmac.new(_img_secret(), msg, hashlib.sha256).hexdigest()
 
 
 def _cos_client():
@@ -123,7 +140,7 @@ class handler(BaseHTTPRequestHandler):
                 if kind not in ('cover', 'two', 'four'):
                     return self._err(400, "bad kind")
                 pack = kos_store.get_pack(pack_id)
-                if not pack or tok != _token(pack['id'], pack['emp_id']):
+                if not pack or not hmac.compare_digest(tok, _token(pack['id'], pack['emp_id'])):
                     return self._err(403, "无权访问")
                 if kind == 'cover':
                     # 主图直出:保持原始格式(可能是 png/webp/jpg)
