@@ -1465,7 +1465,7 @@ function openCoverPanel() {
     </div>
     <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
       上传一张你拍好的产品照,填 3 个文字字段,豆包 AI 会一次生成 3 张候选封面(3:4 比例,无水印)。
-      点"一键导入"会基于刚才生成的文案,自动填好 3 个字段。
+      点"一键导入"自动填好 3 个字段:已生成过文案就按文案内容出,没生成就按产品资料出。
     </p>
 
     <div class="cover-grid-3">
@@ -1508,7 +1508,27 @@ function openCoverPanel() {
 window.openCoverPanel = openCoverPanel;
 
 async function aiImportFields() {
-  if (!lastGenContext) return showToast('请先生成一次文案');
+  // 有生成过文案 → 按文案内容导入;没有 → 按当前所选品牌/产品的产品资料出
+  let payload;
+  if (lastGenContext) {
+    payload = {
+      brand: lastGenContext.brand,
+      product: lastGenContext.product,
+      copy_type: lastGenContext.copy_type,
+      extra: lastGenContext.extra,
+      titles: lastGenContext.titles,
+      body: lastGenContext.body,
+      tags: lastGenContext.tags,
+    };
+  } else {
+    if (!brandSel.value || !productSel.value) return showToast('请先选择品牌和产品');
+    payload = {
+      brand: brandSel.value,
+      product: productSel.value,
+      copy_type: activeType,
+      extra: $('extra').value.trim(),
+    };
+  }
   const btn = document.querySelector('.ai-import-btn');
   btn.disabled = true;
   btn.textContent = '⏳ 生成中...';
@@ -1516,16 +1536,7 @@ async function aiImportFields() {
     const resp = await fetch('/api/cover-fields', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        brand: lastGenContext.brand,
-        product: lastGenContext.product,
-        copy_type: lastGenContext.copy_type,
-        extra: lastGenContext.extra,
-        // 把已生成的文案上下文也带上,让 DeepSeek 有更多素材
-        titles: lastGenContext.titles,
-        body: lastGenContext.body,
-        tags: lastGenContext.tags,
-      })
+      body: JSON.stringify(payload)
     });
     const data = await resp.json();
     if (!resp.ok || data.error) {
