@@ -104,6 +104,15 @@ def _ensure():
                 CREATE INDEX IF NOT EXISTS idx_kpack_lib  ON kos_packs(library_id);
                 CREATE INDEX IF NOT EXISTS idx_kpack_task ON kos_packs(task_id);
                 CREATE INDEX IF NOT EXISTS idx_kpack_user ON kos_packs(emp_id);
+
+                CREATE TABLE IF NOT EXISTS kos_self_posts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    org TEXT NOT NULL DEFAULT 'johnson',
+                    emp_id TEXT, user_name TEXT, department TEXT,
+                    note_url TEXT NOT NULL,
+                    created_at INTEGER
+                );
+                CREATE INDEX IF NOT EXISTS idx_kself_user ON kos_self_posts(emp_id);
             """)
             c.commit()
             _schema_ready = True
@@ -388,6 +397,95 @@ def list_tasks(org='johnson'):
         c.close()
 
 
+# ──────────────── 本期(任务周期:周四 → 下周四)────────────────
+
+def current_period_start_ts():
+    """本期起点 = 最近一个周四的 00:00(本地时区)。任务通常周四发布、下周四回收。"""
+    import datetime
+    now = datetime.datetime.now()
+    days_since_thu = (now.weekday() - 3) % 7      # 周四 weekday()==3
+    start = (now - datetime.timedelta(days=days_since_thu)).replace(
+        hour=0, minute=0, second=0, microsecond=0)
+    return int(start.timestamp())
+
+
+# ──────────────── 自发布笔记(非任务,业务自行登记)────────────────
+
+def add_self_post(user, note_url):
+    """业务登记一条自发布的小红书笔记(自行贴链接)。链接须符合小红书规则,只存纯链接。
+    返回 True / 'bad_url'。"""
+    _ensure()
+    url = extract_note_url(note_url)
+    if not url:
+        return 'bad_url'
+    user = user or {}
+    c = _conn()
+    try:
+        c.execute("INSERT INTO kos_self_posts(org,emp_id,user_name,department,note_url,created_at) "
+                  "VALUES('johnson',?,?,?,?,?)",
+                  (user.get('emp_id'), user.get('name'), user.get('department'), url, int(time.time())))
+        c.commit()
+        return True
+    finally:
+        c.close()
+
+
+def my_self_posts(emp_id, limit=50):
+    _ensure()
+    c = _conn()
+    try:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM kos_self_posts WHERE emp_id=? ORDER BY created_at DESC LIMIT ?",
+            (emp_id, limit)).fetchall()]
+    finally:
+        c.close()
+
+
+def delete_self_post(post_id, emp_id):
+    _ensure()
+    c = _conn()
+    try:
+        r = c.execute("SELECT emp_id FROM kos_self_posts WHERE id=?", (post_id,)).fetchone()
+        if not r or r['emp_id'] != emp_id:
+            return False
+        c.execute("DELETE FROM kos_self_posts WHERE id=?", (post_id,))
+        c.commit()
+        return True
+    finally:
+        c.close()
+
+
+def my_kos_summary(user):
+    """顶部两张卡片的数据(本期):
+      task_target  本期各在办任务(适用于该业务)每人应发篇数之和
+      task_done    本期已完成(发布)的任务笔记数
+      self_done    本期已登记的自发布笔记数
+    """
+    _ensure()
+    user = user or {}
+    emp = user.get('emp_id')
+    dept = user.get('department')
+    start = current_period_start_ts()
+    c = _conn()
+    try:
+        target = 0
+        for r in c.execute("SELECT scope, depts, per_person FROM kos_tasks "
+                           "WHERE org='johnson' AND status='open'").fetchall():
+            if r['scope'] == 'dept' and dept not in json.loads(r['depts'] or '[]'):
+                continue
+            target += max(1, int(r['per_person'] or 1))
+        task_done = c.execute(
+            "SELECT COUNT(*) FROM kos_packs WHERE emp_id=? AND status='published' "
+            "AND COALESCE(published_at,created_at)>=?", (emp, start)).fetchone()[0]
+        self_done = c.execute(
+            "SELECT COUNT(*) FROM kos_self_posts WHERE emp_id=? AND created_at>=?",
+            (emp, start)).fetchone()[0]
+        return {"task_target": target, "task_done": task_done,
+                "self_done": self_done, "period_start": start}
+    finally:
+        c.close()
+
+
 # ──────────────── 业务侧 ────────────────
 
 def tasks_for_user(user):
@@ -493,24 +591,33 @@ def my_packs(emp_id, task_id=None):
 
 
 def leaderboard(org='johnson'):
-    """排行:每人 笔记数(已发布)+ 完成任务数(某任务已发布≥该任务每人篇数)。"""
+    """本期排行:每人 本期任务完成笔记数 + 本期自发布笔记数。按两者之和排序。"""
     _ensure()
+    start = current_period_start_ts()
     c = _conn()
     try:
-        per = {t['id']: t['per_person'] for t in
-               (dict(r) for r in c.execute("SELECT id,per_person FROM kos_tasks WHERE org=?", (org,)).fetchall())}
-        rows = c.execute(
-            "SELECT emp_id, user_name, department, task_id, COUNT(*) c "
-            "FROM kos_packs WHERE status='published' GROUP BY emp_id, task_id").fetchall()
         agg = {}
-        for r in rows:
+        # 本期任务完成(已发布任务笔记)
+        for r in c.execute(
+                "SELECT emp_id, user_name, department, COUNT(*) c FROM kos_packs "
+                "WHERE status='published' AND COALESCE(published_at,created_at)>=? "
+                "GROUP BY emp_id", (start,)).fetchall():
             e = r['emp_id'] or ''
             a = agg.setdefault(e, {"emp_id": e, "name": r['user_name'], "department": r['department'],
-                                   "notes": 0, "tasks_done": 0})
-            a["notes"] += r['c']
-            if r['c'] >= per.get(r['task_id'], 1):
-                a["tasks_done"] += 1
-        board = sorted(agg.values(), key=lambda x: (-x["tasks_done"], -x["notes"]))
+                                   "task_notes": 0, "self_notes": 0})
+            a["task_notes"] += r['c']
+        # 本期自发布
+        for r in c.execute(
+                "SELECT emp_id, user_name, department, COUNT(*) c FROM kos_self_posts "
+                "WHERE created_at>=? GROUP BY emp_id", (start,)).fetchall():
+            e = r['emp_id'] or ''
+            a = agg.setdefault(e, {"emp_id": e, "name": r['user_name'], "department": r['department'],
+                                   "task_notes": 0, "self_notes": 0})
+            a["self_notes"] += r['c']
+            if not a.get("name"):
+                a["name"] = r['user_name']; a["department"] = r['department']
+        board = sorted(agg.values(), key=lambda x: (-(x["task_notes"] + x["self_notes"]),
+                                                    -x["task_notes"]))
         return board
     finally:
         c.close()

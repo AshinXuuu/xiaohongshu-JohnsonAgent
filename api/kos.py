@@ -205,11 +205,29 @@ class handler(BaseHTTPRequestHandler):
             if action == "my_tasks":
                 return self._json(200, {"tasks": kos_store.tasks_for_user(user)})
 
+            if action == "summary":
+                return self._json(200, kos_store.my_kos_summary(user))
+
             if action == "leaderboard":
                 return self._json(200, {"board": kos_store.leaderboard()})
 
             if action == "my_packs":
                 return self._json(200, {"packs": kos_store.my_packs(emp, req.get("task_id"))})
+
+            if action == "my_self_posts":
+                return self._json(200, {"posts": kos_store.my_self_posts(emp)})
+
+            if action == "self_publish":
+                res = kos_store.add_self_post(user, req.get("note_url") or "")
+                if res == 'bad_url':
+                    return self._json(400, {"error": "链接无效,请粘贴正确的小红书笔记链接。"})
+                return self._json(200, {"ok": True})
+
+            if action == "delete_self_post":
+                ok = kos_store.delete_self_post(req.get("id"), emp)
+                if not ok:
+                    return self._json(400, {"error": "删除失败(记录不存在或非本人)"})
+                return self._json(200, {"ok": True})
 
             if action == "complete":
                 res = kos_store.publish_pack(req.get("pack_id"), emp, req.get("note_url") or "")

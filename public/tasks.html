@@ -57,6 +57,9 @@
   .taken .item .st.no { color:var(--muted); }
   .backbtn { font-size:12.5px; color:var(--accent-strong); cursor:pointer; background:none; border:none; padding:0; margin-bottom:8px; }
   .linkline { font-size:12.5px; margin-top:12px; word-break:break-all; }
+  .selfbox { background:var(--card); border:1px solid var(--border-soft); border-radius:12px; box-shadow:var(--shadow); padding:16px 18px; }
+  .selfbox .item a { color:var(--accent-strong); word-break:break-all; text-decoration:none; }
+  .selfbox .item .del { font-size:12px; color:var(--danger); background:none; border:1px solid var(--border); border-radius:7px; padding:4px 10px; cursor:pointer; }
   .deny { text-align:center; padding:60px 20px; color:var(--muted); }
 </style>
 </head>
@@ -65,14 +68,23 @@
 <div class="container">
   <div id="content">
     <div class="stats">
-      <div class="stat"><div class="n" id="sDone">–</div><div class="l">本期完成任务</div></div>
-      <div class="stat"><div class="n" id="sNotes">–</div><div class="l">已发布笔记</div></div>
+      <div class="stat"><div class="n" id="sTask">–/–</div><div class="l">本期任务笔记(已完成/需完成)</div></div>
+      <div class="stat"><div class="n" id="sSelf">–</div><div class="l">本期自发布笔记</div></div>
     </div>
 
     <h2 class="sec">待办任务</h2>
     <div id="tasks"><div class="muted2">加载中...</div></div>
 
-    <h2 class="sec">排行榜</h2>
+    <h2 class="sec">自发布笔记</h2>
+    <div class="selfbox">
+      <div class="fillrow" style="margin-top:0">
+        <input id="selfUrl" placeholder="粘贴小红书链接,登记你自发布的笔记" />
+        <button class="btn btn-primary" onclick="submitSelf(this)">登记</button>
+      </div>
+      <div id="selfList" class="taken" style="margin-top:12px"></div>
+    </div>
+
+    <h2 class="sec">排行榜(本期)</h2>
     <div class="board" id="board"></div>
   </div>
 </div>
@@ -97,17 +109,22 @@ async function api(action, extra) {
 }
 
 async function load() {
-  const [t, b] = await Promise.all([api('my_tasks'), api('leaderboard')]);
+  const [t, b, s, sp] = await Promise.all([
+    api('my_tasks'), api('leaderboard'), api('summary'), api('my_self_posts')]);
   renderTasks((t.data && t.data.tasks) || []);
   renderBoard((b.data && b.data.board) || []);
+  renderSummary(s.data || {});
+  renderSelfList((sp.data && sp.data.posts) || []);
+}
+
+function renderSummary(s) {
+  document.getElementById('sTask').textContent = `${s.task_done || 0}/${s.task_target || 0}`;
+  document.getElementById('sSelf').textContent = s.self_done || 0;
 }
 
 let _tasks = [];
 function renderTasks(tasks) {
   _tasks = tasks;
-  let done = 0;
-  tasks.forEach(t => { if (t.my_published >= t.per_person) done++; });
-  document.getElementById('sDone').textContent = done;
   document.getElementById('tasks').innerHTML = tasks.length ? tasks.map(taskRow).join('')
     : '<div class="muted2">暂无待办任务,等管理员发布。</div>';
   tasks.forEach(t => {
@@ -115,6 +132,45 @@ function renderTasks(tasks) {
     const b2 = document.getElementById('view'+t.id); if (b2) b2.onclick = () => viewTaken(t.id);
   });
 }
+
+// ───────── 自发布笔记登记 ─────────
+async function submitSelf(btn) {
+  const inp = document.getElementById('selfUrl');
+  const url = (inp.value || '').trim();
+  if (!url) { App.toast('请先粘贴小红书链接'); return; }
+  if (!XHS_RE.test(url)) { App.toast('链接无效,请粘贴正确的小红书笔记链接。'); return; }
+  btn.disabled = true; const o = btn.textContent; btn.textContent = '登记中...';
+  const r = await api('self_publish', { note_url: url });
+  btn.disabled = false; btn.textContent = o;
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '登记失败'); return; }
+  inp.value = '';
+  App.toast('已登记自发布笔记');
+  load();
+}
+window.submitSelf = submitSelf;
+
+function fmtDate(ms) {
+  const d = new Date(ms); const p = n => String(n).padStart(2, '0');
+  return `${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function renderSelfList(posts) {
+  document.getElementById('selfList').innerHTML = posts.length ? posts.map(p => `
+    <div class="item">
+      <span class="st" style="color:var(--muted);min-width:78px">${fmtDate((p.created_at||0)*1000)}</span>
+      <a href="${esc(p.note_url)}" target="_blank" rel="noopener" style="flex:1">${esc(p.note_url)}</a>
+      <button class="del" onclick="delSelf(${p.id}, this)">删除</button>
+    </div>`).join('') : '<div class="muted2">本期还没有登记自发布笔记。</div>';
+}
+
+async function delSelf(id, btn) {
+  if (!confirm('确定删除这条自发布笔记登记?')) return;
+  btn.disabled = true;
+  const r = await api('delete_self_post', { id });
+  if (!r.ok || r.data.error) { App.toast(r.data.error || '删除失败'); btn.disabled = false; return; }
+  App.toast('已删除'); load();
+}
+window.delSelf = delSelf;
 
 function taskRow(t) {
   const done = t.my_published >= t.per_person;
@@ -255,18 +311,15 @@ async function completePack(packId, taskId, btn) {
 window.completePack = completePack;
 
 function renderBoard(board) {
-  let myNotes = 0;
   const me_emp = me.emp_id;
   document.getElementById('board').innerHTML = board.length ? board.map((b,i) => {
-    if (b.emp_id === me_emp) myNotes = b.notes;
     const mine = b.emp_id === me_emp;
     return `<div class="brow">
       <span class="rank">${i+1}</span>
       <span class="who ${mine?'me':''}">${esc(b.name||'')} ${esc(b.department||'')}${mine?'(我)':''}</span>
-      <span class="muted2">完成 ${b.tasks_done} · 笔记 ${b.notes}</span>
+      <span class="muted2">任务完成 ${b.task_notes||0} · 自发布 ${b.self_notes||0}</span>
     </div>`;
-  }).join('') : '<div class="brow muted2">还没有人完成,快来抢第一</div>';
-  document.getElementById('sNotes').textContent = myNotes;
+  }).join('') : '<div class="brow muted2">本期还没有人上榜,快来抢第一</div>';
 }
 </script>
 </body>
