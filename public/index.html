@@ -1682,7 +1682,7 @@ async function generateCovers() {
   btn.disabled = true;
   btn.textContent = '生成中...';
   status.className = 'cover-status loading show';
-  status.textContent = '豆包正在并行生成 3 张候选封面,约 30-90 秒,失败会自动重试一次,请耐心等待...';
+  status.textContent = '正在并行生成 3 张候选封面,约 30-90 秒,失败会自动重试一次,请耐心等待...';
   coverResultEl.classList.remove('visible');
 
   try {
