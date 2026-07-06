@@ -19,12 +19,22 @@ _PREFIX = 'h1$'
 
 
 def _key() -> bytes:
-    s = (os.environ.get('ID6_SALT')
-         or os.environ.get('SESSION_SECRET')
-         or os.environ.get('DEEPSEEK_API_KEY'))
+    """只认 ID6_SALT,不回退到其他密钥(启动时由 dev_server 强制校验存在)。
+
+    历史上曾回退 SESSION_SECRET / DEEPSEEK_API_KEY,已于 2026-07 移除;
+    为兼容早期用回退密钥写入的哈希,verify_id6 保留只读的遗留密钥校验。"""
+    s = os.environ.get('ID6_SALT')
     if not s:
         raise RuntimeError('ID6 哈希密钥未配置,请在 .env 设置 ID6_SALT')
     return s.encode('utf-8')
+
+
+def _legacy_keys():
+    """仅用于校验(绝不用于写入)的历史回退密钥,防止旧哈希导致用户被锁。"""
+    for name in ('SESSION_SECRET', 'DEEPSEEK_API_KEY'):
+        s = os.environ.get(name)
+        if s:
+            yield s.encode('utf-8')
 
 
 def _norm(raw) -> str:
@@ -60,6 +70,15 @@ def verify_id6(raw_input, stored):
     if not inp:
         return False
     if is_hashed(stored):
-        return hmac.compare_digest(hash_id6(inp), stored)
+        if hmac.compare_digest(hash_id6(inp), stored):
+            return True
+        # 遗留兼容:早期哈希可能是用回退密钥(SESSION_SECRET/DEEPSEEK)写入的。
+        # 命中则放行并打日志提醒管理员在后台重存一次该用户的后 6 位以完成迁移。
+        for k in _legacy_keys():
+            legacy = _PREFIX + hmac.new(k, inp.encode('utf-8'), hashlib.sha256).hexdigest()
+            if hmac.compare_digest(legacy, stored):
+                print('[IDHASH] 提示:命中遗留密钥哈希,建议后台重存该用户的身份证后6位以迁移到 ID6_SALT。', flush=True)
+                return True
+        return False
     # 遗留明文(迁移前)——仍可校验
     return hmac.compare_digest(inp, _norm(stored))

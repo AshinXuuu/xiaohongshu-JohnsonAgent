@@ -134,18 +134,28 @@ function render() {
         <span class="brand-name">${esc(b.name)}</span>
         <span class="count">${b.products.length} 个产品 · 品牌资料 ${(b.guidelines || '').length} 字</span>
         <span class="spacer"></span>
-        <button class="mini" onclick="editGuidelines('${esc(b.name)}')">编辑品牌资料</button>
+        <button class="mini btn-guide" data-brand="${esc(b.name)}">编辑品牌资料</button>
       </div>
       ${b.products.map(p => `
         <div class="prow">
           <span class="pname">${esc(p.name)}</span>
           <span class="pchars">${(p.content || '').length} 字</span>
-          <button class="mini" onclick="editProduct(${p.id})">编辑卖点</button>
-          <button class="mini" onclick="toggleFiles(${p.id})">资料库</button>
-          <button class="mini danger" onclick="delProduct(${p.id}, '${esc(p.name)}')">删除</button>
+          <button class="mini" onclick="editProduct(${Number(p.id)})">编辑卖点</button>
+          <button class="mini" onclick="toggleFiles(${Number(p.id)})">资料库</button>
+          <button class="mini danger btn-delprod" data-id="${Number(p.id)}">删除</button>
         </div>
-        <div class="files" id="files-${p.id}" style="display:none"></div>`).join('')}
+        <div class="files" id="files-${Number(p.id)}" style="display:none"></div>`).join('')}
     </div>`).join('');
+  // 安全:品牌/产品名不进内联 onclick(实体解码后可注入 JS),改 data-* 渲染后绑定
+  const listEl = document.getElementById('list');
+  listEl.querySelectorAll('.btn-guide').forEach(b =>
+    b.addEventListener('click', () => editGuidelines(b.dataset.brand)));
+  listEl.querySelectorAll('.btn-delprod').forEach(b =>
+    b.addEventListener('click', () => {
+      const id = Number(b.dataset.id);
+      const m = _prodMap[id];
+      delProduct(id, m ? m.name : '');
+    }));
 }
 
 // ── 产品资料库文件管理 ──

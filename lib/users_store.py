@@ -117,18 +117,23 @@ def _row_to_user(r):
 
 
 def _hash_id6(raw):
-    """写库前把后 6 位转成加盐哈希;失败(密钥未配置等)时退回明文,保证不阻断写入。"""
-    try:
-        from lib.idhash import hash_id6
-        return hash_id6(raw)
-    except Exception:
-        return (raw or '').strip()
+    """写库前把后 6 位转成加盐哈希。
+
+    ⚠️ 安全修复(2026-07):不再静默降级存明文。密钥未配置属于部署错误,
+    应当报错暴露(启动时 dev_server 已强制校验 ID6_SALT,正常运行不会走到)。"""
+    from lib.idhash import hash_id6
+    return hash_id6(raw)
 
 
 # ──────────────── 读 ────────────────
 
 def get_user(department, name, emp_id):
-    """登录 / 鉴权:精确匹配 部门+姓名+工号 的在职用户;无则 None。DB 失败回退 JSON。"""
+    """登录 / 鉴权:精确匹配 部门+姓名+工号 的在职用户;无则 None。
+
+    JSON 回退只在「数据库本身不可用」时启用。
+    ⚠️ 安全修复(2026-07):DB 正常但查无此人(含已停用 active=0)时必须返回 None,
+    不得再落入 JSON 兜底 —— 否则后台停用/删除的用户(尤其管理员)只要还留在
+    data/users.json 里就能照常登录,停用形同虚设。"""
     dept = (department or '').strip()
     name = (name or '').strip()
     emp = str(emp_id or '').strip()
@@ -141,13 +146,13 @@ def get_user(department, name, emp_id):
             r = c.execute(
                 "SELECT * FROM app_users WHERE department=? AND name=? AND emp_id=? AND active=1 LIMIT 1",
                 (dept, name, emp)).fetchone()
-            if r:
-                return _row_to_user(r)
+            # DB 可用:查到返回,查不到就是没有/已停用,直接拒绝,不回退 JSON。
+            return _row_to_user(r) if r else None
         finally:
             c.close()
-    except Exception:
-        pass
-    # 回退 JSON
+    except Exception as e:
+        print(f"[USERS] 数据库不可用,get_user 回退 users.json:{e}", flush=True)
+    # 仅 DB 异常才回退 JSON(保证基础设施故障时登录命门不挂)
     for u in _load_json().get('users_by_dept', {}).get(dept, []):
         if (u.get('name') or '').strip() == name and str(u.get('emp_id') or '').strip() == emp:
             return {"department": dept, "name": name, "emp_id": emp,

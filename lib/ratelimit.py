@@ -31,8 +31,9 @@ def _today():
     return time.strftime('%Y-%m-%d', time.localtime())
 
 
-def _burst_ok(key: str) -> bool:
+def _burst_ok(key: str, limit: int = None) -> bool:
     """滑动窗口:窗口内命中数 < 上限则放行并记一次。"""
+    limit = limit or _PER_MIN
     now = time.time()
     with _lock:
         arr = _hits.get(key)
@@ -49,7 +50,7 @@ def _burst_ok(key: str) -> bool:
             i = len(arr)
         if i:
             del arr[:i]
-        if len(arr) >= _PER_MIN:
+        if len(arr) >= limit:
             return False
         arr.append(now)
         # 顺手做个粗清理,避免 _hits 无限增长
@@ -59,8 +60,9 @@ def _burst_ok(key: str) -> bool:
         return True
 
 
-def _day_ok(key: str) -> bool:
+def _day_ok(key: str, limit: int = None) -> bool:
     """每日配额:落 usage.db 的 rate_daily(key, day, count)。达上限返回 False。"""
+    limit = limit or _PER_DAY
     try:
         from lib.kv_store import _get_conn  # 复用现有连接(WAL)
     except Exception:
@@ -76,7 +78,7 @@ def _day_ok(key: str) -> bool:
                 "SELECT count FROM rate_daily WHERE key=? AND day=?", (key, day))
             row = cur.fetchone()
             used = (row[0] if row else 0)
-            if used >= _PER_DAY:
+            if used >= limit:
                 return False
             conn.execute(
                 "INSERT INTO rate_daily(key, day, count) VALUES(?,?,1) "
@@ -90,10 +92,14 @@ def _day_ok(key: str) -> bool:
         return True  # 任何 DB 异常都放行,不阻断业务
 
 
-def check(user: dict, ip: str = '', action: str = 'ai'):
+def check(user: dict, ip: str = '', action: str = 'ai',
+          per_min: int = None, per_day: int = None):
     """返回 (allowed: bool, error_msg: str|None)。
     allowed=False 时,调用方应回 429 + error_msg。
+    per_min / per_day 可按接口覆盖默认上限(如登录接口用更严的独立闸)。
     """
+    pm = per_min or _PER_MIN
+    pd = per_day or _PER_DAY
     emp = ''
     try:
         emp = (user or {}).get('emp_id') or ''
@@ -101,10 +107,10 @@ def check(user: dict, ip: str = '', action: str = 'ai'):
         emp = ''
     key = f"{action}:{emp or ('ip:' + (ip or 'unknown'))}"
     try:
-        if not _burst_ok(key):
-            return False, f"操作太频繁,请稍后再试(每分钟最多 {_PER_MIN} 次)"
-        if not _day_ok(key):
-            return False, f"今日生成次数已达上限({_PER_DAY} 次),请明天再来或联系管理员"
+        if not _burst_ok(key, pm):
+            return False, f"操作太频繁,请稍后再试(每分钟最多 {pm} 次)"
+        if not _day_ok(key, pd):
+            return False, f"今日次数已达上限({pd} 次),请明天再来或联系管理员"
     except Exception:
         return True, None  # fail-open
     return True, None

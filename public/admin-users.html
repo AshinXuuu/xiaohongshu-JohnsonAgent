@@ -131,10 +131,20 @@ function render() {
       <td>${esc(u.name)}${isAdmin ? '<span class="tag-admin">' + (ROLE_LABEL[u.role] || '') + '</span>' : ''}</td>
       <td>${esc(u.emp_id)}</td>
       <td>${u.has_id6 ? '已设置' : '未设置'}</td>
-      <td><select class="role-sel" onchange="changeRole(${u.id}, this.value)">${roleOptions(u.role)}</select></td>
-      <td><button class="del-btn" onclick="deactivate(${u.id}, '${esc(u.name)}')">停用</button></td>
+      <td><select class="role-sel" data-id="${u.id}">${roleOptions(u.role)}</select></td>
+      <td><button class="del-btn" data-id="${u.id}">停用</button></td>
     </tr>`;
   }).join('');
+  // 安全:用户名等动态数据不进内联 onclick(HTML 实体在属性 JS 里会被解码回引号,可注入),
+  // 统一用 data-id 渲染后绑定,名字从内存 users 列表取。
+  const rowsEl = document.getElementById('rows');
+  rowsEl.querySelectorAll('.role-sel').forEach(s =>
+    s.addEventListener('change', () => changeRole(Number(s.dataset.id), s.value)));
+  rowsEl.querySelectorAll('.del-btn').forEach(b =>
+    b.addEventListener('click', () => {
+      const u = users.find(x => x.id === Number(b.dataset.id));
+      if (u) deactivate(u.id, u.name);
+    }));
 }
 
 async function addUser() {

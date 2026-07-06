@@ -11,8 +11,11 @@
     - 无状态:Token 自带签名,不依赖数据库/共享 session,契合 Vercel 多实例 Serverless。
     - 身份 vs 权限:Token 只承载"已认证的身份"(部门/姓名/工号);
       具体能做什么(role)仍由各接口用 lib.auth 实时查库判定,改角色即时生效。
-    - 密钥:优先读 SESSION_SECRET;未配置时回退到已有的高熵密钥,
-      再不行则用进程内随机值(会导致重启后需重新登录,属于 fail-safe)。
+    - 密钥:只读 SESSION_SECRET,不做任何回退。
+      历史上曾回退到 COS_SECRET_KEY / DEEPSEEK_API_KEY,后果是:
+      ① API Key 一旦泄露(日志/账单页/误提交)即可伪造任意管理员 Token;
+      ② 轮换云密钥会静默踢掉全站登录。已于 2026-07 移除该回退链,
+      服务启动时由 dev_server 强制校验 SESSION_SECRET 必须存在。
 """
 import os
 import hmac
@@ -20,29 +23,18 @@ import json
 import time
 import base64
 import hashlib
-import secrets as _secrets
 
 # 24 小时,与前端会话有效期一致
 TTL_SECONDS = 24 * 60 * 60
 
 
 def _secret() -> bytes:
-    """签名密钥。生产环境请在 Vercel 配置 SESSION_SECRET(任意长随机串)。"""
-    s = (
-        os.environ.get("SESSION_SECRET")
-        or os.environ.get("COS_SECRET_KEY")      # 回退:已有的高熵密钥
-        or os.environ.get("DEEPSEEK_API_KEY")
-    )
+    """签名密钥。只认 SESSION_SECRET,未配置直接报错(启动时即被拦截)。"""
+    s = os.environ.get("SESSION_SECRET")
     if not s:
-        # 最后兜底:进程内随机值。Token 无法跨实例/重启验证 → 用户需重新登录,
-        # 但绝不使用可预测的硬编码密钥(避免伪造)。
-        global _EPHEMERAL
-        try:
-            s = _EPHEMERAL
-        except NameError:
-            s = _EPHEMERAL = _secrets.token_hex(32)
-            print("[SESSION] 警告:未配置 SESSION_SECRET,使用进程内随机密钥,"
-                  "多实例/重启后登录态会失效。请尽快在环境变量设置 SESSION_SECRET。", flush=True)
+        raise RuntimeError(
+            "SESSION_SECRET 未配置。请在 .env 设置任意长随机串"
+            "(可用 `python3 -c \"import secrets;print(secrets.token_hex(32))\"` 生成)后重启。")
     return s.encode("utf-8")
 
 

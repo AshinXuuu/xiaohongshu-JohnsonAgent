@@ -908,7 +908,7 @@ async function loadProducts() {
       return;
     }
     brandSel.innerHTML = '<option value="">请选择品牌</option>' +
-      products.brands.map(b => `<option value="${b.name}">${b.name}</option>`).join('');
+      products.brands.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
   } catch (e) {
     brandSel.innerHTML = '<option value="">加载失败</option>';
   }
@@ -923,7 +923,7 @@ brandSel.addEventListener('change', () => {
   }
   productSel.disabled = false;
   productSel.innerHTML = '<option value="">请选择产品</option>' +
-    brand.products.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+    brand.products.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('');
 });
 
 // 文案类型切换
@@ -966,7 +966,7 @@ async function generate() {
     });
     const data = await resp.json();
     if (!resp.ok || data.error) {
-      resultEl.innerHTML = `<div class="error">生成失败:${data.error || '未知错误'}</div>`;
+      resultEl.innerHTML = `<div class="error">生成失败:${escapeHtml(data.error || '未知错误')}</div>`;
       return;
     }
     lastGenContext = {
@@ -980,7 +980,7 @@ async function generate() {
     };
     renderResult(data);
   } catch (e) {
-    resultEl.innerHTML = `<div class="error">网络错误:${e.message}</div>`;
+    resultEl.innerHTML = `<div class="error">网络错误:${escapeHtml(e.message)}</div>`;
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = '一键生成文案';
@@ -1015,14 +1015,16 @@ function renderResult(data) {
   const tagsText = tags.join(' ');
   const fullText = (titles[0] || '') + '\n\n' + body + '\n\n' + tagsText;
 
+  // 安全:AI 生成内容一律不进内联 onclick(单引号可突破属性边界注入 JS),
+  // 改为 data-* 标记 + 渲染后统一绑定事件,复制内容从闭包变量取。
   resultEl.innerHTML = `
     <div class="section-title">
       标题(5 选 1,点击复制)
-      <button class="copy-btn" onclick='copyAll()'>复制全文</button>
+      <button class="copy-btn" data-copy-role="all">复制全文</button>
     </div>
     <ul class="title-list">
       ${titles.map((t, i) => `
-        <li onclick='copy(${JSON.stringify(t)})'>
+        <li data-copy-role="title" data-idx="${i}">
           <span><span class="num">${i+1}.</span><span class="text">${escapeHtml(t)}</span></span>
           <span class="mini-copy">点击复制</span>
         </li>
@@ -1031,13 +1033,13 @@ function renderResult(data) {
 
     <div class="section-title">
       正文
-      <button class="copy-btn" onclick='copy(${JSON.stringify(body)})'>复制正文</button>
+      <button class="copy-btn" data-copy-role="body">复制正文</button>
     </div>
     <div class="body-box">${escapeHtml(body)}</div>
 
     <div class="section-title">
       话题标签
-      <button class="copy-btn" onclick='copy(${JSON.stringify(tagsText)})'>复制标签</button>
+      <button class="copy-btn" data-copy-role="tags">复制标签</button>
     </div>
     <div class="tags-box">
       ${tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}
@@ -1052,9 +1054,13 @@ function renderResult(data) {
       </button>
     </div>
   `;
-  // 把工具函数暴露到全局供 onclick 用
-  window.copy = copy;
-  window.copyAll = () => copy(fullText);
+  const copyMap = { all: fullText, body: body, tags: tagsText };
+  resultEl.querySelectorAll('[data-copy-role]').forEach(el => {
+    el.addEventListener('click', () => {
+      const role = el.dataset.copyRole;
+      copy(role === 'title' ? titles[Number(el.dataset.idx)] : copyMap[role]);
+    });
+  });
 }
 
 function escapeHtml(s) {

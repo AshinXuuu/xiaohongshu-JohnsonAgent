@@ -222,6 +222,17 @@ class Router(BaseHTTPRequestHandler):
 
 def main():
     load_env()
+
+    # 安全硬性前提:会话签名密钥与身份证哈希盐必须显式配置。
+    # 缺失即拒绝启动 —— 否则历史上会静默回退到云 API Key 当签名密钥
+    # (API Key 泄露 = 可伪造任意管理员 Token;轮换云密钥 = 全站掉线)。
+    missing = [k for k in ("SESSION_SECRET", "ID6_SALT") if not os.environ.get(k)]
+    if missing:
+        print("❌ 拒绝启动:缺少必需环境变量 " + ", ".join(missing))
+        print("   请在 .env 中补上(生成随机串:python3 -c \"import secrets;print(secrets.token_hex(32))\")")
+        print("   注意:首次配置/更换 SESSION_SECRET 会使全员登录态失效,需重新登录(数据无影响)。")
+        sys.exit(1)
+
     if not os.environ.get("DEEPSEEK_API_KEY"):
         print("⚠️  警告:DEEPSEEK_API_KEY 未配置,生成接口会返回 500。\n")
 
