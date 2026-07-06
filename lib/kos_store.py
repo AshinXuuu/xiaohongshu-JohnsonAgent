@@ -409,6 +409,73 @@ def current_period_start_ts():
     return int(start.timestamp())
 
 
+def period_completion(org='johnson'):
+    """本期任务完成情况(合并当前全部进行中任务)。
+
+    口径(2026-07 与管理员确认):
+      - 任务集合 = status='open' 的任务;每个任务的目标人群 = 在职员工
+        (scope='all' 全员;scope='dept' 时限 depts 内的部门)。
+      - 每人应完成 = 覆盖到 TA 的各任务 per_person 之和;
+        已完成 = 每个覆盖任务都发满(published >= per_person)才算「完成」。
+      - 未完成名单包含一篇都没领取的人(未开始),领了没发满为「进行中」。
+    返回:
+      {"tasks": [任务摘要], "people": [{name, department, emp_id,
+        owed, published, issued, status: done|doing|todo}]}
+    """
+    _ensure()
+    c = _conn()
+    try:
+        tasks = [dict(r) for r in c.execute(
+            "SELECT id, title, brand, product, scope, depts, per_person, deadline "
+            "FROM kos_tasks WHERE org=? AND status='open' ORDER BY created_at DESC", (org,)).fetchall()]
+        for t in tasks:
+            t['depts'] = json.loads(t.get('depts') or '[]')
+        if not tasks:
+            return {"tasks": [], "people": []}
+
+        # 在职员工名单(目标人群基数)
+        users = [dict(r) for r in c.execute(
+            "SELECT name, emp_id, department FROM app_users "
+            "WHERE org=? AND active=1", (org,)).fetchall()]
+
+        # 每任务每人的领取/发布数
+        tids = [t['id'] for t in tasks]
+        ph = ','.join('?' * len(tids))
+        stat = {}   # (task_id, emp_id) -> [issued, published]
+        for r in c.execute(
+                f"SELECT task_id, emp_id, COUNT(*) n, "
+                f"SUM(CASE WHEN status='published' THEN 1 ELSE 0 END) p "
+                f"FROM kos_packs WHERE task_id IN ({ph}) GROUP BY task_id, emp_id", tids):
+            stat[(r['task_id'], str(r['emp_id'] or ''))] = [r['n'], r['p'] or 0]
+
+        people = []
+        for u in users:
+            emp = str(u['emp_id'] or '')
+            covering = [t for t in tasks
+                        if t['scope'] == 'all' or (u['department'] in (t['depts'] or []))]
+            if not covering:
+                continue   # 任务都没覆盖到 TA,不进名单
+            owed = sum(int(t['per_person'] or 1) for t in covering)
+            issued = published = 0
+            all_done = True
+            for t in covering:
+                n, p = stat.get((t['id'], emp), (0, 0))
+                issued += n
+                published += p
+                if p < int(t['per_person'] or 1):
+                    all_done = False
+            status = 'done' if all_done else ('doing' if issued > 0 else 'todo')
+            people.append({"name": u['name'], "department": u['department'], "emp_id": emp,
+                           "owed": owed, "published": published, "issued": issued,
+                           "status": status})
+        # 排序:未开始在前(需要催办)→ 进行中 → 已完成;同组内按部门
+        order = {'todo': 0, 'doing': 1, 'done': 2}
+        people.sort(key=lambda x: (order[x['status']], x['department'] or '', x['name'] or ''))
+        return {"tasks": tasks, "people": people}
+    finally:
+        c.close()
+
+
 # ──────────────── 自发布笔记(非任务,业务自行登记)────────────────
 
 def add_self_post(user, note_url):
@@ -696,6 +763,7 @@ def kos_dashboard(days=30):
                 "completion_pct": (round(published / issued * 100) if issued else 0),
                 "self_published": self_published,
                 "by_user": by_user, "by_library": by_library, "by_daily": by_daily,
-                "task_notes": task_notes, "self_notes": self_notes}
+                "task_notes": task_notes, "self_notes": self_notes,
+                "completion": period_completion()}
     finally:
         c.close()

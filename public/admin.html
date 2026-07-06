@@ -668,6 +668,15 @@ function renderKos(k) {
       <div class="card"><div class="card-title">笔记排行(任务+自发布)</div><div class="rank-list" id="kosRank"></div></div>
       <div class="card"><div class="card-title">每日发布笔记</div><div class="chart-box"><canvas id="kosDaily"></canvas></div></div>
     </div>
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">本期任务完成情况
+        <span style="color:var(--muted);font-weight:400;font-size:12px" id="cmplTasks"></span>
+        <span style="flex:1"></span>
+        <select id="cmplDept" style="padding:4px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px"></select>
+      </div>
+      <div id="cmplSummary" style="display:flex;gap:18px;flex-wrap:wrap;padding:10px 0;font-size:13px"></div>
+      <div id="cmplLists" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px"></div>
+    </div>
     <div class="card"><div class="card-title">素材库容量使用</div><div id="kosLibs"></div></div>
     <div class="card"><div class="card-title">任务笔记链接<span style="color:var(--muted);font-weight:400;font-size:12px" id="kosNotesCount"></span></div><div id="kosNotes"></div></div>
     <div class="card"><div class="card-title">自发布笔记链接<span style="color:var(--muted);font-weight:400;font-size:12px" id="kosSelfCount"></span></div><div id="kosSelfNotes"></div></div>`;
@@ -675,6 +684,7 @@ function renderKos(k) {
     label: u.name || '',
     sub: (u.department || '') + (u.self_count ? ` · 任务${u.task_count || 0} 自发${u.self_count}` : ''),
     count: u.count })));
+  renderCompletion(k.completion || { tasks: [], people: [] });
   const libs = k.by_library || [];
   $('kosLibs').innerHTML = libs.length ? libs.map(l => {
     const p = l.total ? Math.round(l.used / l.total * 100) : 0;
@@ -718,6 +728,53 @@ function renderKos(k) {
       data: { labels: dd.map(x => x.key.slice(5)), datasets: [{ data: dd.map(x => x.count), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)', fill: true, tension: 0.3, pointRadius: 2 }] },
       options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
     });
+  }
+}
+
+// ── 本期任务完成情况:汇总 + 完成/未完成名单,支持按部门筛选 ──
+function renderCompletion(cmpl) {
+  const tasks = cmpl.tasks || [], people = cmpl.people || [];
+  $('cmplTasks').textContent = tasks.length
+    ? '  含 ' + tasks.length + ' 个进行中任务:' + tasks.map(t => (t.title || (t.brand + ' ' + t.product)) + '×' + t.per_person).join('、')
+    : '';
+  if (!tasks.length) {
+    $('cmplDept').style.display = 'none';
+    $('cmplSummary').innerHTML = '<span style="color:var(--muted)">当前没有进行中的任务</span>';
+    $('cmplLists').innerHTML = '';
+    return;
+  }
+  // 部门下拉(按名单里出现的部门)
+  const depts = [...new Set(people.map(p => p.department || ''))].filter(Boolean).sort();
+  const sel = $('cmplDept');
+  sel.innerHTML = '<option value="">全部部门</option>' +
+    depts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+  sel.onchange = draw;
+  draw();
+
+  function draw() {
+    const f = sel.value;
+    const list = f ? people.filter(p => p.department === f) : people;
+    const done = list.filter(p => p.status === 'done');
+    const doing = list.filter(p => p.status === 'doing');
+    const todo = list.filter(p => p.status === 'todo');
+    const pubTotal = list.reduce((s, p) => s + p.published, 0);
+    const pct = list.length ? Math.round(done.length / list.length * 100) : 0;
+    $('cmplSummary').innerHTML = `
+      <span>应完成 <b>${list.length}</b> 人</span>
+      <span style="color:#059669">已完成 <b>${done.length}</b> 人</span>
+      <span style="color:#b45309">进行中 <b>${doing.length}</b> 人</span>
+      <span style="color:#dc2626">未开始 <b>${todo.length}</b> 人</span>
+      <span>已发布 <b>${pubTotal}</b> 篇</span>
+      <span style="color:var(--muted)">完成率 ${pct}%</span>`;
+    const row = p => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--border-soft);font-size:13px">
+      <span>${escapeHtml(p.name || '')} <span style="color:var(--muted)">${escapeHtml(p.department || '')}</span></span>
+      <span style="color:var(--muted)">${p.published}/${p.owed} 篇${p.status === 'doing' && p.issued > p.published ? '(已领未发 ' + (p.issued - p.published) + ')' : ''}</span>
+    </div>`;
+    const col = (title, color, arr) => `
+      <div><div style="font-size:13px;font-weight:600;color:${color};padding-bottom:4px">${title}(${arr.length})</div>
+      ${arr.length ? arr.map(row).join('') : '<div style="color:var(--muted);font-size:12px;padding:6px 0">无</div>'}</div>`;
+    $('cmplLists').innerHTML =
+      col('未开始', '#dc2626', todo) + col('进行中', '#b45309', doing) + col('已完成', '#059669', done);
   }
 }
 
