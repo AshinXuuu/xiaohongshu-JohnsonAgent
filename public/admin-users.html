@@ -69,8 +69,8 @@
     </div>
 
     <table>
-      <thead><tr><th>部门</th><th>姓名</th><th>工号</th><th>身份证后6</th><th>角色</th><th>操作</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="6" class="count" style="padding:24px">加载中...</td></tr></tbody>
+      <thead><tr><th>部门</th><th>姓名</th><th>工号</th><th>身份证后6</th><th>参与KOS</th><th>角色</th><th>操作</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="7" class="count" style="padding:24px">加载中...</td></tr></tbody>
     </table>
     <div id="usersPager" style="margin-top:12px"></div>
   </div>
@@ -100,7 +100,7 @@ async function api(action, extra) {
 
 async function load() {
   const r = await api('list');
-  if (!r.ok || !r.data) { document.getElementById('rows').innerHTML = '<tr><td colspan="6">加载失败</td></tr>'; return; }
+  if (!r.ok || !r.data) { document.getElementById('rows').innerHTML = '<tr><td colspan="7">加载失败</td></tr>'; return; }
   users = r.data.users || [];
   departments = r.data.departments || [];
   roles = r.data.roles || ['staff'];
@@ -127,7 +127,7 @@ function render() {
     (!dept || u.department === dept) &&
     (!kw || (u.name || '').toLowerCase().includes(kw) || (u.emp_id || '').toLowerCase().includes(kw)));
   document.getElementById('count').textContent = `共 ${list.length} 人`;
-  if (!list.length) { document.getElementById('rows').innerHTML = '<tr><td colspan="6" class="count" style="padding:24px">没有匹配用户</td></tr>'; App.renderPager('usersPager', 0, 0); return; }
+  if (!list.length) { document.getElementById('rows').innerHTML = '<tr><td colspan="7" class="count" style="padding:24px">没有匹配用户</td></tr>'; App.renderPager('usersPager', 0, 0); return; }
   // 分页:每页 10 行(公共组件,数字页码)
   const pg = App.paginate(list, _upage);
   _upage = pg.page;
@@ -140,6 +140,8 @@ function render() {
       <td>${esc(u.emp_id)}</td>
       <td>${u.has_id6 ? '已设置' : '<span style="color:var(--danger)">未设置</span>'}
         <button class="id6-btn" data-id="${u.id}">${u.has_id6 ? '重设' : '设置'}</button></td>
+      <td><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12.5px;color:${u.kos_join === false ? 'var(--muted)' : 'inherit'}">
+        <input type="checkbox" class="kosj" data-id="${u.id}" ${u.kos_join === false ? '' : 'checked'} />${u.kos_join === false ? '不参与' : '参与'}</label></td>
       <td><select class="role-sel" data-id="${u.id}">${roleOptions(u.role)}</select></td>
       <td><button class="del-btn" data-id="${u.id}">停用</button></td>
     </tr>`;
@@ -153,6 +155,16 @@ function render() {
     b.addEventListener('click', () => {
       const u = users.find(x => x.id === Number(b.dataset.id));
       if (u) deactivate(u.id, u.name);
+    }));
+  rowsEl.querySelectorAll('.kosj').forEach(cb =>
+    cb.addEventListener('change', async () => {
+      const u = users.find(x => x.id === Number(cb.dataset.id));
+      if (!u) return;
+      const r = await api('update', { id: u.id, kos_join: cb.checked ? 1 : 0, name: u.name });
+      if (!r.ok || r.data.error) { App.toast(r.data.error || '修改失败'); cb.checked = !cb.checked; return; }
+      u.kos_join = cb.checked;
+      App.toast(`${u.name}:${cb.checked ? '参与' : '不参与'} KOS 任务`);
+      render();
     }));
   rowsEl.querySelectorAll('.id6-btn').forEach(b =>
     b.addEventListener('click', () => {

@@ -204,7 +204,19 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(401, {"error": "未登录"})
             action = (req.get("action") or "").strip()
 
+            # 是否参与 KOS 任务(世代主管等岗位在后台勾掉后:不派任务、不能领取;
+            # 自发布登记 / 排行 / 查看已领记录不受影响)
+            def _kos_joined():
+                try:
+                    from lib.users_store import get_user as _gu
+                    rec = _gu(user.get("department"), user.get("name"), emp)
+                    return (rec or {}).get("kos_join", True)
+                except Exception:
+                    return True   # 查不到时不拦(fail-open,避免误伤)
+
             if action == "my_tasks":
+                if not _kos_joined():
+                    return self._json(200, {"tasks": [], "kos_exempt": True})
                 return self._json(200, {"tasks": kos_store.tasks_for_user(user)})
 
             if action == "summary":
@@ -240,6 +252,8 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(200, {"ok": True})
 
             if action == "issue":
+                if not _kos_joined():
+                    return self._json(403, {"error": "你的账号未参与 KOS 任务,如有疑问请联系管理员"})
                 return self._issue(req, user, emp)
 
             return self._json(400, {"error": "未知 action"})

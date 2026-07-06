@@ -498,10 +498,16 @@ def period_completion(org='johnson'):
         if not tasks:
             return {"tasks": [], "people": []}
 
-        # 在职员工名单(目标人群基数)
-        users = [dict(r) for r in c.execute(
-            "SELECT name, emp_id, department FROM app_users "
-            "WHERE org=? AND active=1", (org,)).fetchall()]
+        # 在职且参与 KOS 的员工名单(目标人群基数;kos_join=0 的岗位如世代主管不计入)
+        try:
+            users = [dict(r) for r in c.execute(
+                "SELECT name, emp_id, department FROM app_users "
+                "WHERE org=? AND active=1 AND COALESCE(kos_join,1)=1", (org,)).fetchall()]
+        except sqlite3.OperationalError:
+            # 兼容:users_store 迁移尚未执行(无 kos_join 列)时按全员统计
+            users = [dict(r) for r in c.execute(
+                "SELECT name, emp_id, department FROM app_users "
+                "WHERE org=? AND active=1", (org,)).fetchall()]
 
         # 每任务每人的领取/发布数
         tids = [t['id'] for t in tasks]

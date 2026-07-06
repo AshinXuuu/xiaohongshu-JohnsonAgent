@@ -93,6 +93,8 @@ class handler(BaseHTTPRequestHandler):
                 for k in ("department", "name", "emp_id", "id_last6"):
                     if k in req:
                         fields[k] = str(req.get(k) or "").strip()
+                if "kos_join" in req:
+                    fields["kos_join"] = 1 if req.get("kos_join") else 0
                 if "role" in req:
                     role = (req.get("role") or "").strip()
                     if role not in VALID_ROLES:

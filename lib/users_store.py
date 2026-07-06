@@ -50,6 +50,13 @@ def _ensure_schema(c):
         CREATE INDEX IF NOT EXISTS idx_users_dept ON app_users(org, department);
         CREATE INDEX IF NOT EXISTS idx_users_emp  ON app_users(org, emp_id);
     """)
+    # 迁移(2026-07):是否参与 KOS 任务(世代主管等岗位不参与,
+    # 不派任务、完成度看板不计入)。ALTER 不支持 IF NOT EXISTS,已有列会抛错,忽略。
+    try:
+        c.execute("ALTER TABLE app_users ADD COLUMN kos_join INTEGER NOT NULL DEFAULT 1")
+        c.commit()
+    except Exception:
+        pass
 
 
 def _load_json():
@@ -111,6 +118,7 @@ def _row_to_user(r):
         "id_last6": r["id_last6"], "has_id6": bool((r["id_last6"] or "").strip()),
         "role": r["role"], "is_admin": bool(r["is_admin"]),
         "org": r["org"], "active": bool(r["active"]),
+        "kos_join": bool(r["kos_join"]) if "kos_join" in r.keys() else True,
     }
 
 
@@ -244,7 +252,7 @@ def add_user(department, name, emp_id, id_last6='', role='staff', org='johnson')
 
 def update_user(uid, **fields):
     _ensure_seeded()
-    allowed = {'department', 'name', 'emp_id', 'id_last6', 'role', 'active', 'org'}
+    allowed = {'department', 'name', 'emp_id', 'id_last6', 'role', 'active', 'org', 'kos_join'}
     sets, vals = [], []
     for k, v in fields.items():
         if k in allowed:
