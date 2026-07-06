@@ -658,11 +658,7 @@ async function submitQuestion() {
     const resp = await fetch('/api/qa', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      // 必须带 _user,否则管理后台明细里用户会显示「未知」
-      body: JSON.stringify({
-        brand, product, question,
-        _user: { department: me.department, name: me.name, emp_id: me.emp_id },
-      })
+      body: JSON.stringify({ brand, product, question })
     });
     const data = await resp.json();
     const aBox = item.querySelector('.qa-a');

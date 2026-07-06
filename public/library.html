@@ -158,7 +158,7 @@ async function download(btn) {
   try {
     const r = await App.api('/api/library', {
       method: 'POST',
-      body: { key, _user: { department: me.department, name: me.name, emp_id: me.emp_id } },
+      body: { key },
     });
     if (!r.ok || (r.data && r.data.error)) {
       App.toast((r.data && r.data.error) || '下载失败');

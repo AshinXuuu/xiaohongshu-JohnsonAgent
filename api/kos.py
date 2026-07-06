@@ -254,13 +254,27 @@ class handler(BaseHTTPRequestHandler):
             return self._json(404, {"error": "任务不存在或已结束"})
         if task["scope"] == "dept" and user.get("department") not in (task.get("depts") or []):
             return self._json(403, {"error": "该任务不在你的部门范围内"})
-        mine = kos_store.count_user_task_packs(task["id"], emp)
-        if mine >= task["per_person"]:
-            return self._json(400, {"error": f"你已领满 {task['per_person']} 篇"})
 
-        combo = kos_store.pick_combo(task["library_id"])
-        if not combo:
+        # 原子领取(2026-07 并发修复):限额校验 + 选组合 + 落库在同一事务,
+        # 并发领取不会拿到重复组合、双击不会超领。
+        status, data = kos_store.claim_pack(
+            task["library_id"], task["id"], user, task["per_person"])
+        if status == 'limit':
+            return self._json(400, {"error": f"你已领满 {task['per_person']} 篇"})
+        if status == 'exhausted':
             return self._json(409, {"error": "素材已发尽,请联系管理员补充可拼图素材"})
+        if status != 'ok':
+            print(f"[KOS] claim_pack 失败:{data}", flush=True)
+            return self._json(500, {"error": "领取失败,请稍后重试"})
+        pack_id, combo, mine = data["pack_id"], data["combo"], data["post_index"]
+
+        def _fail(code, msg):
+            # 领取已占用组合,后续任一步失败都要回滚释放(否则组合被白白烧掉)
+            try:
+                kos_store.delete_pack(pack_id)
+            except Exception:
+                pass
+            return self._json(code, {"error": msg})
 
         mats = {m["id"]: m for m in kos_store.list_materials(task["library_id"])}
         try:
@@ -268,26 +282,27 @@ class handler(BaseHTTPRequestHandler):
             two_keys = [mats[i]["cos_key"] for i in combo["combo2"]]
             four_keys = [mats[i]["cos_key"] for i in combo["combo4"]]
         except KeyError:
-            return self._json(500, {"error": "素材记录缺失,请管理员重新同步素材库"})
+            return _fail(500, "素材记录缺失,请管理员重新同步素材库")
 
         # 拉源图
         try:
             client, bucket = _cos_client()
         except RuntimeError as e:
-            return self._json(503, {"error": str(e)})
+            return _fail(503, str(e))
         tmp = Path(tempfile.mkdtemp(prefix="kospack_"))
         try:
             cover_p = _download(client, bucket, cover_key, str(tmp / ("cover_src" + _ext(cover_key))))
             two_p = [_download(client, bucket, k, str(tmp / f"two_{i}{_ext(k)}")) for i, k in enumerate(two_keys)]
             four_p = [_download(client, bucket, k, str(tmp / f"four_{i}{_ext(k)}")) for i, k in enumerate(four_keys)]
         except Exception as e:
-            return self._json(502, {"error": f"COS 拉取素材失败:{e}"})
+            return _fail(502, f"COS 拉取素材失败:{e}")
 
-        # 文案(best-effort)
+        # 文案(best-effort,在事务外生成后回填,避免 LLM 调用拖长写锁)
         copy_json = _make_copy(task["brand"], task["product"])
-
-        # 落库占用(拿到 pack_id 命名成品图)
-        pack_id = kos_store.record_pack(task["library_id"], combo, task["id"], user, mine, copy_json)
+        try:
+            kos_store.set_pack_copy(pack_id, copy_json)
+        except Exception:
+            pass  # 文案快照回填失败不影响领取
 
         # 出图(本地):主图/2合1/4合1 全部裁成 3:4(填满裁切,不翻转)
         KOS_OUT.mkdir(parents=True, exist_ok=True)
@@ -296,7 +311,8 @@ class handler(BaseHTTPRequestHandler):
             stack_vertical(two_p, str(KOS_OUT / f"{pack_id}_two.jpg"))
             grid_2x2(four_p, str(KOS_OUT / f"{pack_id}_four.jpg"))
         except Exception as e:
-            return self._json(500, {"error": f"出图失败:{e}"})
+            import traceback; traceback.print_exc()
+            return _fail(500, "出图失败,请重试;若反复失败请联系管理员检查素材图片")
 
         return self._json(200, {
             "ok": True,

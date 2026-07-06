@@ -94,7 +94,7 @@ if (me) {
 
 async function api(action, extra) {
   return App.api('/api/kos-admin', { method:'POST',
-    body: Object.assign({ action, _user:{ department:me.department, name:me.name, emp_id:me.emp_id } }, extra||{}) });
+    body: Object.assign({ action }, extra||{}) });
 }
 
 async function init() {

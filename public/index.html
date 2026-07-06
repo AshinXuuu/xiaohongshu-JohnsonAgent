@@ -1203,23 +1203,8 @@ function logout() {
 }
 window.logout = logout;
 
-// 给所有 fetch 请求自动注入 user(包装在 _user 字段)
-const _origFetch = window.fetch;
-window.fetch = function(url, opts) {
-  // 只对 POST + JSON 的请求注入,GET 不处理
-  if (currentUser && opts && opts.method === 'POST' && opts.body) {
-    try {
-      const data = JSON.parse(opts.body);
-      data._user = {
-        department: currentUser.department,
-        name: currentUser.name,
-        emp_id: currentUser.emp_id,
-      };
-      opts.body = JSON.stringify(data);
-    } catch (_) { /* 不是 JSON 就放过 */ }
-  }
-  return _origFetch(url, opts);
-};
+// (已移除 _user 注入补丁:身份一律由 app.js 统一附带的 Authorization token 提供,
+//  请求体身份字段可伪造,后端 v3.2 起不再信任)
 
 // ─────────── 历史记录(localStorage)───────────
 function getHistory() {

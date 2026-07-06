@@ -115,6 +115,18 @@ def _ensure():
                 CREATE INDEX IF NOT EXISTS idx_kself_user ON kos_self_posts(emp_id);
             """)
             c.commit()
+            # 唯一约束(2026-07 并发修复):同一素材库内 2合1/4合1 组合不得重复发放。
+            # 历史数据若已有重复(此前的竞态窗口造成),索引会建不上——只告警不阻断,
+            # 管理员按日志人工去重后,下次启动会自动补建。
+            for col in ('combo2', 'combo4'):
+                try:
+                    c.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS uq_kpack_{col} "
+                              f"ON kos_packs(library_id, {col})")
+                    c.commit()
+                except Exception as e:
+                    print(f"[KOS] 警告:唯一索引 uq_kpack_{col} 创建失败(可能存在历史重复组合):{e}。"
+                          f"排查:SELECT library_id,{col},COUNT(*) FROM kos_packs "
+                          f"GROUP BY library_id,{col} HAVING COUNT(*)>1;", flush=True)
             _schema_ready = True
         finally:
             c.close()
@@ -276,62 +288,118 @@ def _used_combos(c, library_id, col):
     return out
 
 
-def pick_combo(library_id, rng=None):
-    """为一份成品挑一组未用过的素材:返回 {cover, combo2, combo4} 的 material id,
-    或 None(库已发尽 / 素材不足)。不在此处落库;调用方在事务里 record_pack 占用。
-    cover = 随机取一张主图(可复用);combo2 = 一对横版(唯一);combo4 = 一组四张竖版(唯一)。"""
-    _ensure()
-    rng = rng or random.Random()
-    c = _conn()
-    try:
-        mains = _main_ids(c, library_id)
-        two = _ids_by_role(c, library_id, ROLE_TWO)
-        four = _ids_by_role(c, library_id, ROLE_FOUR)
-        if not mains or len(two) < 2 or len(four) < 4:
-            return None
-        used2 = _used_combos(c, library_id, 'combo2')
-        used4 = _used_combos(c, library_id, 'combo4')
-        if len(used2) >= math.comb(len(two), 2) or len(used4) >= math.comb(len(four), 4):
-            return None
-        pair = _sample_unused(two, 2, used2, rng)
-        quad = _sample_unused(four, 4, used4, rng)
-        if pair is None or quad is None:
-            return None
-        cover = rng.choice(mains)
-        return {"cover": cover, "combo2": list(pair), "combo4": list(quad)}
-    finally:
-        c.close()
-
-
 def _sample_unused(ids, k, used_set, rng, max_try=2000):
     """随机抽 k 个不重复 id,其 sorted 元组不在 used_set 里。抽不到返回 None。"""
     for _ in range(max_try):
         pick = tuple(sorted(rng.sample(ids, k)))
         if pick not in used_set:
             return pick
-    # 兜底:穷举(n 小,组合不多)
+    # 兜底:水塘抽样遍历全部组合(O(1) 内存;此前一次性物化列表,
+    # 竖版上百张时可膨胀到数 GB —— 恰好在"随机命中率低"的将发尽场景触发)
     from itertools import combinations
-    candidates = [t for t in combinations(sorted(ids), k) if t not in used_set]
-    if not candidates:
-        return None
-    return rng.choice(candidates)
+    chosen, seen = None, 0
+    for t in combinations(sorted(ids), k):
+        if t in used_set:
+            continue
+        seen += 1
+        if rng.randrange(seen) == 0:
+            chosen = t
+    return chosen
 
 
-def record_pack(library_id, combo, task_id=None, user=None, post_index=0, copy_json=None):
-    """把选好的组合落库占用(完成唯一性消耗)。combo 为 pick_combo 的返回。"""
+def claim_pack(library_id, task_id, user, per_person, copy_json=None, rng=None):
+    """原子领取:在**同一连接、同一写事务**里完成
+        「每人限额校验 → 选未用组合 → INSERT 占用」,
+    并靠 uq_kpack_combo2/4 唯一索引兜底,撞车自动重选(最多 3 次)。
+
+    为什么(2026-07 并发修复):此前 pick_combo 与 record_pack 分连接分事务,
+    中间还夹着 COS 下载 + LLM 文案(秒级窗口),周四全员同时领取会拿到同一组合,
+    破坏「唯一不复用」并超发限额。现在调用方应先 claim 再做下载/出图,
+    失败用 delete_pack 回滚。
+
+    返回 (status, data):
+        ('ok', {pack_id, combo, post_index})
+        ('limit', 已领数) / ('exhausted', None) / ('error', 原因)
+    """
     _ensure()
     user = user or {}
+    rng = rng or random.Random()
+    emp = user.get('emp_id')
+    for attempt in range(3):
+        c = _conn()
+        try:
+            c.isolation_level = None
+            c.execute("BEGIN IMMEDIATE")      # 拿写锁,串行化并发领取
+            mine = c.execute("SELECT COUNT(*) FROM kos_packs WHERE task_id=? AND emp_id=?",
+                             (task_id, emp)).fetchone()[0]
+            if per_person and mine >= per_person:
+                c.execute("ROLLBACK")
+                return 'limit', mine
+            mains = _main_ids(c, library_id)
+            two = _ids_by_role(c, library_id, ROLE_TWO)
+            four = _ids_by_role(c, library_id, ROLE_FOUR)
+            if not mains or len(two) < 2 or len(four) < 4:
+                c.execute("ROLLBACK")
+                return 'exhausted', None
+            used2 = _used_combos(c, library_id, 'combo2')
+            used4 = _used_combos(c, library_id, 'combo4')
+            if len(used2) >= math.comb(len(two), 2) or len(used4) >= math.comb(len(four), 4):
+                c.execute("ROLLBACK")
+                return 'exhausted', None
+            pair = _sample_unused(two, 2, used2, rng)
+            quad = _sample_unused(four, 4, used4, rng)
+            if pair is None or quad is None:
+                c.execute("ROLLBACK")
+                return 'exhausted', None
+            combo = {"cover": rng.choice(mains), "combo2": list(pair), "combo4": list(quad)}
+            cur = c.execute(
+                "INSERT INTO kos_packs(task_id,library_id,emp_id,user_name,department,post_index,"
+                "cover_material_id,combo2,combo4,copy_json,status,created_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,'issued',?)",
+                (task_id, library_id, emp, user.get('name'), user.get('department'),
+                 mine, combo['cover'], json.dumps(combo['combo2']), json.dumps(combo['combo4']),
+                 json.dumps(copy_json) if copy_json is not None else None, int(time.time())))
+            c.execute("COMMIT")
+            return 'ok', {"pack_id": cur.lastrowid, "combo": combo, "post_index": mine}
+        except sqlite3.IntegrityError:
+            # 唯一索引撞车(极小概率:BEGIN IMMEDIATE 已串行化,此为兜底)→ 重选
+            try:
+                c.execute("ROLLBACK")
+            except Exception:
+                pass
+            continue
+        except Exception as e:
+            try:
+                c.execute("ROLLBACK")
+            except Exception:
+                pass
+            return 'error', str(e)
+        finally:
+            c.close()
+    return 'error', '组合分配冲突重试仍失败,请稍后再试'
+
+
+def set_pack_copy(pack_id, copy_json):
+    """领取成功后回填文案快照(文案生成在事务外,避免 LLM 调用拖长写锁)。"""
+    _ensure()
     c = _conn()
     try:
-        cur = c.execute(
-            "INSERT INTO kos_packs(task_id,library_id,emp_id,user_name,department,post_index,"
-            "cover_material_id,combo2,combo4,copy_json,status,created_at) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,'issued',?)",
-            (task_id, library_id, user.get('emp_id'), user.get('name'), user.get('department'),
-             post_index, combo['cover'], json.dumps(combo['combo2']), json.dumps(combo['combo4']),
-             json.dumps(copy_json) if copy_json is not None else None, int(time.time())))
+        c.execute("UPDATE kos_packs SET copy_json=? WHERE id=?",
+                  (json.dumps(copy_json) if copy_json is not None else None, pack_id))
         c.commit()
-        return cur.lastrowid
+        return True
+    finally:
+        c.close()
+
+
+def delete_pack(pack_id):
+    """删除一条领取记录(领取后下载/出图失败时回滚占用,组合与限额随之释放)。"""
+    _ensure()
+    c = _conn()
+    try:
+        c.execute("DELETE FROM kos_packs WHERE id=?", (pack_id,))
+        c.commit()
+        return True
     finally:
         c.close()
 
@@ -610,12 +678,29 @@ _URLCH = r"[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%\-]"
 _XHS_RE = _re.compile(r'https?://' + _URLCH + r'*?(?:xhslink\.com|xiaohongshu\.com)' + _URLCH + r'*', _re.I)
 
 
+_XHS_HOSTS = ('xhslink.com', 'xiaohongshu.com')
+
+
+def _is_xhs_host(url):
+    """严格校验域名(2026-07 安全修复):此前只要 URL 任意位置出现
+    xiaohongshu.com 字样即通过,https://evil.com/xiaohongshu.com、
+    https://xhslink.com.evil.com/ 都能混进库再呈现给管理员点击(钓鱼面)。
+    现在解析 hostname 精确匹配官方域及其子域。"""
+    try:
+        from urllib.parse import urlsplit
+        host = (urlsplit(url).hostname or '').lower()
+    except Exception:
+        return False
+    return any(host == h or host.endswith('.' + h) for h in _XHS_HOSTS)
+
+
 def extract_note_url(text):
-    """从粘贴的分享文案中抽出真正的小红书链接;抽不到返回空串。"""
-    m = _XHS_RE.search(text or '')
-    if not m:
-        return ''
-    return m.group(0).strip().rstrip('.,;:!)')   # 去掉可能粘连的尾部符号
+    """从粘贴的分享文案中抽出真正的小红书链接(域名严格校验);抽不到返回空串。"""
+    for m in _XHS_RE.finditer(text or ''):
+        url = m.group(0).strip().rstrip('.,;:!)')   # 去掉可能粘连的尾部符号
+        if _is_xhs_host(url):
+            return url
+    return ''
 
 
 def valid_note_url(url):

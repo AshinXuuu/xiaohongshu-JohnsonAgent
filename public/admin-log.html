@@ -81,7 +81,7 @@ const ROLE = { super_admin: '超管', org_admin: '管理员', dept_manager: '部
 async function load() {
   const r = await App.api('/api/audit-log', {
     method: 'POST',
-    body: { category: cat, operator, page, _user: { department: me.department, name: me.name, emp_id: me.emp_id } },
+    body: { category: cat, operator, page },
   });
   const logs = (r.data && r.data.logs) || [];
   const total = (r.data && r.data.total) || 0;

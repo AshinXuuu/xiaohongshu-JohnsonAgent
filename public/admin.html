@@ -803,11 +803,6 @@ async function loadStats() {
       body: JSON.stringify({
         app: __state.app,
         days: __state.days,
-        _user: {
-          department: me.department,
-          name: me.name,
-          emp_id: me.emp_id,
-        },
       }),
     });
     const data = await resp.json();
@@ -1235,7 +1230,6 @@ async function loadDetail() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         app: __state.app, days: __state.days, keyword: __state.detailKw, page: __state.detailPage,
-        _user: { department: me.department, name: me.name, emp_id: me.emp_id },
       }),
     });
     const d = await resp.json();
@@ -1310,7 +1304,8 @@ function exportCSV() {
 window.exportCSV = exportCSV;
 
 // ─── 启动 ─────────────────────────────────────────────
-if (me && me.is_admin) {
+// 与顶部权限判断统一用 roleOf(修复:role=org_admin 但无旧字段 is_admin 的账号看板一直转圈)
+if (me && ['org_admin', 'super_admin'].includes(App.roleOf(me))) {
   loadStats();
   // 每 5 分钟自动刷新
   setInterval(loadStats, 5 * 60 * 1000);

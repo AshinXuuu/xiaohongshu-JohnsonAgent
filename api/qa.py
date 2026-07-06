@@ -486,7 +486,12 @@ class handler(BaseHTTPRequestHandler):
         try:
             sys.path.insert(0, str(ROOT))
             from lib.kv_store import log_event
-            user = (req or {}).get('_user') if isinstance(req, dict) else {}
+            # 身份取自已验签的 token(请求体 _user 可伪造,前端注入已全站移除)
+            try:
+                from lib.session import user_from_headers
+                user = user_from_headers(self.headers) or {}
+            except Exception:
+                user = {}
             log_event('qa_failed', user or {}, {
                 'brand': (req or {}).get('brand'),
                 'product': (req or {}).get('product'),
