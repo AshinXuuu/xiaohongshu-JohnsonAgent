@@ -30,8 +30,13 @@ class handler(BaseHTTPRequestHandler):
             if not is_admin(caller):
                 return self._json(403, {"error": "无权访问,仅管理员可查看"})
             category = (req.get("category") or "全部").strip()
+            try:
+                page_size = int(req.get("page_size", 10))
+            except Exception:
+                page_size = 10
             res = audit.recent(days=30, category=category,
-                               operator=req.get("operator", ""), page=req.get("page", 0))
+                               operator=req.get("operator", ""), page=req.get("page", 0),
+                               page_size=page_size)
             res["days"] = 30
             return self._json(200, res)
         except Exception as e:

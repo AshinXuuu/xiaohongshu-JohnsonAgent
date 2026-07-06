@@ -94,10 +94,7 @@ async function load() {
       <td><span class="cat ${esc(l.category)}">${esc(l.category || '')}</span></td>
       <td>${esc(l.summary || '')}</td>
     </tr>`).join('') : '<tr><td colspan="4" class="count" style="padding:24px">暂无记录</td></tr>';
-  document.getElementById('pager').innerHTML = pages > 1 ? `
-    <button class="tab" ${page <= 0 ? 'disabled' : ''} onclick="goPage(${page - 1})">上一页</button>
-    <span class="count">第 ${page + 1} / ${pages} 页</span>
-    <button class="tab" ${page >= pages - 1 ? 'disabled' : ''} onclick="goPage(${page + 1})">下一页</button>` : '';
+  App.renderPager('pager', page, pages, goPage);
 }
 function goPage(p) { page = Math.max(0, p); load(); }
 window.goPage = goPage;

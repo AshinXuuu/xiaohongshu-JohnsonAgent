@@ -72,6 +72,7 @@
       <thead><tr><th>部门</th><th>姓名</th><th>工号</th><th>身份证后6</th><th>角色</th><th>操作</th></tr></thead>
       <tbody id="rows"><tr><td colspan="6" class="count" style="padding:24px">加载中...</td></tr></tbody>
     </table>
+    <div id="usersPager" style="margin-top:12px"></div>
   </div>
 </div>
 
@@ -93,7 +94,7 @@ if (me) {
 }
 
 async function api(action, extra) {
-  const body = Object.assign({ action, _user: { department: me.department, name: me.name, emp_id: me.emp_id } }, extra || {});
+  const body = Object.assign({ action }, extra || {});
   return App.api('/api/users', { method: 'POST', body });
 }
 
@@ -126,8 +127,12 @@ function render() {
     (!dept || u.department === dept) &&
     (!kw || (u.name || '').toLowerCase().includes(kw) || (u.emp_id || '').toLowerCase().includes(kw)));
   document.getElementById('count').textContent = `共 ${list.length} 人`;
-  if (!list.length) { document.getElementById('rows').innerHTML = '<tr><td colspan="6" class="count" style="padding:24px">没有匹配用户</td></tr>'; return; }
-  document.getElementById('rows').innerHTML = list.map(u => {
+  if (!list.length) { document.getElementById('rows').innerHTML = '<tr><td colspan="6" class="count" style="padding:24px">没有匹配用户</td></tr>'; App.renderPager('usersPager', 0, 0); return; }
+  // 分页:每页 10 行(公共组件,数字页码)
+  const pg = App.paginate(list, _upage);
+  _upage = pg.page;
+  App.renderPager('usersPager', pg.page, pg.pages, p => { _upage = p; render(); });
+  document.getElementById('rows').innerHTML = pg.rows.map(u => {
     const isAdmin = ['org_admin', 'super_admin'].includes(u.role);
     return `<tr data-id="${u.id}">
       <td>${esc(u.department)}</td>
@@ -207,8 +212,9 @@ async function deactivate(id, name) {
 window.changeRole = changeRole;
 window.deactivate = deactivate;
 document.getElementById('addBtn').addEventListener('click', addUser);
-document.getElementById('deptFilter').addEventListener('change', render);
-document.getElementById('search').addEventListener('input', render);
+let _upage = 0;
+document.getElementById('deptFilter').addEventListener('change', () => { _upage = 0; render(); });
+document.getElementById('search').addEventListener('input', () => { _upage = 0; render(); });
 
 document.getElementById('reimportBtn').addEventListener('click', async () => {
   if (!confirm('从 users.json 名单重新导入会【覆盖】数据库里的全部用户(含此前手工增改),确定?')) return;

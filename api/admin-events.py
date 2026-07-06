@@ -43,7 +43,11 @@ class handler(BaseHTTPRequestHandler):
             except Exception:
                 days = 30
             page = req.get("page", 0)
-            res = get_events_page(action_filter, req.get("keyword", ""), days, page, 50)
+            try:
+                page_size = int(req.get("page_size", 10))
+            except Exception:
+                page_size = 10
+            res = get_events_page(action_filter, req.get("keyword", ""), days, page, page_size)
             return self._json(200, res)
         except Exception as e:
             import traceback; traceback.print_exc()

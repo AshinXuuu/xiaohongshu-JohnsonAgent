@@ -659,16 +659,15 @@ function renderKos(k) {
       <div id="cmplSummary" style="display:flex;gap:18px;flex-wrap:wrap;padding:10px 0;font-size:13px"></div>
       <div id="cmplLists" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px"></div>
     </div>
-    <div class="card"><div class="card-title">素材库容量使用</div><div id="kosLibs"></div></div>
-    <div class="card"><div class="card-title">任务笔记链接<span style="color:var(--muted);font-weight:400;font-size:12px" id="kosNotesCount"></span></div><div id="kosNotes"></div></div>
-    <div class="card"><div class="card-title">自发布笔记链接<span style="color:var(--muted);font-weight:400;font-size:12px" id="kosSelfCount"></span></div><div id="kosSelfNotes"></div></div>`;
+    <div class="card"><div class="card-title">素材库容量使用</div><div id="kosLibs"></div><div id="kosLibsPager" style="margin-top:10px"></div></div>
+    <div class="card"><div class="card-title">任务笔记链接<span style="color:var(--muted);font-weight:400;font-size:12px" id="kosNotesCount"></span></div><div id="kosNotes"></div><div id="kosNotesPager" style="margin-top:10px"></div></div>
+    <div class="card"><div class="card-title">自发布笔记链接<span style="color:var(--muted);font-weight:400;font-size:12px" id="kosSelfCount"></span></div><div id="kosSelfNotes"></div><div id="kosSelfPager" style="margin-top:10px"></div></div>`;
   renderRank('kosRank', (k.by_user || []).map(u => ({
     label: u.name || '',
     sub: (u.department || '') + (u.self_count ? ` · 任务${u.task_count || 0} 自发${u.self_count}` : ''),
     count: u.count })));
   renderCompletion(k.completion || { tasks: [], people: [] });
-  const libs = k.by_library || [];
-  $('kosLibs').innerHTML = libs.length ? libs.map(l => {
+  pagedList('kosLibs', 'kosLibsPager', k.by_library || [], l => {
     const p = l.total ? Math.round(l.used / l.total * 100) : 0;
     return `<div style="padding:8px 0;border-top:1px solid var(--border-soft)">
       <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;flex-wrap:wrap">
@@ -677,10 +676,10 @@ function renderKos(k) {
       </div>
       <div style="height:6px;background:var(--border-soft);border-radius:99px;margin-top:5px;overflow:hidden"><div style="height:100%;width:${p}%;background:var(--accent)"></div></div>
     </div>`;
-  }).join('') : '<div style="color:var(--muted);padding:12px 0">暂无素材库</div>';
+  }, '<div style="color:var(--muted);padding:12px 0">暂无素材库</div>');
   const notes = k.task_notes || [];
   $('kosNotesCount').textContent = notes.length ? '  共 ' + notes.length + ' 条' : '';
-  $('kosNotes').innerHTML = notes.length ? notes.map(n => {
+  pagedList('kosNotes', 'kosNotesPager', notes, n => {
     const d = n.at ? new Date(n.at * 1000) : null;
     const pad = x => String(x).padStart(2, '0');
     const tm = d ? `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
@@ -690,10 +689,10 @@ function renderKos(k) {
       <a href="${escapeHtml(n.url)}" target="_blank" rel="noopener" style="color:var(--accent-strong);word-break:break-all;flex:1">${escapeHtml(n.url)}</a>
       <span style="color:var(--muted);font-size:12px">${tm}</span>
     </div>`;
-  }).join('') : '<div style="color:var(--muted);padding:12px 0">时间范围内还没有回填的笔记链接</div>';
+  }, '<div style="color:var(--muted);padding:12px 0">时间范围内还没有回填的笔记链接</div>');
   const selfNotes = k.self_notes || [];
   $('kosSelfCount').textContent = selfNotes.length ? '  共 ' + selfNotes.length + ' 条' : '';
-  $('kosSelfNotes').innerHTML = selfNotes.length ? selfNotes.map(n => {
+  pagedList('kosSelfNotes', 'kosSelfPager', selfNotes, n => {
     const d = n.at ? new Date(n.at * 1000) : null;
     const pad = x => String(x).padStart(2, '0');
     const tm = d ? `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
@@ -702,7 +701,7 @@ function renderKos(k) {
       <a href="${escapeHtml(n.url)}" target="_blank" rel="noopener" style="color:var(--accent-strong);word-break:break-all;flex:1">${escapeHtml(n.url)}</a>
       <span style="color:var(--muted);font-size:12px">${tm}</span>
     </div>`;
-  }).join('') : '<div style="color:var(--muted);padding:12px 0">时间范围内还没有自发布笔记</div>';
+  }, '<div style="color:var(--muted);padding:12px 0">时间范围内还没有自发布笔记</div>');
   const dd = (k.by_daily || []).slice().sort((a, b) => a.key.localeCompare(b.key));
   if (window.Chart && dd.length) {
     __state.charts.kos = new Chart($('kosDaily'), {
@@ -711,6 +710,18 @@ function renderKos(k) {
       options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
     });
   }
+}
+
+// ── 通用:客户端分页渲染(每页 10 行,公共分页条)──
+function pagedList(listId, pagerId, items, rowFn, emptyHtml) {
+  let pg = 0;
+  const draw = () => {
+    const r = App.paginate(items, pg);
+    pg = r.page;
+    $(listId).innerHTML = r.rows.length ? r.rows.map(rowFn).join('') : emptyHtml;
+    App.renderPager(pagerId, r.page, r.pages, p => { pg = p; draw(); });
+  };
+  draw();
 }
 
 // ── 本期任务完成情况:汇总 + 完成/未完成名单,支持按部门筛选 ──
@@ -752,11 +763,13 @@ function renderCompletion(cmpl) {
       <span>${escapeHtml(p.name || '')} <span style="color:var(--muted)">${escapeHtml(p.department || '')}</span></span>
       <span style="color:var(--muted)">${p.published}/${p.owed} 篇${p.status === 'doing' && p.issued > p.published ? '(已领未发 ' + (p.issued - p.published) + ')' : ''}</span>
     </div>`;
-    const col = (title, color, arr) => `
-      <div><div style="font-size:13px;font-weight:600;color:${color};padding-bottom:4px">${title}(${arr.length})</div>
-      ${arr.length ? arr.map(row).join('') : '<div style="color:var(--muted);font-size:12px;padding:6px 0">无</div>'}</div>`;
-    $('cmplLists').innerHTML =
-      col('未开始', '#dc2626', todo) + col('进行中', '#b45309', doing) + col('已完成', '#059669', done);
+    // 三栏骨架(每栏自带列表容器 + 分页容器),名单按栏独立分页
+    const cols = [['todo', '未开始', '#dc2626', todo], ['doing', '进行中', '#b45309', doing], ['done', '已完成', '#059669', done]];
+    $('cmplLists').innerHTML = cols.map(c => `
+      <div><div style="font-size:13px;font-weight:600;color:${c[2]};padding-bottom:4px">${c[1]}(${c[3].length})</div>
+      <div id="cmplCol-${c[0]}"></div><div id="cmplPager-${c[0]}" style="margin-top:8px"></div></div>`).join('');
+    cols.forEach(c => pagedList('cmplCol-' + c[0], 'cmplPager-' + c[0], c[3], row,
+      '<div style="color:var(--muted);font-size:12px;padding:6px 0">无</div>'));
   }
 }
 
@@ -1219,10 +1232,7 @@ async function loadDetail() {
     renderDetailRows(__state.detailRows);
     $('rowCount').textContent = `共 ${d.total || 0} 条`;
     const pages = d.pages || 0, page = d.page || 0;
-    $('detailPager').innerHTML = pages > 1 ? `
-      <button class="export-btn" ${page <= 0 ? 'disabled' : ''} onclick="detailGoto(${page - 1})">上一页</button>
-      <span class="count">第 ${page + 1} / ${pages} 页</span>
-      <button class="export-btn" ${page >= pages - 1 ? 'disabled' : ''} onclick="detailGoto(${page + 1})">下一页</button>` : '';
+    App.renderPager('detailPager', page, pages, detailGoto);
   } catch (e) {
     tBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#991b1b;padding:20px">加载失败</td></tr>`;
   }

@@ -56,6 +56,7 @@
       <div class="muted2" id="lbHint" style="margin-top:8px">建库自动用「品牌 / 产品 / 日期时间」命名,不会重名。</div>
     </div>
     <div id="libs"><div class="muted2">加载中...</div></div>
+    <div id="libsPager" style="margin-top:10px"></div>
 
     <h2 class="sec">任务</h2>
     <div class="card2">
@@ -75,6 +76,7 @@
       <div style="margin-top:12px"><button class="btn btn-primary" id="tkAdd">发布任务</button></div>
     </div>
     <div id="tasks"><div class="muted2">加载中...</div></div>
+    <div id="tasksPager" style="margin-top:10px"></div>
   </div>
 </div>
 
@@ -141,7 +143,15 @@ async function loadLibs(force) {
   // 任务表单的库下拉
   document.getElementById('tkLib').innerHTML = libraries.map(l =>
     `<option value="${l.id}">${esc(l.brand)} ${esc(l.product)}${l.code ? ' · '+esc(l.code) : ''}（容量${l.capacity.remaining}）</option>`).join('') || '<option value="">先建素材库</option>';
-  document.getElementById('libs').innerHTML = libraries.length ? libraries.map(libRow).join('') : '<div class="muted2">还没有素材库</div>';
+  drawLibs();
+}
+
+let _libPage = 0;
+function drawLibs() {
+  const pg = App.paginate(libraries, _libPage);
+  _libPage = pg.page;
+  document.getElementById('libs').innerHTML = pg.rows.length ? pg.rows.map(libRow).join('') : '<div class="muted2">还没有素材库</div>';
+  App.renderPager('libsPager', pg.page, pg.pages, p => { _libPage = p; drawLibs(); });
 }
 
 function libRow(l) {
@@ -254,11 +264,18 @@ document.getElementById('tkAdd').onclick = async () => {
   await loadTasks();
 };
 
+let _taskPage = 0, _taskList = [];
 async function loadTasks() {
   const r = await api('list_tasks');
-  const tasks = (r.data && r.data.tasks) || [];
-  document.getElementById('tasks').innerHTML = tasks.length ? tasks.map(taskRow).join('') : '<div class="muted2">还没有任务</div>';
-  tasks.forEach(t => { const b = document.getElementById('close'+t.id); if (b) b.onclick = () => closeTask(t.id); });
+  _taskList = (r.data && r.data.tasks) || [];
+  drawTasks();
+}
+function drawTasks() {
+  const pg = App.paginate(_taskList, _taskPage);
+  _taskPage = pg.page;
+  document.getElementById('tasks').innerHTML = pg.rows.length ? pg.rows.map(taskRow).join('') : '<div class="muted2">还没有任务</div>';
+  pg.rows.forEach(t => { const b = document.getElementById('close'+t.id); if (b) b.onclick = () => closeTask(t.id); });
+  App.renderPager('tasksPager', pg.page, pg.pages, p => { _taskPage = p; drawTasks(); });
 }
 
 function taskRow(t) {

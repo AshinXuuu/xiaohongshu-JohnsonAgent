@@ -182,9 +182,71 @@
     return me;
   }
 
+  // ---------- 通用分页(后台列表统一:每页 10 行,上一页/数字页码/下一页) ----------
+  var PAGE_SIZE = 10;
+
+  // 取窗口化页码序列:总页少直接全列,多则 1 … 邻近页 … 末页('…' 为省略占位)
+  function pageWindow(page, pages) {
+    if (pages <= 7) return Array.from({ length: pages }, function (_, i) { return i; });
+    var out = [0];
+    var lo = Math.max(1, page - 1), hi = Math.min(pages - 2, page + 1);
+    if (lo > 1) out.push("…");
+    for (var i = lo; i <= hi; i++) out.push(i);
+    if (hi < pages - 2) out.push("…");
+    out.push(pages - 1);
+    return out;
+  }
+
+  // 在容器里渲染分页条。page 从 0 起;onGo(newPage) 由调用方负责重渲染。
+  // 单页(pages<=1)自动清空容器,不占位。
+  function renderPager(el, page, pages, onGo) {
+    if (typeof el === "string") el = document.getElementById(el);
+    if (!el) return;
+    if (!pages || pages <= 1) { el.innerHTML = ""; return; }
+    var btn = function (label, target, opts) {
+      opts = opts || {};
+      var b = document.createElement("button");
+      b.textContent = label;
+      b.disabled = !!opts.disabled;
+      b.style.cssText =
+        "min-width:30px;padding:5px 9px;border:1px solid " + (opts.active ? "#6366f1" : "#e4e4e7") +
+        ";background:" + (opts.active ? "#6366f1" : "#fff") + ";color:" + (opts.active ? "#fff" : "#3f3f46") +
+        ";border-radius:7px;font-size:12.5px;cursor:" + (opts.disabled || opts.ellipsis ? "default" : "pointer") +
+        ";font-family:inherit;" + (opts.disabled ? "opacity:.45;" : "") + (opts.ellipsis ? "border:none;background:none;" : "");
+      if (!opts.disabled && !opts.ellipsis && !opts.active) b.onclick = function () { onGo(target); };
+      return b;
+    };
+    el.innerHTML = "";
+    el.style.display = "flex";
+    el.style.flexWrap = "wrap";
+    el.style.alignItems = "center";
+    el.style.gap = "6px";
+    el.appendChild(btn("上一页", page - 1, { disabled: page <= 0 }));
+    pageWindow(page, pages).forEach(function (p) {
+      if (p === "…") el.appendChild(btn("…", 0, { ellipsis: true, disabled: true }));
+      else el.appendChild(btn(String(p + 1), p, { active: p === page }));
+    });
+    el.appendChild(btn("下一页", page + 1, { disabled: page >= pages - 1 }));
+    var info = document.createElement("span");
+    info.textContent = "共 " + pages + " 页";
+    info.style.cssText = "font-size:12px;color:#71717a;margin-left:4px";
+    el.appendChild(info);
+  }
+
+  // 客户端分页切片:返回 {rows, page, pages}(page 自动夹到合法范围)
+  function paginate(list, page, per) {
+    per = per || PAGE_SIZE;
+    var pages = Math.max(1, Math.ceil((list || []).length / per));
+    var p = Math.min(Math.max(0, page || 0), pages - 1);
+    return { rows: (list || []).slice(p * per, p * per + per), page: p, pages: pages };
+  }
+
   global.App = {
     USER_KEY: USER_KEY,
     escapeHtml: escapeHtml,
+    PAGE_SIZE: PAGE_SIZE,
+    paginate: paginate,
+    renderPager: renderPager,
     toast: toast,
     api: api,
     getMe: getMe,
