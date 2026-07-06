@@ -529,11 +529,7 @@ const USER_KEY = 'xhsAgent:user';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const $ = id => document.getElementById(id);
 
-function escapeHtml(s) {
-  if (s == null) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
+function escapeHtml(s) { return App.escapeHtml(s); }   // 收口:统一 app.js 实现
 function getMe() {
   try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); }
   catch (_) { return null; }

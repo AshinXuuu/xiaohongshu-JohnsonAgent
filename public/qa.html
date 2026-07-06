@@ -478,7 +478,6 @@
 
 <script src="/assets/app.js"></script>
 <script>
-const USER_KEY = 'xhsAgent:user';
 const $ = id => document.getElementById(id);
 
 const FAQ_PRESETS = [
@@ -491,10 +490,6 @@ const FAQ_PRESETS = [
   '保修期多久',
 ];
 
-function getMe() {
-  try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); }
-  catch (_) { return null; }
-}
 async function copyAnswer(btn) {
   const text = btn.getAttribute('data-text') || '';
   try {
@@ -530,22 +525,11 @@ function splitAnswer(answer) {
   return { main: answer.trim(), pitch: '' };
 }
 
-function escapeHtml(s) {
-  if (s == null) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
+function escapeHtml(s) { return App.escapeHtml(s); }   // 收口:全站统一用 app.js 的实现
 
-// ── 鉴权:未登录或会话过期(>24h)直接跳门户重新登录 ──
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
-const me = getMe();
-const sessionValid = me && me.emp_id && me.loginAt && (Date.now() - me.loginAt) < SESSION_TTL_MS;
-if (!sessionValid) {
-  if (me) localStorage.removeItem(USER_KEY);
-  location.replace('/');
-} else {
-  App.mountTopbar({ active: 'qa' });
-}
+// ── 鉴权:统一走 App.requireSession(未登录/过期清理并跳门户)──
+const me = App.requireSession();
+if (me) App.mountTopbar({ active: 'qa' });
 
 // ── 状态 ──
 let productMap = {};  // {brand: [{name, chunks, chars}, ...]}

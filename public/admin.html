@@ -509,12 +509,12 @@
 </div>
 
 <!-- Chart.js (CDN) -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- 自托管(原 jsdelivr CDN 在大陆环境不稳,CDN 挂 = 看板图表全白) -->
+<script src="/assets/vendor/chart.umd.min.js"></script>
 
 <script src="/assets/app.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-const USER_KEY = 'xhsAgent:user';  // 必须和 index.html 第 1043 行保持一致
 const ACTION_LABEL = {
   generate: '文案生成',
   cover_fields: '一键导入',
@@ -524,17 +524,8 @@ const ACTION_LABEL = {
   generate_failed: '生成失败',
 };
 
-// ─── 工具 ─────────────────────────────────────────────
-function getCurrentUser() {
-  try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); }
-  catch (_) { return null; }
-}
-function escapeHtml(s) {
-  if (s === null || s === undefined) return '';
-  return String(s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
+// ─── 工具(收口:统一用 app.js 的实现)───────────────
+function escapeHtml(s) { return App.escapeHtml(s); }
 function fmtTime(ms) {
   if (!ms) return '';
   const d = new Date(ms);
@@ -548,21 +539,12 @@ function fmtFullTime(ms) {
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-// ─── 鉴权:含 24h 会话过期 ─────────────────────────────
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
-const me = getCurrentUser();
-const sessionValid = me && me.emp_id && me.loginAt && (Date.now() - me.loginAt) < SESSION_TTL_MS;
-if (!sessionValid) {
-  // 没登录或过期 → 清掉并跳门户
-  if (me) localStorage.removeItem(USER_KEY);
-  location.replace('/');
-} else {
-  App.mountTopbar();
-}
+// ─── 鉴权:统一走 App.requireSession(未登录/过期清理并跳门户)───
+const me = App.requireSession();
+if (me) App.mountTopbar();
 function logoutAdmin() {
   if (!confirm('确定要退出登录吗?')) return;
-  localStorage.removeItem(USER_KEY);
-  location.href = '/';
+  App.logout();   // 同时清用户信息与会话 token(此前漏清 token)
 }
 window.logoutAdmin = logoutAdmin;
 

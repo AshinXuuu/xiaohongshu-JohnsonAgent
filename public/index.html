@@ -280,61 +280,6 @@
     display: none;
   }
   .login-error.show { display: block; }
-  /* ── 顶部页眉(统一 topbar,设计规范对齐 portal)── */
-  .topbar {
-    background: rgba(255,255,255,0.85);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
-    border-bottom: 1px solid #e5e5e5;
-    padding: 14px 24px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-  .topbar h1 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 600;
-    color: #18181b;
-    letter-spacing: -0.01em;
-  }
-  .topbar-spacer { flex: 1; }
-  .topbar-me {
-    color: #71717a;
-    font-size: 12.5px;
-  }
-  .topbar-btn {
-    padding: 6px 12px;
-    border: 1px solid #e4e4e7;
-    background: white;
-    border-radius: 7px;
-    font-size: 12.5px;
-    cursor: pointer;
-    color: #3f3f46;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-weight: 500;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-  .topbar-btn:hover {
-    background: #f4f4f5;
-    color: #18181b;
-  }
-  /* 移动端:与 portal 一致,wrap + 用户信息单独一行 */
-  @media (max-width: 600px) {
-    .topbar { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
-    .topbar h1 { font-size: 14px; }
-    .topbar-me { font-size: 11.5px; width: 100%; order: 99; padding-top: 4px; }
-    .topbar-btn { padding: 5px 10px; font-size: 12px; }
-  }
-  /* 兼容:旧 user-bar 类不再渲染 */
-  .user-bar { display: none !important; }
   /* ── 模态框(历史 / 管理员)── */
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.5);
@@ -357,89 +302,6 @@
     width: 32px; height: 32px; line-height: 1;
   }
   .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
-  /* ── 版本徽章 + 更新公告 ── */
-  .version-badge {
-    display: inline-block; margin-left: 8px; padding: 2px 10px;
-    font-size: 12px; font-weight: 600; line-height: 1.6;
-    color: #fff; background: linear-gradient(135deg, #ff5a7a, #ff8a5a);
-    border: none; border-radius: 999px; cursor: pointer;
-    vertical-align: middle; box-shadow: 0 2px 6px rgba(255,90,122,0.35);
-    transition: transform .15s, box-shadow .15s;
-  }
-  .version-badge:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(255,90,122,0.45); }
-  .ver-block { margin-bottom: 28px; }
-  .ver-block:last-child { margin-bottom: 0; }
-  .ver-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
-  .ver-num {
-    font-size: 18px; font-weight: 700; color: var(--primary);
-    background: #fff0f3; padding: 2px 12px; border-radius: 8px;
-  }
-  .ver-num.old { color: var(--muted); background: #f3f3f3; }
-  .ver-date { font-size: 12px; color: var(--muted); }
-  .ver-title { font-size: 15px; font-weight: 600; color: var(--text); margin: 8px 0 4px; }
-  .ver-intro { font-size: 13px; color: var(--muted); margin: 0 0 14px; line-height: 1.6; }
-  .ver-hl { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
-  .ver-hl:first-of-type { border-top: none; }
-  .ver-hl-icon { font-size: 22px; flex-shrink: 0; width: 28px; text-align: center; }
-  .ver-hl-body { flex: 1; }
-  .ver-hl-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
-  .ver-hl-desc { font-size: 13px; color: var(--muted); line-height: 1.55; }
-  .ver-tech {
-    margin-top: 14px; background: #fafafa; border: 1px solid var(--border);
-    border-radius: 10px; padding: 4px 0;
-  }
-  .ver-tech summary {
-    cursor: pointer; padding: 10px 14px; font-size: 13px;
-    font-weight: 600; color: var(--muted); list-style: none;
-  }
-  .ver-tech summary::-webkit-details-marker { display: none; }
-  .ver-tech summary::before { content: '▸ '; }
-  .ver-tech[open] summary::before { content: '▾ '; }
-  .ver-tech ul { margin: 0; padding: 0 18px 12px 34px; }
-  .ver-tech li { font-size: 12px; color: var(--muted); line-height: 1.7; }
-  .ver-divider { border: none; border-top: 1px dashed var(--border); margin: 0 0 24px; }
-  /* 管理员后台样式 */
-  .admin-stats-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
-    margin-bottom: 24px;
-  }
-  @media (max-width: 600px) { .admin-stats-grid { grid-template-columns: repeat(2, 1fr); } }
-  .admin-stat {
-    padding: 16px; border-radius: 10px; text-align: center;
-  }
-  .admin-stat-num { font-size: 26px; font-weight: 700; }
-  .admin-stat-label { font-size: 12px; margin-top: 4px; opacity: 0.85; }
-  .admin-h3 {
-    font-size: 14px; font-weight: 600; margin: 24px 0 10px;
-    color: var(--text); display: flex; align-items: center; gap: 6px;
-  }
-  .admin-bars { display: flex; flex-direction: column; gap: 6px; }
-  .admin-bar-row {
-    display: flex; align-items: center; gap: 10px; font-size: 13px;
-  }
-  .admin-bar-label {
-    flex-shrink: 0; width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .admin-bar-label small { font-size: 11px; }
-  .admin-bar-count { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 30px; text-align: right; }
-  .admin-recent {
-    border: 1px solid var(--border); border-radius: 8px;
-    max-height: 360px; overflow-y: auto;
-  }
-  .admin-recent-row {
-    display: grid; grid-template-columns: 140px 80px 130px 1fr;
-    gap: 8px; padding: 8px 12px; font-size: 12px;
-    border-bottom: 1px solid #f5f5f5;
-  }
-  .admin-recent-row:last-child { border-bottom: none; }
-  .admin-time { color: var(--muted); }
-  .admin-action { color: var(--primary); font-weight: 500; }
-  .admin-who { color: var(--text); }
-  .admin-detail { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  @media (max-width: 600px) {
-    .admin-bar-label { width: 90px; font-size: 11px; }
-    .admin-recent-row { grid-template-columns: 1fr; gap: 2px; padding: 8px; }
-  }
   /* 历史 grid */
   .history-grid {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
@@ -462,8 +324,6 @@
     header { margin-bottom: 24px; }
     .card { padding: 18px 16px; }
     .login-card { padding: 30px 22px; }
-    .user-bar { padding: 8px 14px; }
-    .user-bar .user-info { font-size: 12px; }
     /* 关键:3 张生成结果在手机上也是 3 列 */
     .cover-results { grid-template-columns: 1fr 1fr 1fr !important; gap: 6px; }
     .cover-result-card .actions a { padding: 6px 4px; font-size: 11px; }
@@ -780,17 +640,6 @@
   </div>
 </div>
 
-<!-- 管理员面板弹窗 -->
-<div class="modal-overlay" id="adminModal" onclick="closeAdminPanel(event)">
-  <div class="modal-card" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <h2>管理员后台</h2>
-      <button class="modal-close" onclick="closeAdminPanel()">×</button>
-    </div>
-    <div class="modal-body" id="adminBody"></div>
-  </div>
-</div>
-
 <div class="container">
 
   <div class="card">
@@ -1063,14 +912,7 @@ function renderResult(data) {
   });
 }
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+function escapeHtml(s) { return App.escapeHtml(s); }   // 收口:全站统一用 app.js 的实现
 
 window.copy = copy;
 
@@ -1256,181 +1098,6 @@ function closeHistoryModal(e) {
   $('historyModal').classList.remove('show');
 }
 window.closeHistoryModal = closeHistoryModal;
-
-// ─────────── 管理员后台 ───────────
-async function openAdminPanel() {
-  $('adminBody').innerHTML = '<div class="loading" style="padding:30px"><div class="spinner"></div>正在拉取全公司用量数据...</div>';
-  $('adminModal').classList.add('show');
-
-  try {
-    const resp = await fetch('/api/admin-stats', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})  // _user 会被 fetch 拦截器自动注入
-    });
-    const data = await resp.json();
-    if (!resp.ok || data.error) {
-      $('adminBody').innerHTML = `<div class="error">${escapeHtml(data.error || '未知错误')}</div>`;
-      return;
-    }
-    if (data.kv_configured === false) {
-      $('adminBody').innerHTML = `
-        <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:16px;border-radius:6px;font-size:13px;color:#92400e">
-          <strong>Vercel KV 还未配置</strong><br><br>
-          ${escapeHtml(data.message || '')}<br><br>
-          配置步骤:
-          <ol style="margin:8px 0 0 16px;padding:0">
-            <li>Vercel Dashboard → 项目 → <b>Storage</b> → <b>Connect Database</b> → 选 <b>Upstash</b> → <b>Redis(Free)</b></li>
-            <li>命名 agent-kv,Region 选 HKG,创建</li>
-            <li>选 <b>Connect Project</b>,勾选 3 个环境 → Connect</li>
-            <li>回 Deployments → Redeploy(不勾 cache)</li>
-            <li>等部署完,刷新本页面即可看到数据</li>
-          </ol>
-        </div>
-      `;
-      return;
-    }
-    renderAdminStats(data);
-  } catch (e) {
-    $('adminBody').innerHTML = `<div class="error">网络错误:${escapeHtml(e.message)}</div>`;
-  }
-}
-window.openAdminPanel = openAdminPanel;
-
-function renderAdminStats(d) {
-  const actionName = { generate: '文案', cover_fields: '一键导入', cover_generate: '封面图', login: '登录' };
-  const bar = (count, max, color) => {
-    const pct = max > 0 ? Math.max(2, (count / max) * 100) : 0;
-    return `<div style="background:${color};height:18px;width:${pct}%;border-radius:3px;display:inline-block;vertical-align:middle"></div>`;
-  };
-
-  const maxUser = Math.max(1, ...(d.by_user || []).map(x => x.count));
-  const maxDept = Math.max(1, ...(d.by_dept || []).map(x => x.count));
-  const maxDay = Math.max(1, ...(d.by_daily || []).map(x => x.count));
-  const maxStyle = Math.max(1, ...(d.by_style || []).map(x => x.count));
-
-  $('adminBody').innerHTML = `
-    <!-- 顶部 4 个核心数字 -->
-    <div class="admin-stats-grid">
-      <div class="admin-stat" style="background:#fef2f2;color:#991b1b">
-        <div class="admin-stat-num">${d.total || 0}</div>
-        <div class="admin-stat-label">累计操作总数</div>
-      </div>
-      <div class="admin-stat" style="background:#f0f9ff;color:#0369a1">
-        <div class="admin-stat-num">${d.today || 0}</div>
-        <div class="admin-stat-label">今日操作</div>
-      </div>
-      <div class="admin-stat" style="background:#f0fdf4;color:#166534">
-        <div class="admin-stat-num">${d.this_month || 0}</div>
-        <div class="admin-stat-label">本月操作</div>
-      </div>
-      <div class="admin-stat" style="background:#fef3c7;color:#92400e">
-        <div class="admin-stat-num">${(d.by_user || []).length}</div>
-        <div class="admin-stat-label">活跃用户数</div>
-      </div>
-    </div>
-
-    <!-- 各部门排行 -->
-    <h3 class="admin-h3">部门排行</h3>
-    <div class="admin-bars">
-      ${(d.by_dept || []).map(x => `
-        <div class="admin-bar-row">
-          <span class="admin-bar-label">${escapeHtml(x.key)}</span>
-          ${bar(x.count, maxDept, '#3b82f6')}
-          <span class="admin-bar-count">${x.count}</span>
-        </div>
-      `).join('') || '<div style="color:var(--muted);padding:10px">暂无数据</div>'}
-    </div>
-
-    <!-- 各人排行(top 15)-->
-    <h3 class="admin-h3">个人用量 Top 15</h3>
-    <div class="admin-bars">
-      ${(d.by_user || []).slice(0, 15).map(x => `
-        <div class="admin-bar-row">
-          <span class="admin-bar-label">${escapeHtml(x.name)}<small style="color:var(--muted)"> · ${escapeHtml(x.department)}</small></span>
-          ${bar(x.count, maxUser, '#10b981')}
-          <span class="admin-bar-count">${x.count}</span>
-        </div>
-      `).join('') || '<div style="color:var(--muted);padding:10px">暂无数据</div>'}
-    </div>
-
-    <!-- 各操作类型 -->
-    <h3 class="admin-h3">操作类型分布</h3>
-    <div class="admin-bars">
-      ${(d.by_action || []).map(x => `
-        <div class="admin-bar-row">
-          <span class="admin-bar-label">${escapeHtml(actionName[x.key] || x.key)}</span>
-          ${bar(x.count, d.total || 1, '#a855f7')}
-          <span class="admin-bar-count">${x.count}</span>
-        </div>
-      `).join('') || '<div style="color:var(--muted);padding:10px">暂无数据</div>'}
-    </div>
-
-    <!-- 风格偏好 -->
-    ${(d.by_style || []).length ? `
-    <h3 class="admin-h3">封面风格选择分布</h3>
-    <div class="admin-bars">
-      ${(d.by_style || []).map(x => `
-        <div class="admin-bar-row">
-          <span class="admin-bar-label">${escapeHtml(x.key)}</span>
-          ${bar(x.count, maxStyle, '#ec4899')}
-          <span class="admin-bar-count">${x.count}</span>
-        </div>
-      `).join('')}
-    </div>` : ''}
-
-    <!-- 每日趋势(最近 14 天)-->
-    <h3 class="admin-h3">最近 14 天每日操作量</h3>
-    <div class="admin-bars">
-      ${(d.by_daily || []).slice(0, 14).reverse().map(x => `
-        <div class="admin-bar-row">
-          <span class="admin-bar-label" style="width:90px">${escapeHtml(x.key)}</span>
-          ${bar(x.count, maxDay, '#f97316')}
-          <span class="admin-bar-count">${x.count}</span>
-        </div>
-      `).join('') || '<div style="color:var(--muted);padding:10px">暂无数据</div>'}
-    </div>
-
-    <!-- 最近活动 -->
-    <h3 class="admin-h3">最近 30 条操作记录</h3>
-    <div class="admin-recent">
-      ${(d.recent || []).slice(0, 30).map(e => `
-        <div class="admin-recent-row">
-          <span class="admin-time">${new Date(e.time).toLocaleString('zh-CN')}</span>
-          <span class="admin-action">${escapeHtml(actionName[e.action] || e.action)}</span>
-          <span class="admin-who">${escapeHtml((e.user && e.user.name) || '?')} <small>${escapeHtml((e.user && e.user.department) || '')}</small></span>
-          <span class="admin-detail">${escapeHtml(formatEventDetail(e))}</span>
-        </div>
-      `).join('') || '<div style="color:var(--muted);padding:10px">暂无数据</div>'}
-    </div>
-  `;
-}
-
-function formatEventDetail(e) {
-  const d = e.details || {};
-  const parts = [];
-  if (d.brand) parts.push(d.brand);
-  if (d.product) parts.push(d.product);
-  if (d.style) parts.push(d.style);
-  if (d.title) parts.push(d.title);
-  if (d.copy_type) parts.push(d.copy_type);
-  return parts.join(' · ');
-}
-
-function closeAdminPanel(e) {
-  if (e && e.target.id !== 'adminModal' && e.target.classList && !e.target.classList.contains('modal-close')) return;
-  $('adminModal').classList.remove('show');
-}
-window.closeAdminPanel = closeAdminPanel;
-
-function isToday(ts) {
-  const d = new Date(ts); const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
-}
-function isThisMonth(ts) {
-  const d = new Date(ts); const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-}
 
 // ─── AI 封面生成 ───
 // 封面风格不再由用户选择 —— 直接由文案类型(activeType)自动映射:
