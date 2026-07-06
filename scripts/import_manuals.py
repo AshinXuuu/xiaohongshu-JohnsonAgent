@@ -24,7 +24,8 @@ if not SRC.exists():
     raise SystemExit(f'❌ 来源不存在: {SRC}')
 
 # 先确保目标数据库的 schema 存在(走 kv_store 的初始化)
-sys.path.insert(0, str(ROOT))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 from lib import kv_store  # 模块导入即触发 _init_schema()
 _ = kv_store._kv_available()
 

@@ -36,6 +36,7 @@ def load_env():
 
 
 _HANDLER_CACHE = {}
+_HANDLER_LOCK = __import__('threading').Lock()
 
 # 请求体大小上限(字节):防止超大 body 打爆内存。
 # 封面生成会带 base64 图片(单张上限 4MB),留足冗余取 12MB。
@@ -48,12 +49,16 @@ def load_handler(api_file: str):
     cached = _HANDLER_CACHE.get(api_file)
     if cached is not None:
         return cached
-    path = ROOT / "api" / api_file
-    spec = importlib.util.spec_from_file_location(f"api_{api_file}", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    _HANDLER_CACHE[api_file] = mod.handler
-    return mod.handler
+    with _HANDLER_LOCK:   # 首次并发加载时避免同一模块被 exec 两次
+        cached = _HANDLER_CACHE.get(api_file)
+        if cached is not None:
+            return cached
+        path = ROOT / "api" / api_file
+        spec = importlib.util.spec_from_file_location(f"api_{api_file}", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _HANDLER_CACHE[api_file] = mod.handler
+        return mod.handler
 
 
 def resolve_api_file(path: str):
@@ -149,10 +154,19 @@ class Router(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": "服务暂时不可用,请稍后再试"}, ensure_ascii=False).encode("utf-8"))
             return
 
-        # 构造一个 handler 实例,代理本次请求的 IO
+        # 构造一个 handler 实例,代理本次请求的 IO。
+        # wfile 包一层字节计数:handler 半途抛异常时,只有"一个字节都没写出"
+        # 才补写错误响应,避免在已写出的响应后面追加垃圾字节(畸形报文)。
+        class _CountingW:
+            def __init__(s, raw): s.raw, s.written = raw, 0
+            def write(s, b):
+                s.written += len(b)
+                return s.raw.write(b)
+            def __getattr__(s, name): return getattr(s.raw, name)
+        wcount = _CountingW(self.wfile)
         proxy = HandlerCls.__new__(HandlerCls)
         proxy.rfile = self.rfile
-        proxy.wfile = self.wfile
+        proxy.wfile = wcount
         proxy.headers = self.headers
         proxy.command = self.command
         proxy.path = self.path
@@ -170,12 +184,25 @@ class Router(BaseHTTPRequestHandler):
         try:
             method()
         except Exception as e:
-            # 详情只进服务端日志;此时响应头可能已由 handler 部分写出,尽力回通用文案
+            # 详情只进服务端日志;只有 handler 完全没写出任何字节时才补一个完整错误响应
             sys.stderr.write(f"[HANDLER-ERROR] {api_file}: {e}\n")
-            try:
-                self.wfile.write(json.dumps({"error": "服务器内部错误"}, ensure_ascii=False).encode("utf-8"))
-            except Exception:
-                pass
+            import traceback; traceback.print_exc(file=sys.stderr)
+            if wcount.written == 0:
+                try:
+                    body = json.dumps({"error": "服务器内部错误"}, ensure_ascii=False).encode("utf-8")
+                    self.send_response(500)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                except Exception:
+                    pass
+            else:
+                # 已写出部分响应,无法补救,直接断开这条连接
+                try:
+                    self.close_connection = True
+                except Exception:
+                    pass
 
     def _handle_any(self):
         """统一入口:优先尝试 API 路由,再走静态文件"""

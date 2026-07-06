@@ -126,8 +126,8 @@ function fillProducts() {
     (productMap[b] || []).map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
 }
 
-async function loadLibs() {
-  const r = await api('list_libraries');
+async function loadLibs(force) {
+  const r = await api('list_libraries', force ? { force: 1 } : {});
   libraries = (r.data && r.data.libraries) || [];
   const synced = !!(r.data && r.data.cos_synced);
   const cosErr = r.data && r.data.cos_error;
@@ -216,7 +216,7 @@ document.getElementById('fileInput').addEventListener('change', async (e) => {
 document.getElementById('libRefresh').onclick = async () => {
   const btn = document.getElementById('libRefresh');
   btn.disabled = true; const t = btn.textContent; btn.textContent = '同步中...';
-  await loadLibs();
+  await loadLibs(true);   // 手动刷新绕过 60 秒对账节流
   btn.disabled = false; btn.textContent = t;
   App.toast('已与 COS 桶同步');
 };

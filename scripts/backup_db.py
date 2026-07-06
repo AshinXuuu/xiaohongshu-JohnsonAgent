@@ -33,14 +33,19 @@ def main():
         return
     ts = time.strftime('%Y%m%d-%H%M%S')
     dest = BK / f"usage_{ts}.db"
+    tmp = BK / f"usage_{ts}.db.tmp"     # 先写临时名:中途被杀不会留下貌似合法的半截备份
     src = sqlite3.connect(str(DB))
-    dst = sqlite3.connect(str(dest))
+    dst = sqlite3.connect(str(tmp))
     try:
         with dst:
             src.backup(dst)          # 一致性快照
+        chk = dst.execute("PRAGMA integrity_check").fetchone()[0]
+        if chk != 'ok':
+            raise RuntimeError(f"备份完整性校验失败:{chk}")
     finally:
         src.close()
         dst.close()
+    os.replace(tmp, dest)               # 校验通过才原子改名为正式备份
     size_mb = dest.stat().st_size / 1024 / 1024
 
     # 清理超期备份

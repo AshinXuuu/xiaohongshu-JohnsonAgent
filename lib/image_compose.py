@@ -15,10 +15,11 @@ WHITE = (255, 255, 255)
 
 
 def _open_rgb(path):
-    img = Image.open(path)
-    # 手机照片常带 EXIF 方向标记;按标记物理旋正,避免重编码去掉 EXIF 后画面被转向
-    img = ImageOps.exif_transpose(img)
-    return img.convert("RGB")
+    # with 确保文件句柄随用随关(长驻多线程服务里此前会缓慢泄漏 fd)
+    with Image.open(path) as img:
+        # 手机照片常带 EXIF 方向标记;按标记物理旋正,避免重编码去掉 EXIF 后画面被转向
+        img = ImageOps.exif_transpose(img)
+        return img.convert("RGB")
 
 
 def _fit_cover(img, cw, ch):

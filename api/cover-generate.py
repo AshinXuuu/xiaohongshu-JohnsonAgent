@@ -256,7 +256,8 @@ def _call_doubao_once(prompt, image_data_url, seed, api_key):
         method='POST',
     )
     try:
-        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+        from lib.aigate import gate as _ai_gate
+        with _ai_gate(), urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             items = data.get('data', [])
             if items and items[0].get('url'):
@@ -306,7 +307,6 @@ def call_seededit(prompt, image_data_url, results, idx, seed):
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
@@ -422,6 +422,5 @@ class handler(BaseHTTPRequestHandler):
         body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
         self.send_response(code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(body)

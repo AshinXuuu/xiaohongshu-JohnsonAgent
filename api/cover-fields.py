@@ -66,7 +66,8 @@ def call_deepseek(system_prompt, user_prompt):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        from lib.aigate import gate as _ai_gate
+        with _ai_gate(), urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="ignore") if e.fp else ""
@@ -85,7 +86,6 @@ def parse(raw):
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
@@ -159,7 +159,11 @@ class handler(BaseHTTPRequestHandler):
             )
             user_prompt = "\n".join(user_msg_parts)
 
-            raw = call_deepseek(system_prompt, user_prompt)
+            from lib.aigate import AIBusyError
+            try:
+                raw = call_deepseek(system_prompt, user_prompt)
+            except AIBusyError as e:
+                return self._error(503, str(e))
             parsed = parse(raw)
 
             self._json(200, {
@@ -176,7 +180,6 @@ class handler(BaseHTTPRequestHandler):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 

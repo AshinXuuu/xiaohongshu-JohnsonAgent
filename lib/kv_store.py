@@ -47,12 +47,9 @@ def _canon_product(name):
 
 
 def _get_conn():
-    """打开一个 SQLite 连接(默认开 WAL 模式 + 行级超时)"""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH), timeout=10, check_same_thread=False)
-    conn.execute('PRAGMA journal_mode=WAL')      # 并发读写更稳
-    conn.execute('PRAGMA synchronous=NORMAL')    # 折衷点:持久化 vs 性能
-    return conn
+    """统一走 lib/db 的线程级复用连接(元组行,保持原有 row[0] 访问方式)"""
+    from lib.db import get_conn
+    return get_conn(row_factory=None)
 
 
 def _init_schema():

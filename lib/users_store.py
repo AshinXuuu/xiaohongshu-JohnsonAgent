@@ -26,11 +26,9 @@ ADMIN_ROLES = ('org_admin', 'super_admin')
 
 
 def _conn():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    c = sqlite3.connect(str(DB_PATH), timeout=10, check_same_thread=False)
-    c.execute('PRAGMA journal_mode=WAL')
-    c.row_factory = sqlite3.Row
-    return c
+    # 统一走 lib/db 的线程级复用连接(2026-07 性能加固,PRAGMA 见 lib/db.py)
+    from lib.db import get_conn
+    return get_conn()
 
 
 def _ensure_schema(c):

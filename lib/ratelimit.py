@@ -74,18 +74,16 @@ def _day_ok(key: str, limit: int = None) -> bool:
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS rate_daily("
                 "key TEXT, day TEXT, count INTEGER, PRIMARY KEY(key, day))")
+            # 先原子 +1 再判断(消除「两线程同读 199 双双放行」的窗口);
+            # 超限的那次计数不回滚,天然抑制持续撞限。
             cur = conn.execute(
-                "SELECT count FROM rate_daily WHERE key=? AND day=?", (key, day))
-            row = cur.fetchone()
-            used = (row[0] if row else 0)
-            if used >= limit:
-                return False
-            conn.execute(
                 "INSERT INTO rate_daily(key, day, count) VALUES(?,?,1) "
-                "ON CONFLICT(key, day) DO UPDATE SET count = count + 1",
+                "ON CONFLICT(key, day) DO UPDATE SET count = count + 1 "
+                "RETURNING count",
                 (key, day))
+            row = cur.fetchone()
             conn.commit()
-            return True
+            return (row[0] if row else 1) <= limit
         finally:
             conn.close()
     except Exception:

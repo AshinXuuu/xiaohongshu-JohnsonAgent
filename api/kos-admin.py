@@ -140,10 +140,24 @@ def _audit_log(caller, action, req):
         log(caller, '任务', action, s)
 
 
+_SYNC_CACHE = {}          # library_id -> (上次对账时间, ok, err)
+_SYNC_TTL = 60
+
+
+def _sync_library_throttled(lib, force=False):
+    """对账节流:同一库 60 秒内直接复用上次结果(手动刷新 force=True 时绕过)。"""
+    import time as _t
+    ent = _SYNC_CACHE.get(lib['id'])
+    if not force and ent and _t.time() - ent[0] < _SYNC_TTL:
+        return ent[1], ent[2]
+    ok, err = _sync_library(lib)
+    _SYNC_CACHE[lib['id']] = (_t.time(), ok, err)
+    return ok, err
+
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
@@ -178,9 +192,10 @@ class handler(BaseHTTPRequestHandler):
                 libs = kos_store.list_libraries()
                 any_synced = False
                 cos_error = None
-                for lib in libs:                     # 打开页面即与 COS 对账,数量实时反映桶内实际
+                force = bool(req.get("force"))       # 前端「↻ 刷新桶内数量」带 force=1
+                for lib in libs:                     # 打开页面即与 COS 对账(60 秒节流,免得每次切页全量拉桶)
                     try:
-                        ok, err = _sync_library(lib)
+                        ok, err = _sync_library_throttled(lib, force)
                     except Exception as e:
                         ok, err = False, f"{type(e).__name__}: {e}"
                     any_synced = any_synced or ok
@@ -307,6 +322,5 @@ class handler(BaseHTTPRequestHandler):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)

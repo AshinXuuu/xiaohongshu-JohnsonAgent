@@ -49,7 +49,8 @@ _SSL_CTX = _build_ssl_context()
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
 DB_PATH = ROOT / 'data' / 'usage.db'
 
 DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
@@ -279,7 +280,8 @@ def call_deepseek(system_prompt, user_prompt):
         method='POST',
     )
     try:
-        with urllib.request.urlopen(req, timeout=60, context=_SSL_CTX) as resp:
+        from lib.aigate import gate as _ai_gate
+        with _ai_gate(), urllib.request.urlopen(req, timeout=60, context=_SSL_CTX) as resp:
             data = json.loads(resp.read().decode('utf-8'))
         return data['choices'][0]['message']['content']
     except urllib.error.HTTPError as e:
@@ -377,7 +379,6 @@ def list_available_products():
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
@@ -448,7 +449,11 @@ class handler(BaseHTTPRequestHandler):
                 f"答案末尾用一行附「依据:xxx」。"
             )
 
-            answer = call_deepseek(SYSTEM_PROMPT, user_prompt)
+            from lib.aigate import AIBusyError
+            try:
+                answer = call_deepseek(SYSTEM_PROMPT, user_prompt)
+            except AIBusyError as e:
+                return self._error(503, str(e))
             answer = clean_answer(answer)
             answer = enforce_hotline_and_warranty(answer, question)
 
@@ -470,7 +475,8 @@ class handler(BaseHTTPRequestHandler):
     # ── 日志写入(失败静默) ──
     def _log_qa(self, user, brand, product, question, used_chars, no_data):
         try:
-            sys.path.insert(0, str(ROOT))
+            if str(ROOT) not in sys.path:
+                sys.path.insert(0, str(ROOT))
             from lib.kv_store import log_event
             log_event('qa', user or {}, {
                 'brand': brand,
@@ -484,7 +490,8 @@ class handler(BaseHTTPRequestHandler):
 
     def _log_qa_failure(self, req, reason):
         try:
-            sys.path.insert(0, str(ROOT))
+            if str(ROOT) not in sys.path:
+                sys.path.insert(0, str(ROOT))
             from lib.kv_store import log_event
             # 身份取自已验签的 token(请求体 _user 可伪造,前端注入已全站移除)
             try:
@@ -504,7 +511,6 @@ class handler(BaseHTTPRequestHandler):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 
