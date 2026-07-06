@@ -132,7 +132,9 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(200, {"brands": grouped()})
             return self._error(400, "未知 action")
         except Exception as e:
-            self._error(500, str(e))
+            import traceback; traceback.print_exc()
+            print("[API-500] " + getattr(self, "path", "") + " " + repr(e), flush=True)
+            self._error(500, "服务器开小差了,请稍后重试")
 
     def do_POST(self):
         """POST /api/library {key, _user} → 返回预签名下载链接"""
@@ -165,7 +167,9 @@ class handler(BaseHTTPRequestHandler):
             log_download(user, info)
             self._json(200, {"url": url, "name": info["name"]})
         except Exception as e:
-            self._error(500, str(e))
+            import traceback; traceback.print_exc()
+            print("[API-500] " + getattr(self, "path", "") + " " + repr(e), flush=True)
+            self._error(500, "服务器开小差了,请稍后重试")
 
     def _json(self, code, obj):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")

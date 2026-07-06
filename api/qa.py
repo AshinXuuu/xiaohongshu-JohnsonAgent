@@ -392,7 +392,9 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(200, {'products': list_available_products()})
             return self._error(400, "未知 action")
         except Exception as e:
-            self._error(500, str(e))
+            import traceback; traceback.print_exc()
+            print("[API-500] " + getattr(self, "path", "") + " " + repr(e), flush=True)
+            self._error(500, "服务器开小差了,请稍后重试")
 
     def do_POST(self):
         try:
@@ -460,8 +462,10 @@ class handler(BaseHTTPRequestHandler):
                 'model': 'deepseek-chat',
             })
         except Exception as e:
-            self._log_qa_failure(req if 'req' in dir() else {}, str(e))
-            self._error(500, str(e))
+            self._log_qa_failure(req if 'req' in locals() else {}, str(e))
+            import traceback; traceback.print_exc()
+            print("[API-500] " + getattr(self, "path", "") + " " + repr(e), flush=True)
+            self._error(500, "服务器开小差了,请稍后重试")
 
     # ── 日志写入(失败静默) ──
     def _log_qa(self, user, brand, product, question, used_chars, no_data):

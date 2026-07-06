@@ -256,7 +256,9 @@ class handler(BaseHTTPRequestHandler):
             self._error(500, f"解析模型输出失败,请重试一次。原因:{e}")
         except Exception as e:
             self._log_failure(locals(), str(e))
-            self._error(500, str(e))
+            import traceback; traceback.print_exc()
+            print("[API-500] " + getattr(self, "path", "") + " " + repr(e), flush=True)
+            self._error(500, "服务器开小差了,请稍后重试")
 
     def _log_failure(self, ctx, reason):
         """失败事件也落 KV,管理员后台才能算失败率。失败静默。"""

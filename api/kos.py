@@ -187,7 +187,9 @@ class handler(BaseHTTPRequestHandler):
                 return
             return self._err(400, "缺少参数")
         except Exception as e:
-            self._err(500, str(e))
+            import traceback; traceback.print_exc()
+            print("[API-500] " + getattr(self, "path", "") + " " + repr(e), flush=True)
+            self._err(500, "服务器开小差了,请稍后重试")
 
     def do_POST(self):
         try:
@@ -242,7 +244,9 @@ class handler(BaseHTTPRequestHandler):
 
             return self._json(400, {"error": "未知 action"})
         except Exception as e:
-            self._json(500, {"error": str(e)})
+            import traceback; traceback.print_exc()
+            print("[API-500] " + getattr(self, "path", "") + " " + repr(e), flush=True)
+            self._json(500, {"error": "服务器开小差了,请稍后重试"})
 
     def _issue(self, req, user, emp):
         task = kos_store.get_task(req.get("task_id"))

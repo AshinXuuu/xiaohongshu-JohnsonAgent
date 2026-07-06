@@ -168,7 +168,9 @@ class handler(BaseHTTPRequestHandler):
                 "hua_text": (parsed.get("hua_text") or "").strip(),
             })
         except Exception as e:
-            self._error(500, str(e))
+            import traceback; traceback.print_exc()
+            print("[API-500] " + getattr(self, "path", "") + " " + repr(e), flush=True)
+            self._error(500, "服务器开小差了,请稍后重试")
 
     def _json(self, code, obj):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")

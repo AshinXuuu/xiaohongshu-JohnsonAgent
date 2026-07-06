@@ -185,7 +185,9 @@ class handler(BaseHTTPRequestHandler):
 
             return self._json(400, {"error": "未知 action"})
         except Exception as e:
-            self._json(500, {"error": str(e)})
+            import traceback; traceback.print_exc()
+            print("[API-500] " + getattr(self, "path", "") + " " + repr(e), flush=True)
+            self._json(500, {"error": "服务器开小差了,请稍后重试"})
 
     def _json(self, code, obj):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
