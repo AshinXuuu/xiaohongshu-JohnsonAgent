@@ -496,7 +496,7 @@
   <span class="meta" id="updateTime"></span>
   <a class="btn" href="/admin-users.html">用户管理</a>
   <a class="btn" href="/admin-products.html">产品管理</a>
-  <a class="btn" href="/admin-kos.html">KOS 任务</a>
+  <a class="btn" href="/admin-kos.html">任务创建</a>
   <a class="btn" href="/admin-log.html">操作日志</a>
   <button class="btn" onclick="loadStats()">刷新</button>
 </div>
@@ -662,14 +662,19 @@ function renderKos(k) {
       <div class="kpi b-blue"><div class="kpi-label">任务数</div><div class="kpi-value">${k.tasks || 0}</div><div class="kpi-sub">进行中 ${k.open_tasks || 0}</div></div>
       <div class="kpi b-green"><div class="kpi-label">已领取素材包</div><div class="kpi-value">${k.issued || 0}</div><div class="kpi-sub">时间范围内</div></div>
       <div class="kpi b-amber"><div class="kpi-label">已发布笔记</div><div class="kpi-value">${k.published || 0}</div><div class="kpi-sub">完成率 ${pct}%</div></div>
+      <div class="kpi b-pink"><div class="kpi-label">自发布笔记</div><div class="kpi-value">${k.self_published || 0}</div><div class="kpi-sub">业务自发(非任务)</div></div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
-      <div class="card"><div class="card-title">笔记排行(发布数)</div><div class="rank-list" id="kosRank"></div></div>
+      <div class="card"><div class="card-title">笔记排行(任务+自发布)</div><div class="rank-list" id="kosRank"></div></div>
       <div class="card"><div class="card-title">每日发布笔记</div><div class="chart-box"><canvas id="kosDaily"></canvas></div></div>
     </div>
     <div class="card"><div class="card-title">素材库容量使用</div><div id="kosLibs"></div></div>
-    <div class="card"><div class="card-title">任务笔记链接<span style="color:var(--muted);font-weight:400;font-size:12px" id="kosNotesCount"></span></div><div id="kosNotes"></div></div>`;
-  renderRank('kosRank', (k.by_user || []).map(u => ({ label: u.name || '', sub: u.department || '', count: u.count })));
+    <div class="card"><div class="card-title">任务笔记链接<span style="color:var(--muted);font-weight:400;font-size:12px" id="kosNotesCount"></span></div><div id="kosNotes"></div></div>
+    <div class="card"><div class="card-title">自发布笔记链接<span style="color:var(--muted);font-weight:400;font-size:12px" id="kosSelfCount"></span></div><div id="kosSelfNotes"></div></div>`;
+  renderRank('kosRank', (k.by_user || []).map(u => ({
+    label: u.name || '',
+    sub: (u.department || '') + (u.self_count ? ` · 任务${u.task_count || 0} 自发${u.self_count}` : ''),
+    count: u.count })));
   const libs = k.by_library || [];
   $('kosLibs').innerHTML = libs.length ? libs.map(l => {
     const p = l.total ? Math.round(l.used / l.total * 100) : 0;
@@ -694,6 +699,18 @@ function renderKos(k) {
       <span style="color:var(--muted);font-size:12px">${tm}</span>
     </div>`;
   }).join('') : '<div style="color:var(--muted);padding:12px 0">时间范围内还没有回填的笔记链接</div>';
+  const selfNotes = k.self_notes || [];
+  $('kosSelfCount').textContent = selfNotes.length ? '  共 ' + selfNotes.length + ' 条' : '';
+  $('kosSelfNotes').innerHTML = selfNotes.length ? selfNotes.map(n => {
+    const d = n.at ? new Date(n.at * 1000) : null;
+    const pad = x => String(x).padStart(2, '0');
+    const tm = d ? `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
+    return `<div style="display:flex;gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--border-soft);font-size:13px;flex-wrap:wrap">
+      <span style="min-width:110px">${escapeHtml(n.name || '')} <span style="color:var(--muted)">${escapeHtml(n.department || '')}</span></span>
+      <a href="${escapeHtml(n.url)}" target="_blank" rel="noopener" style="color:var(--accent-strong);word-break:break-all;flex:1">${escapeHtml(n.url)}</a>
+      <span style="color:var(--muted);font-size:12px">${tm}</span>
+    </div>`;
+  }).join('') : '<div style="color:var(--muted);padding:12px 0">时间范围内还没有自发布笔记</div>';
   const dd = (k.by_daily || []).slice().sort((a, b) => a.key.localeCompare(b.key));
   if (window.Chart && dd.length) {
     __state.charts.kos = new Chart($('kosDaily'), {

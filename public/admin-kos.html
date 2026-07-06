@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>KOS 任务管理 · 乔山销售助手</title>
+<title>任务创建 · 乔山销售助手</title>
 <link rel="stylesheet" href="/assets/app.css" />
 <style>
   .subbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; }
@@ -88,7 +88,7 @@ if (me) {
   App.mountTopbar();
   if (!['org_admin','super_admin'].includes(App.roleOf(me))) {
     document.getElementById('content').innerHTML =
-      '<div class="deny"><h2>无权访问</h2><p>KOS 任务管理仅向管理员开放。</p><p><a href="/">← 返回工作台</a></p></div>';
+      '<div class="deny"><h2>无权访问</h2><p>任务创建仅向管理员开放。</p><p><a href="/">← 返回工作台</a></p></div>';
   } else { init(); }
 }
 

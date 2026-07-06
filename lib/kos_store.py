@@ -635,11 +635,29 @@ def kos_dashboard(days=30):
         published = c.execute(
             "SELECT COUNT(*) FROM kos_packs WHERE status='published' AND COALESCE(published_at,created_at)>=?",
             (since,)).fetchone()[0]
-        rows = c.execute(
-            "SELECT user_name, department, COUNT(*) c FROM kos_packs "
-            "WHERE status='published' AND COALESCE(published_at,created_at)>=? "
-            "GROUP BY emp_id ORDER BY c DESC LIMIT 20", (since,)).fetchall()
-        by_user = [{"name": r["user_name"], "department": r["department"], "count": r["c"]} for r in rows]
+        self_published = c.execute(
+            "SELECT COUNT(*) FROM kos_self_posts WHERE created_at>=?", (since,)).fetchone()[0]
+        # 笔记排行 = 任务笔记 + 自发布笔记 合并计数(按 emp_id 合并)
+        agg = {}
+        for r in c.execute(
+                "SELECT emp_id, user_name, department, COUNT(*) c FROM kos_packs "
+                "WHERE status='published' AND COALESCE(published_at,created_at)>=? "
+                "GROUP BY emp_id", (since,)).fetchall():
+            e = r["emp_id"] or r["user_name"] or ''
+            agg[e] = {"name": r["user_name"], "department": r["department"],
+                      "task_count": r["c"], "self_count": 0}
+        for r in c.execute(
+                "SELECT emp_id, user_name, department, COUNT(*) c FROM kos_self_posts "
+                "WHERE created_at>=? GROUP BY emp_id", (since,)).fetchall():
+            e = r["emp_id"] or r["user_name"] or ''
+            a = agg.setdefault(e, {"name": r["user_name"], "department": r["department"],
+                                   "task_count": 0, "self_count": 0})
+            a["self_count"] = r["c"]
+            if not a.get("name"):
+                a["name"] = r["user_name"]; a["department"] = r["department"]
+        by_user = sorted(
+            [dict(a, count=a["task_count"] + a["self_count"]) for a in agg.values()],
+            key=lambda x: (-x["count"], -x["task_count"]))[:20]
         by_library = []
         for l in c.execute("SELECT id,brand,product,code FROM kos_libraries WHERE active=1 ORDER BY created_at DESC").fetchall():
             cap = capacity(l["id"])
@@ -665,9 +683,19 @@ def kos_dashboard(days=30):
             "at": r["published_at"],
             "task": (r["title"] or ((r["brand"] or '') + ' ' + (r["product"] or ''))).strip(),
         } for r in nrows]
+        # 自发布笔记链接:业务自发的非任务笔记,同样给管理员点开查看
+        srows = c.execute(
+            "SELECT user_name, department, note_url, created_at FROM kos_self_posts "
+            "WHERE created_at>=? ORDER BY created_at DESC LIMIT 300", (since,)).fetchall()
+        self_notes = [{
+            "name": r["user_name"], "department": r["department"],
+            "url": extract_note_url(r["note_url"]) or r["note_url"],
+            "at": r["created_at"],
+        } for r in srows]
         return {"tasks": tasks, "open_tasks": open_tasks, "issued": issued, "published": published,
                 "completion_pct": (round(published / issued * 100) if issued else 0),
+                "self_published": self_published,
                 "by_user": by_user, "by_library": by_library, "by_daily": by_daily,
-                "task_notes": task_notes}
+                "task_notes": task_notes, "self_notes": self_notes}
     finally:
         c.close()
