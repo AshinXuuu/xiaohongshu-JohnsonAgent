@@ -63,6 +63,26 @@
   .fmeta-sub { display: flex; align-items: center; gap: 8px; }
   .fmeta .fname { flex: none; }
 
+  /* 文件卡片:预览图为主,横向网格排布 */
+  .file-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px; padding: 12px 16px 16px;
+  }
+  .file-card {
+    display: flex; flex-direction: column; gap: 8px;
+    background: white; border: 1px solid var(--border-soft); border-radius: 10px;
+    padding: 10px; box-shadow: var(--shadow, 0 1px 2px rgba(15,23,42,0.04));
+  }
+  .file-card .fthumb { width: 100%; height: auto; aspect-ratio: 3 / 4; }
+  .file-card .fthumb-fallback { font-size: 40px; }
+  .file-card .fname {
+    font-size: 12.5px; line-height: 1.45; word-break: break-all;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    min-height: 2.6em;
+  }
+  .file-card .fmeta-sub { display: flex; align-items: center; gap: 6px; }
+  .file-card .dl-btn { width: 100%; margin-top: auto; }
+
   /* 缩略图放大预览层:点遮罩关闭 */
   .thumb-viewer {
     position: fixed; inset: 0; z-index: 200; display: none;
@@ -83,9 +103,8 @@
   .dl-btn:disabled { opacity: 0.6; cursor: default; }
 
   @media (max-width: 640px) {
-    .file-row { flex-wrap: wrap; }
-    .fmeta { flex-basis: calc(100% - 160px); }
-    .dl-btn { margin-left: auto; }
+    .file-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px 12px 14px; }
+    .file-card { padding: 8px; }
   }
 </style>
 </head>
@@ -174,17 +193,16 @@ function thumbHtml(f) {
 
 function productHtml(brand, p) {
   const files = p.files.map(f => `
-    <div class="file-row">
+    <div class="file-card">
       ${thumbHtml(f)}
-      <div class="fmeta">
-        <span class="fname">${escapeHtml(f.name)}</span>
-        <div class="fmeta-sub">
-          <span class="ftype ${escapeHtml(f.type)}">${escapeHtml(f.type || '资料')}</span>
-          <span class="fsize">${fmtSize(f.size)}</span>
-        </div>
+      <span class="fname" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+      <div class="fmeta-sub">
+        <span class="ftype ${escapeHtml(f.type)}">${escapeHtml(f.type || '资料')}</span>
+        <span class="fsize">${fmtSize(f.size)}</span>
       </div>
       <button class="dl-btn" data-key="${escapeHtml(f.key)}" data-name="${escapeHtml(f.name)}">下载</button>
     </div>`).join('');
+  const grid = `<div class="file-grid">${files}</div>`;
   return `
     <div class="prod">
       <div class="prod-head">
@@ -192,7 +210,7 @@ function productHtml(brand, p) {
         <span class="prod-name">${escapeHtml(p.name)}</span>
         <span class="prod-count">${p.files.length} 份</span>
       </div>
-      ${files}
+      ${grid}
     </div>`;
 }
 
