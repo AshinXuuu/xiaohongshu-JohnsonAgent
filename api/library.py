@@ -1,7 +1,12 @@
 """产品资料库 —— 在线下载产品资料(单页 / 中英文说明书)。
 
 资料文件存放在腾讯云对象存储(COS)私有桶里,本接口:
-  - GET  /api/library                 → 返回资料清单(品牌→产品→文件,不含直链)
+  - GET  /api/library                 → 返回资料清单(品牌→产品→文件,不含直链;
+                                         每个文件带 thumb_url 供列表页显示封面缩略图)
+  - GET  /api/library?thumb=1&key=<cos_key>&t=<token>
+                                      → 令牌校验后返回该文件的封面缩略图(JPEG,本地缓存;
+                                         <img> 带不了 Authorization 头,故用 HMAC 令牌放 URL,
+                                         同 api/kos.py 的成品图下载)
   - POST /api/library  {key, _user}   → 校验 key 合法后,返回一条有时效的 COS 预签名下载链接,
                                          并记录一次 download 事件
 
@@ -18,9 +23,13 @@
   COS_PREFIX=产品库/               # 上传时的 Key 前缀(若直接传了产品库文件夹就是「产品库/」)
   COS_URL_EXPIRE=300              # 链接有效期(秒),可选,默认 300
 """
+import hashlib
+import hmac
 import json
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
@@ -29,6 +38,9 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 MANIFEST_PATH = ROOT / "data" / "library_manifest.json"
+THUMBS_DIR = ROOT / "data" / "library_thumbs"
+THUMB_WIDTH = 640
+_THUMB_IMG_EXT = ('.jpg', '.jpeg', '.png', '.webp')
 
 
 # ──────────────────────── 数据 ────────────────────────
@@ -97,6 +109,122 @@ def make_presigned_url(key: str, filename: str) -> str:
     )
 
 
+# ──────────────────────── 缩略图 ────────────────────────
+
+def _thumb_secret() -> bytes:
+    """缩略图令牌的签名密钥。同 api/kos.py 的 _img_secret:
+    优先读专用密钥 KOS_IMG_SECRET,回退到已有的高熵 SESSION_SECRET;
+    都没有则直接报错,绝不使用可预测的常量。"""
+    s = (os.environ.get('KOS_IMG_SECRET')
+         or os.environ.get('SESSION_SECRET')
+         or os.environ.get('DEEPSEEK_API_KEY'))
+    if not s:
+        raise RuntimeError('缩略图令牌密钥未配置,请在 .env 设置 KOS_IMG_SECRET')
+    return s.encode('utf-8')
+
+
+def thumb_token(key: str) -> str:
+    """key → HMAC-SHA256 令牌(消息前缀 'libthumb:',与 KOS 成品图令牌区分)。"""
+    msg = ('libthumb:' + key).encode('utf-8')
+    return hmac.new(_thumb_secret(), msg, hashlib.sha256).hexdigest()
+
+
+def thumb_url(key: str) -> str:
+    return f"/api/library?thumb=1&key={quote(key)}&t={thumb_token(key)}"
+
+
+def thumb_cache_path(key: str) -> Path:
+    return THUMBS_DIR / (hashlib.sha256(key.encode('utf-8')).hexdigest()[:16] + '.jpg')
+
+
+def pdf_to_thumb(src: str, dest: str, width: int = THUMB_WIDTH) -> bool:
+    """PDF 第 1 页 → JPG 缩略图(宽约 width px,质量 72)。
+    PyMuPDF 可能未安装,故 import fitz 必须放在函数内 —— 失败只让缩略图不可用(前端降级),
+    绝不能拖垮整个模块;渲染失败(损坏 PDF 等)同样返回 False。"""
+    try:
+        import fitz  # PyMuPDF
+    except Exception as e:
+        print(f"[library] PyMuPDF 不可用,PDF 缩略图跳过:{e!r}", flush=True)
+        return False
+    try:
+        from PIL import Image
+        doc = fitz.open(src)
+        try:
+            page = doc.load_page(0)
+            zoom = width / max(page.rect.width, 1.0)
+            pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+        finally:
+            doc.close()
+        img.save(dest, "JPEG", quality=72)
+        return True
+    except Exception as e:
+        print(f"[library] PDF 缩略图生成失败({src}):{e!r}", flush=True)
+        return False
+
+
+def image_to_thumb(src: str, dest: str, width: int = THUMB_WIDTH) -> bool:
+    """图片(jpg/png/webp)→ 宽 width 的 JPG 缩略图。失败返回 False。"""
+    try:
+        from PIL import Image
+        img = Image.open(src).convert("RGB")
+        if img.width > width:
+            img = img.resize((width, max(1, round(img.height * width / img.width))), Image.LANCZOS)
+        img.save(dest, "JPEG", quality=72)
+        return True
+    except Exception as e:
+        print(f"[library] 图片缩略图生成失败({src}):{e!r}", flush=True)
+        return False
+
+
+def build_thumb(key: str, cache: Path) -> bool:
+    """从 COS 拉源文件生成缩略图写入 cache。不支持的类型 / 任一步失败都返回 False(上层回 404)。"""
+    ext = os.path.splitext(key)[1].lower()
+    if ext != '.pdf' and ext not in _THUMB_IMG_EXT:
+        return False
+    tmp = tempfile.mkdtemp(prefix="libthumb_")
+    try:
+        src = os.path.join(tmp, "src" + ext)
+        try:
+            from qcloud_cos import CosConfig, CosS3Client
+            cfg = cos_config()
+            missing = [k for k in ("secret_id", "secret_key", "region", "bucket") if not cfg[k]]
+            if missing:
+                print(f"[library] COS 未配置(缺 {', '.join(missing)}),缩略图不可用", flush=True)
+                return False
+            client = CosS3Client(CosConfig(
+                Region=cfg["region"], SecretId=cfg["secret_id"],
+                SecretKey=cfg["secret_key"], Scheme="https"))
+            resp = client.get_object(Bucket=cfg["bucket"], Key=f"{cfg['prefix']}{key}")
+            resp["Body"].get_stream_to_file(src)
+        except Exception as e:
+            print(f"[library] COS 拉取源文件失败({key}):{e!r}", flush=True)
+            return False
+        out = os.path.join(tmp, "thumb.jpg")
+        ok = pdf_to_thumb(src, out) if ext == '.pdf' else image_to_thumb(src, out)
+        if not ok:
+            return False
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(out, str(cache))   # 先在临时目录出图再移入缓存,避免半成品被命中
+        return True
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def attach_thumb_urls(brands: dict):
+    """给清单里每个文件补 thumb_url(带 HMAC 令牌,供 <img> 直接引用)。
+    密钥未配置等异常时静默跳过 —— 前端按无缩略图降级,清单本身不受影响。"""
+    try:
+        for products in (brands or {}).values():
+            for p in products:
+                for f in p.get("files", []):
+                    key = f.get("key") or ""
+                    if key:
+                        f["thumb_url"] = thumb_url(key)
+    except Exception as e:
+        print(f"[library] thumb_url 生成跳过:{e!r}", flush=True)
+
+
 # ──────────────────────── 日志 ────────────────────────
 
 def log_download(user: dict, info: dict):
@@ -124,18 +252,51 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        """GET /api/library[?action=manifest] → 资料清单(不含直链)"""
+        """GET /api/library[?action=manifest] → 资料清单(不含直链)
+        GET /api/library?thumb=1&key=...&t=... → 封面缩略图(JPEG,令牌校验)"""
         try:
             qs = parse_qs(urlparse(self.path).query)
+            if qs.get("thumb"):
+                return self._thumb(qs)
             action = (qs.get("action", ["manifest"])[0]).strip()
             if action in ("", "manifest"):
                 from lib.library_store import grouped
-                return self._json(200, {"brands": grouped()})
+                brands = grouped()
+                attach_thumb_urls(brands)
+                return self._json(200, {"brands": brands})
             return self._error(400, "未知 action")
         except Exception as e:
             import traceback; traceback.print_exc()
             print("[API-500] " + getattr(self, "path", "") + " " + repr(e), flush=True)
             self._error(500, "服务器开小差了,请稍后重试")
+
+    def _thumb(self, qs):
+        """令牌校验 + 白名单校验后返回缩略图;命中 data/library_thumbs/ 缓存则直接回。"""
+        key = (qs.get("key", [""])[0]).strip()
+        tok = (qs.get("t", [""])[0]).strip()
+        if not key or not tok:
+            return self._error(400, "缺少参数")
+        try:
+            expect = thumb_token(key)
+        except RuntimeError as e:
+            print(f"[library] 缩略图密钥缺失:{e}", flush=True)
+            return self._error(404, "缩略图不可用")
+        if not hmac.compare_digest(tok, expect):
+            return self._error(403, "无权访问")
+        from lib.library_store import allowed_keys as _allowed
+        if key not in _allowed():
+            # 不在白名单 → 拒绝(与下载同一道闸,防止越权渲染未开放资料)
+            return self._error(403, "该资料不在可访问范围内")
+        cache = thumb_cache_path(key)
+        if not cache.exists() and not build_thumb(key, cache):
+            return self._error(404, "缩略图不可用")
+        data = cache.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "image/jpeg")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "private, max-age=86400")
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_POST(self):
         """POST /api/library {key, _user} → 返回预签名下载链接"""

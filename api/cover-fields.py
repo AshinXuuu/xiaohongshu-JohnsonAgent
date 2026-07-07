@@ -83,6 +83,57 @@ def parse(raw):
     return json.loads(raw)
 
 
+def extract_fields(brand_name, product_name, copy_type="", extra="",
+                   existing_titles=None, existing_body="", existing_tags=None):
+    """核心提炼逻辑(模块级):品牌/产品资料 +(可选)已生成文案 → 3 个封面短字段 dict。
+    从 handler 中轻度抽出,供本接口与 api/kos.py 的 ai_cover 两处复用,接口行为不变。
+    产品不存在抛 LookupError(调用方回 404);AI 并发繁忙沿用 AIBusyError 向上抛。"""
+    import sys as _sys
+    if str(ROOT) not in _sys.path:
+        _sys.path.insert(0, str(ROOT))
+    from lib.products_store import find_product as _ps_find
+    brand, product = _ps_find(brand_name, product_name)
+    if not brand or not product:
+        raise LookupError(f"产品不存在:{brand_name} / {product_name}")
+
+    existing_titles = existing_titles or []
+    existing_tags = existing_tags or []
+    existing_body = (existing_body or "").strip()
+
+    system_prompt = PROMPT_FILE.read_text(encoding="utf-8")
+    user_msg_parts = [
+        f"【品牌】{brand_name}",
+        f"【产品】{product_name}",
+        f"【文案类型】{copy_type or '通用'}",
+        f"\n【产品资料(基础信息)】\n{product['content']}",
+    ]
+    # 把已生成的文案做为额外素材给模型
+    if existing_titles:
+        titles_text = "\n".join(f"  - {t}" for t in existing_titles[:5])
+        user_msg_parts.append(f"\n【已生成的 5 个候选标题(可借鉴/改写)】\n{titles_text}")
+    if existing_body:
+        # 正文截断 800 字以内,避免超 token
+        snippet = existing_body[:800] + ("..." if len(existing_body) > 800 else "")
+        user_msg_parts.append(f"\n【已生成的笔记正文(可萃取场景/情绪/数据点)】\n{snippet}")
+    if existing_tags:
+        user_msg_parts.append(f"\n【话题标签】\n{' '.join(existing_tags)}")
+    if extra:
+        user_msg_parts.append(f"\n【业务补充】{extra}")
+    user_msg_parts.append(
+        "\n请综合以上所有素材,提炼 3 个**互不重复**的封面字段。"
+        "每次请求都要给出和之前不同的结果,不要重复套路。严格按 JSON 输出。"
+    )
+    user_prompt = "\n".join(user_msg_parts)
+
+    raw = call_deepseek(system_prompt, user_prompt)
+    parsed = parse(raw)
+    return {
+        "main_title": (parsed.get("main_title") or "").strip(),
+        "subtitle": (parsed.get("subtitle") or "").strip(),
+        "hua_text": (parsed.get("hua_text") or "").strip(),
+    }
+
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
@@ -127,50 +178,18 @@ class handler(BaseHTTPRequestHandler):
             if not brand_name or not product_name:
                 return self._error(400, "缺少 brand / product")
 
-            import sys as _sys
-            _sys.path.insert(0, str(ROOT))
-            from lib.products_store import find_product as _ps_find
-            brand, product = _ps_find(brand_name, product_name)
-            if not brand or not product:
-                return self._error(404, f"产品不存在:{brand_name} / {product_name}")
-
-            system_prompt = PROMPT_FILE.read_text(encoding="utf-8")
-            user_msg_parts = [
-                f"【品牌】{brand_name}",
-                f"【产品】{product_name}",
-                f"【文案类型】{copy_type or '通用'}",
-                f"\n【产品资料(基础信息)】\n{product['content']}",
-            ]
-            # 把已生成的文案做为额外素材给模型
-            if existing_titles:
-                titles_text = "\n".join(f"  - {t}" for t in existing_titles[:5])
-                user_msg_parts.append(f"\n【已生成的 5 个候选标题(可借鉴/改写)】\n{titles_text}")
-            if existing_body:
-                # 正文截断 800 字以内,避免超 token
-                snippet = existing_body[:800] + ("..." if len(existing_body) > 800 else "")
-                user_msg_parts.append(f"\n【已生成的笔记正文(可萃取场景/情绪/数据点)】\n{snippet}")
-            if existing_tags:
-                user_msg_parts.append(f"\n【话题标签】\n{' '.join(existing_tags)}")
-            if extra:
-                user_msg_parts.append(f"\n【业务补充】{extra}")
-            user_msg_parts.append(
-                "\n请综合以上所有素材,提炼 3 个**互不重复**的封面字段。"
-                "每次请求都要给出和之前不同的结果,不要重复套路。严格按 JSON 输出。"
-            )
-            user_prompt = "\n".join(user_msg_parts)
-
             from lib.aigate import AIBusyError
             try:
-                raw = call_deepseek(system_prompt, user_prompt)
+                fields = extract_fields(
+                    brand_name, product_name, copy_type=copy_type, extra=extra,
+                    existing_titles=existing_titles, existing_body=existing_body,
+                    existing_tags=existing_tags)
+            except LookupError as e:
+                return self._error(404, str(e))
             except AIBusyError as e:
                 return self._error(503, str(e))
-            parsed = parse(raw)
 
-            self._json(200, {
-                "main_title": (parsed.get("main_title") or "").strip(),
-                "subtitle": (parsed.get("subtitle") or "").strip(),
-                "hua_text": (parsed.get("hua_text") or "").strip(),
-            })
+            self._json(200, fields)
         except Exception as e:
             import traceback; traceback.print_exc()
             print("[API-500] " + getattr(self, "path", "") + " " + repr(e), flush=True)

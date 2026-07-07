@@ -50,6 +50,30 @@
   .ftype.英文说明书 { background: #fef3c7; color: #b45309; }
   .fname { flex: 1; font-size: 13px; color: var(--text-soft); word-break: break-all; }
   .fsize { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+
+  /* 封面缩略图:3:4 灰底占位,生成失败/未装渲染库时显示 📄 */
+  .fthumb {
+    width: 72px; height: 96px; flex: none; border-radius: 8px; overflow: hidden;
+    background: var(--border-soft); border: 1px solid var(--border-soft);
+    display: flex; align-items: center; justify-content: center; cursor: zoom-in;
+  }
+  .fthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .fthumb-fallback { font-size: 26px; opacity: 0.55; cursor: default; }
+  .fmeta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .fmeta-sub { display: flex; align-items: center; gap: 8px; }
+  .fmeta .fname { flex: none; }
+
+  /* 缩略图放大预览层:点遮罩关闭 */
+  .thumb-viewer {
+    position: fixed; inset: 0; z-index: 200; display: none;
+    align-items: center; justify-content: center; padding: 24px;
+    background: rgba(15, 23, 42, 0.65); cursor: zoom-out;
+  }
+  .thumb-viewer.open { display: flex; }
+  .thumb-viewer img {
+    max-width: min(92vw, 720px); max-height: 88vh; border-radius: 12px;
+    background: white; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); cursor: default;
+  }
   .dl-btn {
     padding: 7px 14px; border: none; border-radius: 8px; background: var(--accent);
     color: white; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
@@ -60,7 +84,7 @@
 
   @media (max-width: 640px) {
     .file-row { flex-wrap: wrap; }
-    .fname { flex-basis: 100%; order: 3; }
+    .fmeta { flex-basis: calc(100% - 160px); }
     .dl-btn { margin-left: auto; }
   }
 </style>
@@ -76,6 +100,11 @@
     <input class="search" id="search" placeholder="搜产品名,如 TX-5 / 哑铃 / 椭圆机" />
   </div>
   <div id="list"><div class="loading">正在加载资料清单...</div></div>
+</div>
+
+<!-- 缩略图放大预览层(点遮罩关闭) -->
+<div class="thumb-viewer" id="thumbViewer">
+  <img id="thumbViewerImg" alt="资料封面预览" />
 </div>
 
 <script src="/assets/app.js"></script>
@@ -130,14 +159,30 @@ function render() {
   }
   $('list').innerHTML = rows.length ? rows.join('') : '<div class="empty">没有匹配的产品</div>';
   $('list').querySelectorAll('.dl-btn').forEach(btn => { btn.onclick = () => download(btn); });
+  $('list').querySelectorAll('.fthumb').forEach(el => { el.onclick = () => openViewer(el); });
+}
+
+function thumbHtml(f) {
+  // 有 thumb_url 才放 <img>;加载失败(未装渲染库/生成失败)onerror 隐藏图片、露出 📄 占位
+  const inner = f.thumb_url
+    ? `<img src="${escapeHtml(f.thumb_url)}" alt="" loading="lazy"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='';" /><span
+         class="fthumb-fallback" style="display:none">📄</span>`
+    : `<span class="fthumb-fallback">📄</span>`;
+  return `<div class="fthumb" data-thumb="${escapeHtml(f.thumb_url || '')}">${inner}</div>`;
 }
 
 function productHtml(brand, p) {
   const files = p.files.map(f => `
     <div class="file-row">
-      <span class="ftype ${escapeHtml(f.type)}">${escapeHtml(f.type || '资料')}</span>
-      <span class="fname">${escapeHtml(f.name)}</span>
-      <span class="fsize">${fmtSize(f.size)}</span>
+      ${thumbHtml(f)}
+      <div class="fmeta">
+        <span class="fname">${escapeHtml(f.name)}</span>
+        <div class="fmeta-sub">
+          <span class="ftype ${escapeHtml(f.type)}">${escapeHtml(f.type || '资料')}</span>
+          <span class="fsize">${fmtSize(f.size)}</span>
+        </div>
+      </div>
       <button class="dl-btn" data-key="${escapeHtml(f.key)}" data-name="${escapeHtml(f.name)}">下载</button>
     </div>`).join('');
   return `
@@ -174,6 +219,20 @@ async function download(btn) {
     btn.disabled = false; btn.textContent = orig;
   }
 }
+
+// ── 缩略图放大预览(用同一张缩略图,点遮罩关闭)──
+function openViewer(el) {
+  const url = el.dataset.thumb;
+  const img = el.querySelector('img');
+  if (!url || !img || img.style.display === 'none') return;  // 无图/加载失败不弹层
+  $('thumbViewerImg').src = url;
+  $('thumbViewer').classList.add('open');
+}
+$('thumbViewer').addEventListener('click', () => {
+  $('thumbViewer').classList.remove('open');
+  $('thumbViewerImg').removeAttribute('src');
+});
+$('thumbViewerImg').addEventListener('click', e => e.stopPropagation());
 
 $('search').addEventListener('input', e => { keyword = e.target.value.trim().toLowerCase(); render(); });
 

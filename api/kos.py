@@ -7,6 +7,8 @@ POST /api/kos
   action=complete {pack_id, note_url} 回填小红书链接 → 标记已发布
   action=leaderboard                  排行榜(完成任务数 + 笔记数)
   action=my_packs {task_id?}          我领过的记录
+  action=ai_cover {pack_id}           可选 AI 封面:文案快照提炼三段字 → 豆包在原封面素材上
+                                        叠字出图,返回候选图临时 URL(不落库、不改 pack)
 
 GET /api/kos?img=1&pack=<id>&kind=cover|two|four&t=<token>
   令牌校验后返回本地成品 JPEG(成品图不写 COS,规避只读密钥限制)。
@@ -17,10 +19,12 @@ from urllib.parse import urlparse, parse_qs
 import os
 import sys
 import json
+import base64
 import hashlib
 import random
 import shutil
 import tempfile
+import threading
 import mimetypes
 import importlib.util
 
@@ -87,6 +91,20 @@ def _gen_module():
     return m
 
 
+def _fields_module():
+    spec = importlib.util.spec_from_file_location('kos_fieldsmod', str(ROOT / 'api' / 'cover-fields.py'))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def _cover_gen_module():
+    spec = importlib.util.spec_from_file_location('kos_covergenmod', str(ROOT / 'api' / 'cover-generate.py'))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
 # 种草角度池:每次领取随机取一个,保证同一产品每个人拿到的文案各不相同(整体仍是种草)
 _COPY_ANGLES = [
     "从真实使用场景切入,突出日常怎么用、用起来的感受",
@@ -143,6 +161,122 @@ def _make_copy(brand_name, product_name):
 
 def _img_url(pack_id, kind, emp_id):
     return f"/api/kos?img=1&pack={pack_id}&kind={kind}&t={_token(pack_id, emp_id)}"
+
+
+# ──────────────── 可选 AI 封面(不落库、不改 pack)────────────────
+
+def _ai_cover_n():
+    """一次生成几张候选封面:环境变量 KOS_AI_COVER_N 可调,限 1-3,默认 2。"""
+    try:
+        n = int(os.environ.get('KOS_AI_COVER_N', '2'))
+    except ValueError:
+        n = 2
+    return max(1, min(3, n))
+
+
+def _photo_data_url(path, max_w=1200, quality=85):
+    """底图预处理:旋正 → 宽压到 ≤ max_w 的 JPG → base64 data url
+    (cover-generate 接收的就是 data url,压缩后稳在其 4MB 上限内)。"""
+    from io import BytesIO
+    from PIL import Image, ImageOps
+    with Image.open(path) as img:
+        img = ImageOps.exif_transpose(img).convert('RGB')
+        if img.width > max_w:
+            img = img.resize((max_w, round(img.height * max_w / img.width)), Image.LANCZOS)
+        buf = BytesIO()
+        img.save(buf, 'JPEG', quality=quality)
+    return 'data:image/jpeg;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+
+
+def _ai_cover_fields(pack, brand, product):
+    """三段封面字:复用 cover-fields 的提炼逻辑(extract_fields),
+    输入 pack 的文案快照 —— 标题取第一条 + 正文 + 标签;copy_json 为空时
+    就自然落到 cover-fields 的「按产品资料」路径。
+    AIBusyError 向上抛(调用方回 503);其余失败兜底为产品名/品牌名,保证仍能出图。"""
+    try:
+        copy_json = json.loads(pack.get('copy_json') or '{}') or {}
+    except Exception:
+        copy_json = {}
+    titles = [t for t in (copy_json.get('titles') or []) if isinstance(t, str) and t.strip()]
+    body = (copy_json.get('body') or '').strip()
+    tags = [t for t in (copy_json.get('tags') or []) if isinstance(t, str)]
+    from lib.aigate import AIBusyError
+    try:
+        fm = _fields_module()
+        return fm.extract_fields(
+            brand, product, copy_type=COPY_TYPE,
+            existing_titles=titles[:1], existing_body=body, existing_tags=tags)
+    except AIBusyError:
+        raise
+    except Exception:
+        import traceback; traceback.print_exc()
+        return {"main_title": (product or "好物分享")[:12], "subtitle": brand or "", "hua_text": ""}
+
+
+def _gen_ai_covers(fields, image_data_url, n):
+    """复用 cover-generate 的生成通路(版式模板池 + compose_prompt + call_seededit
+    自带的失败重试),并发出 n 张,返回豆包临时图片 URL 列表(全失败为空)。"""
+    cg = _cover_gen_module()
+    style = cg.map_copy_type_to_style(COPY_TYPE)
+    pool = cg.STYLE_PROMPT_POOLS[style]
+    templates = random.sample(pool, k=min(n, len(pool)))
+    prompts = [cg.compose_prompt(t, fields.get('main_title') or '',
+                                 fields.get('subtitle') or '', fields.get('hua_text') or '')
+               for t in templates]
+    results = [None] * len(prompts)
+    threads = []
+    for i, p in enumerate(prompts):
+        t = threading.Thread(target=cg.call_seededit,
+                             args=(p, image_data_url, results, i, random.randint(1, 2**31 - 1)))
+        t.start()
+        threads.append(t)
+    for t in threads:
+        t.join(timeout=cg.HTTP_TIMEOUT * 2 + 10)
+    return [r['url'] for r in results if r and 'url' in r]
+
+
+def kos_ai_cover(pack_id, emp, rl_check=None):
+    """action=ai_cover 的核心流程,返回 (http_code, 响应 dict)。
+    抽成模块级函数便于离线单测;rl_check 由 handler 传入限流闭包,
+    顺序保持「归属校验 → 限流」,越权请求不消耗配额。"""
+    pack = kos_store.get_pack(pack_id)
+    if not pack:
+        return 404, {"error": "素材包不存在"}
+    if (pack.get('emp_id') or '') != emp:
+        return 403, {"error": "无权操作他人的素材包"}
+    if rl_check is not None:
+        ok, msg = rl_check()
+        if not ok:
+            return 429, {"error": msg}
+
+    task = kos_store.get_task(pack.get('task_id')) or {}
+    fields = _ai_cover_fields(pack, task.get('brand') or '', task.get('product') or '')
+
+    # 底图:领取时的封面素材 → COS 拉原图 → 压成 data url
+    mats = {m['id']: m for m in kos_store.list_materials(pack['library_id'])}
+    mat = mats.get(pack.get('cover_material_id'))
+    if not mat:
+        return 500, {"error": "素材记录缺失,请管理员重新同步素材库"}
+    try:
+        client, bucket = _cos_client()
+    except RuntimeError as e:
+        return 503, {"error": str(e)}
+    tmp = Path(tempfile.mkdtemp(prefix="kosai_"))
+    try:
+        key = mat['cos_key']
+        src = _download(client, bucket, key, str(tmp / ('cover_src' + _ext(key))))
+        image_data_url = _photo_data_url(src)
+    except Exception as e:
+        print(f"[KOS] ai_cover 底图准备失败:{e}", flush=True)
+        return 502, {"error": "AI 封面生成失败,请稍后重试(不影响已领取的图文)"}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    covers = _gen_ai_covers(fields, image_data_url, _ai_cover_n())
+    if not covers:
+        return 502, {"error": "AI 封面生成失败,请稍后重试(不影响已领取的图文)"}
+    # 豆包返回的是临时 URL,直接透传给前端;不落库、不改 pack
+    return 200, {"ok": True, "covers": covers, "fields": fields}
 
 
 class handler(BaseHTTPRequestHandler):
@@ -255,6 +389,21 @@ class handler(BaseHTTPRequestHandler):
                 if not _kos_joined():
                     return self._json(403, {"error": "你的账号未参与 KOS 任务,如有疑问请联系管理员"})
                 return self._issue(req, user, emp)
+
+            if action == "ai_cover":
+                # 付费接口:与封面生成共用 'cover_generate' 配额池(限流在归属校验之后执行)
+                from lib.ratelimit import check as _rl_check
+                from lib.aigate import AIBusyError
+                ip = self.client_address[0] if self.client_address else ''
+                print(f"[USAGE] action=kos_ai_cover user={emp}/{user.get('name')}/{user.get('department')} "
+                      f"pack={req.get('pack_id')}", flush=True)
+                try:
+                    code, obj = kos_ai_cover(
+                        req.get("pack_id"), emp,
+                        rl_check=lambda: _rl_check(user, ip, 'cover_generate'))
+                except AIBusyError as e:
+                    return self._json(503, {"error": str(e)})
+                return self._json(code, obj)
 
             return self._json(400, {"error": "未知 action"})
         except Exception as e:

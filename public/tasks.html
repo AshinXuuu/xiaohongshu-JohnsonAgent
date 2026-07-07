@@ -40,6 +40,11 @@
   .imgs figcaption { font-size:11px; color:var(--muted); text-align:center; margin-top:4px; }
   .imgs a { display:block; text-align:center; font-size:12px; color:var(--accent-strong); margin-top:3px; text-decoration:none; }
   .tip { font-size:12px; color:var(--muted); margin:10px 0; }
+  .aicover { margin-top:4px; }
+  .aicover .genbtn { width:100%; }
+  .aiimgs { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; margin-top:10px; }
+  .aiimgs a { display:block; }
+  .aiimgs img { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:8px; border:1px solid var(--border); background:var(--primary-soft); display:block; }
   .cbox { background:var(--primary-soft); border-radius:10px; padding:10px 12px; margin-top:10px; }
   .cbox .chead { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
   .cbox .t { font-weight:600; font-size:12.5px; color:var(--text-soft); }
@@ -261,6 +266,11 @@ function showPack(p, taskId, fromList) {
     </div>
     <div class="tip">手机长按图片即可保存;电脑可点「下载」。</div>
 
+    <div class="aicover">
+      <button class="btn genbtn" onclick="genAiCover(${p.pack_id}, this)">${_aiCovers[p.pack_id] ? '再来一批' : '✨ AI 封面(约 1 分钟)'}</button>
+      <div id="aiWrap${p.pack_id}">${_aiCovers[p.pack_id] ? aiCoverHtml(_aiCovers[p.pack_id].covers) : ''}</div>
+    </div>
+
     <div class="cbox">
       <div class="chead"><span class="t">标题</span><button class="copybtn" onclick="copyText(this)" data-c="${esc(title)}">复制标题</button></div>
       <div class="val">${esc(title) || '<span style="color:var(--muted)">(无)</span>'}</div>
@@ -288,6 +298,34 @@ window.showPack = showPack;
 
 function closePack() { document.getElementById('modal').classList.remove('show'); }
 window.closePack = closePack;
+
+// ───────── 可选 AI 封面(豆包返回临时 URL,只在本次会话内暂存,刷新即失效)─────────
+const _aiCovers = {};   // pack_id -> { covers:[url,...], fields:{...} }
+
+function aiCoverHtml(covers) {
+  return `<div class="aiimgs">
+      ${covers.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="AI 封面" /></a>`).join('')}
+    </div>
+    <div class="tip">点击可新窗口打开原图;长按/右键保存,可替代封面图使用。</div>`;
+}
+
+async function genAiCover(packId, btn) {
+  btn.disabled = true;
+  const o = btn.textContent;
+  btn.textContent = '生成中...(约 1 分钟,请勿离开)';
+  const r = await api('ai_cover', { pack_id: packId });
+  btn.disabled = false;
+  if (!r.ok || r.data.error || !(r.data.covers || []).length) {
+    btn.textContent = o;
+    App.toast((r.data && r.data.error) || 'AI 封面生成失败,请稍后重试');
+    return;
+  }
+  _aiCovers[packId] = { covers: r.data.covers, fields: r.data.fields || {} };
+  btn.textContent = '再来一批';
+  const wrap = document.getElementById('aiWrap' + packId);
+  if (wrap) wrap.innerHTML = aiCoverHtml(r.data.covers);
+}
+window.genAiCover = genAiCover;
 
 async function copyText(btn) {
   const txt = btn.getAttribute('data-c') || '';
