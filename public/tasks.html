@@ -267,8 +267,9 @@ function showPack(p, taskId, fromList) {
     <div class="tip">手机长按图片即可保存;电脑可点「下载」。</div>
 
     <div class="aicover">
-      <button class="btn genbtn" onclick="genAiCover(${p.pack_id}, this)">${_aiCovers[p.pack_id] ? '再来一批' : '✨ AI 封面(约 1 分钟)'}</button>
-      <div id="aiWrap${p.pack_id}">${_aiCovers[p.pack_id] ? aiCoverHtml(_aiCovers[p.pack_id].covers) : ''}</div>
+      ${(() => { const cs = (_aiCovers[p.pack_id] && _aiCovers[p.pack_id].covers) || p.ai_covers || []; return `
+      <button class="btn genbtn" onclick="genAiCover(${p.pack_id}, this)">${cs.length ? '再来一批' : '一键生成封面图(约 1 分钟,请勿离开)'}</button>
+      <div id="aiWrap${p.pack_id}">${cs.length ? aiCoverHtml(cs) : ''}</div>`; })()}
     </div>
 
     <div class="cbox">
@@ -299,8 +300,14 @@ window.showPack = showPack;
 function closePack() { document.getElementById('modal').classList.remove('show'); }
 window.closePack = closePack;
 
-// ───────── 可选 AI 封面(豆包返回临时 URL,只在本次会话内暂存,刷新即失效)─────────
-const _aiCovers = {};   // pack_id -> { covers:[url,...], fields:{...} }
+// ───────── 可选 AI 封面(服务端已持久化,本地记录也存一份,每次打开都能看到)─────────
+const _aiCovers = {};   // pack_id -> { covers:[url,...], fields:{...} }(本次会话缓存)
+
+function updateLocalAiCovers(packId, covers) {
+  const o = allLocal();
+  Object.keys(o).forEach(tid => (o[tid] || []).forEach(p => { if (p.pack_id === packId) p.ai_covers = covers; }));
+  saveLocal(o);
+}
 
 function aiCoverHtml(covers) {
   return `<div class="aiimgs">
@@ -321,6 +328,7 @@ async function genAiCover(packId, btn) {
     return;
   }
   _aiCovers[packId] = { covers: r.data.covers, fields: r.data.fields || {} };
+  updateLocalAiCovers(packId, r.data.covers);
   btn.textContent = '再来一批';
   const wrap = document.getElementById('aiWrap' + packId);
   if (wrap) wrap.innerHTML = aiCoverHtml(r.data.covers);

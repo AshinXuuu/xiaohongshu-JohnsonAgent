@@ -275,8 +275,33 @@ def kos_ai_cover(pack_id, emp, rl_check=None):
     covers = _gen_ai_covers(fields, image_data_url, _ai_cover_n())
     if not covers:
         return 502, {"error": "AI 封面生成失败,请稍后重试(不影响已领取的图文)"}
-    # 豆包返回的是临时 URL,直接透传给前端;不落库、不改 pack
+    # 持久化:把豆包临时 URL 下载到本地成品目录,业务以后每次打开素材包都能看到
+    covers = _persist_ai_covers(pack['id'], covers, emp)
     return 200, {"ok": True, "covers": covers, "fields": fields}
+
+
+def _persist_ai_covers(pack_id, urls, emp):
+    """AI 封面落地:下载到 KOS_OUT/{pack}_ai{i}.jpg(与素材包三图同目录同令牌机制),
+    返回带令牌的本地地址;单张下载失败该张退回临时 URL(仍可看,只是不持久)。
+    每次「再来一批」覆盖上一批,磁盘上每个 pack 至多 3 张。"""
+    import urllib.request
+    KOS_OUT.mkdir(parents=True, exist_ok=True)
+    for old in KOS_OUT.glob(f"{pack_id}_ai*.jpg"):
+        try:
+            old.unlink()
+        except OSError:
+            pass
+    out = []
+    for i, u in enumerate(urls[:3]):
+        try:
+            with urllib.request.urlopen(u, timeout=60) as resp:
+                data = resp.read()
+            (KOS_OUT / f"{pack_id}_ai{i}.jpg").write_bytes(data)
+            out.append(_img_url(pack_id, f"ai{i}", emp))
+        except Exception as e:
+            print(f"[KOS] AI 封面持久化失败(第{i+1}张,退回临时地址):{e}", flush=True)
+            out.append(u)
+    return out
 
 
 class handler(BaseHTTPRequestHandler):
@@ -294,7 +319,7 @@ class handler(BaseHTTPRequestHandler):
                 pack_id = qs.get('pack', [''])[0]
                 kind = qs.get('kind', [''])[0]
                 tok = qs.get('t', [''])[0]
-                if kind not in ('cover', 'two', 'four'):
+                if kind not in ('cover', 'two', 'four', 'ai0', 'ai1', 'ai2'):
                     return self._err(400, "bad kind")
                 pack = kos_store.get_pack(pack_id)
                 if not pack or not hmac.compare_digest(tok, _token(pack['id'], pack['emp_id'])):
