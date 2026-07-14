@@ -5,16 +5,14 @@
   kos_tasks       任务(管理员发起,绑定一个库)
   kos_packs       领取记录 = 严格唯一组合消耗 + 完成回填
 
-素材三分类(均直出,不裁切不翻转):
+素材五分类(2026-07 起新库使用;旧三分类库按旧逻辑发完为止):
   主图      —— 一张原图直出(可复用,不计消耗)
-  2合1横版  —— 两张横版图上下拼(一份占一对,唯一不复用)
-  4合1竖版  —— 四张竖版图田字拼(一份占一组四张,唯一不复用)
+  横版近景 / 横版远景 —— 2合1:近、远景各 1 张上下拼(一份占一对,唯一不复用)
+  竖版近景 / 竖版远景 —— 4合1:竖近 2 张 + 竖远 2 张田字拼(唯一不复用)
 
-容量与唯一性(严格,不重复消耗):
-  每人每篇成品 = 1 主图(直出,可复用)+ 1 个「2合1」+ 1 个「4合1」。
-  组合以"源图的无序集合"为单位:2合1 = 一对横版;4合1 = 一组四张竖版。
-  单库可支持「人·篇」总数 = min(C(h,2), C(v,4)),h=在用横版数(需≥2),v=在用竖版数(需≥4)。
-  每发一份,占用一对横版 + 一组四张竖版,永不复用;主图随机取一张、可重复。
+容量(五分类):min( 横近×横远, C(竖近,2)×C(竖远,2) );需 横近≥1、横远≥1、竖近≥2、竖远≥2。
+容量(旧三分类):min( C(横版,2), C(竖版,4) )。
+组合以"源图的无序集合"为单位入库(sorted id 元组),唯一索引兜底,永不复用。
 """
 import json
 import math
@@ -32,9 +30,15 @@ _lock = threading.Lock()
 _schema_ready = False
 
 ROLE_MAIN = '主图'
-ROLE_TWO = '2合1'      # 横版,上下拼
-ROLE_FOUR = '4合1'     # 竖版,田字拼
-ROLE_TILE = '可拼图'   # 旧版遗留分类(已弃用,仅兼容历史数据读取)
+ROLE_TWO = '2合1'      # 旧三分类:横版,上下拼(遗留库继续可用)
+ROLE_FOUR = '4合1'     # 旧三分类:竖版,田字拼(遗留库继续可用)
+ROLE_TILE = '可拼图'   # 更早遗留分类(已弃用,仅兼容历史数据读取)
+# 2026-07 五分类(新库使用):2合1 = 横近×横远 各 1 张;4合1 = 竖近 2 张 + 竖远 2 张
+ROLE_TWO_NEAR = '横版近景'
+ROLE_TWO_FAR = '横版远景'
+ROLE_FOUR_NEAR = '竖版近景'
+ROLE_FOUR_FAR = '竖版远景'
+SPLIT_ROLES = (ROLE_TWO_NEAR, ROLE_TWO_FAR, ROLE_FOUR_NEAR, ROLE_FOUR_FAR)
 
 
 def _conn():
@@ -246,26 +250,59 @@ def _main_ids(c, library_id):
 
 
 def _cap_from(h, v):
-    """单库可支持「人·篇」总数:每份需一对横版(2合1)+ 一组四张竖版(4合1)。需 h≥2 且 v≥4。"""
+    """旧三分类容量:每份需一对横版 + 一组四张竖版。需 h≥2 且 v≥4。"""
     if h < 2 or v < 4:
         return 0
     return min(math.comb(h, 2), math.comb(v, 4))
 
 
+def _pools(c, library_id):
+    """素材池与模式判定。
+    新五分类库('split'):有任一 近/远景 素材即按新逻辑;
+    旧三分类库('legacy'):只有 2合1/4合1 素材,按旧逻辑继续发完。
+    注意:旧库一旦上传了新分类素材即切换新逻辑,旧 2合1/4合1 素材不再参与拼图
+    (后台按钮层面已引导:旧库建议发完关闭、新库用五分类)。"""
+    tn = _ids_by_role(c, library_id, ROLE_TWO_NEAR)
+    tf = _ids_by_role(c, library_id, ROLE_TWO_FAR)
+    fn = _ids_by_role(c, library_id, ROLE_FOUR_NEAR)
+    ff = _ids_by_role(c, library_id, ROLE_FOUR_FAR)
+    if tn or tf or fn or ff:
+        return 'split', {"tn": tn, "tf": tf, "fn": fn, "ff": ff}
+    return 'legacy', {"two": _ids_by_role(c, library_id, ROLE_TWO),
+                      "four": _ids_by_role(c, library_id, ROLE_FOUR)}
+
+
+def _cap_split(tn, tf, fn, ff):
+    """五分类容量:2合1 = 近×远;4合1 = C(竖近,2)×C(竖远,2)。
+    需 横近≥1、横远≥1、竖近≥2、竖远≥2。"""
+    if tn < 1 or tf < 1 or fn < 2 or ff < 2:
+        return 0
+    return min(tn * tf, math.comb(fn, 2) * math.comb(ff, 2))
+
+
 def capacity(library_id):
-    """返回 {mains, two, four, total, used, remaining, need_two_min, need_four_min}。
-    tiles 字段保留兼容(= two+four),旧调用不至于报错。"""
+    """返回容量信息;two/four 为横/竖版合计(新旧模式通用),split 模式额外带
+    two_near/two_far/four_near/four_far。tiles 保留兼容。"""
     _ensure()
     c = _conn()
     try:
         mains = _main_ids(c, library_id)
-        two = _ids_by_role(c, library_id, ROLE_TWO)
-        four = _ids_by_role(c, library_id, ROLE_FOUR)
-        h, v = len(two), len(four)
-        total = _cap_from(h, v)
+        mode, P = _pools(c, library_id)
         used = c.execute("SELECT COUNT(*) FROM kos_packs WHERE library_id=?", (library_id,)).fetchone()[0]
+        if mode == 'split':
+            tn, tf, fn, ff = len(P['tn']), len(P['tf']), len(P['fn']), len(P['ff'])
+            total = _cap_split(tn, tf, fn, ff)
+            return {
+                "mode": "split", "mains": len(mains),
+                "two_near": tn, "two_far": tf, "four_near": fn, "four_far": ff,
+                "two": tn + tf, "four": fn + ff, "tiles": tn + tf + fn + ff,
+                "total": total, "used": used, "remaining": max(0, total - used),
+                "need_two_min": 2, "need_four_min": 4,
+            }
+        h, v = len(P['two']), len(P['four'])
+        total = _cap_from(h, v)
         return {
-            "mains": len(mains), "two": h, "four": v, "tiles": h + v,
+            "mode": "legacy", "mains": len(mains), "two": h, "four": v, "tiles": h + v,
             "total": total, "used": used, "remaining": max(0, total - used),
             "need_two_min": 2, "need_four_min": 4,
         }
@@ -305,6 +342,42 @@ def _sample_unused(ids, k, used_set, rng, max_try=2000):
     return chosen
 
 
+def _sample_pair_split(near, far, used_set, rng, max_try=2000):
+    """五分类 2合1:近景、远景各取 1 张,sorted 二元组不在 used_set。"""
+    for _ in range(max_try):
+        pick = tuple(sorted((rng.choice(near), rng.choice(far))))
+        if pick not in used_set:
+            return pick
+    from itertools import product
+    chosen, seen = None, 0
+    for a, b in product(near, far):
+        t = tuple(sorted((a, b)))
+        if t in used_set:
+            continue
+        seen += 1
+        if rng.randrange(seen) == 0:
+            chosen = t
+    return chosen
+
+
+def _sample_quad_split(near, far, used_set, rng, max_try=2000):
+    """五分类 4合1:竖近取 2 张 + 竖远取 2 张,sorted 四元组不在 used_set。"""
+    for _ in range(max_try):
+        pick = tuple(sorted(rng.sample(near, 2) + rng.sample(far, 2)))
+        if pick not in used_set:
+            return pick
+    from itertools import combinations, product
+    chosen, seen = None, 0
+    for n2, f2 in product(combinations(sorted(near), 2), combinations(sorted(far), 2)):
+        t = tuple(sorted(n2 + f2))
+        if t in used_set:
+            continue
+        seen += 1
+        if rng.randrange(seen) == 0:
+            chosen = t
+    return chosen
+
+
 def claim_pack(library_id, task_id, user, per_person, copy_json=None, rng=None):
     """原子领取:在**同一连接、同一写事务**里完成
         「每人限额校验 → 选未用组合 → INSERT 占用」,
@@ -333,18 +406,29 @@ def claim_pack(library_id, task_id, user, per_person, copy_json=None, rng=None):
                 c.execute("ROLLBACK")
                 return 'limit', mine
             mains = _main_ids(c, library_id)
-            two = _ids_by_role(c, library_id, ROLE_TWO)
-            four = _ids_by_role(c, library_id, ROLE_FOUR)
-            if not mains or len(two) < 2 or len(four) < 4:
-                c.execute("ROLLBACK")
-                return 'exhausted', None
+            mode, P = _pools(c, library_id)
             used2 = _used_combos(c, library_id, 'combo2')
             used4 = _used_combos(c, library_id, 'combo4')
-            if len(used2) >= math.comb(len(two), 2) or len(used4) >= math.comb(len(four), 4):
-                c.execute("ROLLBACK")
-                return 'exhausted', None
-            pair = _sample_unused(two, 2, used2, rng)
-            quad = _sample_unused(four, 4, used4, rng)
+            if mode == 'split':
+                # 五分类:2合1 = 横近×横远;4合1 = 竖近2 + 竖远2
+                tn, tf, fn, ff = P['tn'], P['tf'], P['fn'], P['ff']
+                if (not mains or _cap_split(len(tn), len(tf), len(fn), len(ff)) == 0
+                        or len(used2) >= len(tn) * len(tf)
+                        or len(used4) >= math.comb(len(fn), 2) * math.comb(len(ff), 2)):
+                    c.execute("ROLLBACK")
+                    return 'exhausted', None
+                pair = _sample_pair_split(tn, tf, used2, rng)
+                quad = _sample_quad_split(fn, ff, used4, rng)
+            else:
+                two, four = P['two'], P['four']
+                if not mains or len(two) < 2 or len(four) < 4:
+                    c.execute("ROLLBACK")
+                    return 'exhausted', None
+                if len(used2) >= math.comb(len(two), 2) or len(used4) >= math.comb(len(four), 4):
+                    c.execute("ROLLBACK")
+                    return 'exhausted', None
+                pair = _sample_unused(two, 2, used2, rng)
+                quad = _sample_unused(four, 4, used4, rng)
             if pair is None or quad is None:
                 c.execute("ROLLBACK")
                 return 'exhausted', None
@@ -818,7 +902,10 @@ def kos_dashboard(days=30):
             cap = capacity(l["id"])
             by_library.append({"brand": l["brand"], "product": l["product"], "code": l["code"],
                                "used": cap["used"], "total": cap["total"],
-                               "mains": cap["mains"], "two": cap["two"], "four": cap["four"]})
+                               "mains": cap["mains"], "two": cap["two"], "four": cap["four"],
+                               "mode": cap.get("mode", "legacy"),
+                               "two_near": cap.get("two_near", 0), "two_far": cap.get("two_far", 0),
+                               "four_near": cap.get("four_near", 0), "four_far": cap.get("four_far", 0)})
         drows = c.execute(
             "SELECT strftime('%Y-%m-%d', COALESCE(published_at,created_at),'unixepoch','localtime') d, COUNT(*) c "
             "FROM kos_packs WHERE status='published' AND COALESCE(published_at,created_at)>=? "

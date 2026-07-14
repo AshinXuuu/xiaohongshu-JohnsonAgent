@@ -482,6 +482,9 @@ class handler(BaseHTTPRequestHandler):
             cover_p = _download(client, bucket, cover_key, str(tmp / ("cover_src" + _ext(cover_key))))
             two_p = [_download(client, bucket, k, str(tmp / f"two_{i}{_ext(k)}")) for i, k in enumerate(two_keys)]
             four_p = [_download(client, bucket, k, str(tmp / f"four_{i}{_ext(k)}")) for i, k in enumerate(four_keys)]
+            # 组合按 sorted id 存库(唯一性),拼接位置随机:近/远景上下随机、田字四格随机
+            random.shuffle(two_p)
+            random.shuffle(four_p)
         except Exception as e:
             return _fail(502, f"COS 拉取素材失败:{e}")
 

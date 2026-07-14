@@ -163,20 +163,33 @@ function libRow(l) {
       <span class="lib-name">${esc(l.brand)} ${esc(l.product)}</span>
       ${l.code ? `<span class="muted2">${esc(l.code)}</span>` : ''}
       <span class="pill ${okMain?'ok':'warn'}">主图 ${cap.mains}${okMain?'':' (需≥1)'}</span>
+      ${cap.mode === 'legacy' && (cap.two > 0 || cap.four > 0) ? `
       <span class="pill ${okTwo?'ok':'warn'}">2合1横版 ${cap.two}${okTwo?'':' (需≥2)'}</span>
       <span class="pill ${okFour?'ok':'warn'}">4合1竖版 ${cap.four}${okFour?'':' (需≥4)'}</span>
+      <span class="pill warn">旧版三分类库</span>` : `
+      <span class="pill ${(cap.two_near||0)>=1?'ok':'warn'}">横近 ${cap.two_near||0}${(cap.two_near||0)>=1?'':' (需≥1)'}</span>
+      <span class="pill ${(cap.two_far||0)>=1?'ok':'warn'}">横远 ${cap.two_far||0}${(cap.two_far||0)>=1?'':' (需≥1)'}</span>
+      <span class="pill ${(cap.four_near||0)>=2?'ok':'warn'}">竖近 ${cap.four_near||0}${(cap.four_near||0)>=2?'':' (需≥2)'}</span>
+      <span class="pill ${(cap.four_far||0)>=2?'ok':'warn'}">竖远 ${cap.four_far||0}${(cap.four_far||0)>=2?'':' (需≥2)'}</span>`}
       <div class="cap-bar"><div class="cap-fill" style="width:${pct}%"></div></div>
       <span class="muted2">容量 ${cap.remaining}/${cap.total} 人·篇</span>
     </div>
     <div class="lib-actions">
       <button class="mini" onclick="pickUpload(${l.id}, '主图')">上传主图</button>
+      ${cap.mode === 'legacy' && (cap.two > 0 || cap.four > 0) ? `
       <button class="mini" onclick="pickUpload(${l.id}, '2合1')">上传2合1(横版)</button>
-      <button class="mini" onclick="pickUpload(${l.id}, '4合1')">上传4合1(竖版)</button>
+      <button class="mini" onclick="pickUpload(${l.id}, '4合1')">上传4合1(竖版)</button>` : `
+      <button class="mini" onclick="pickUpload(${l.id}, '横版近景')">上传横版(近景)</button>
+      <button class="mini" onclick="pickUpload(${l.id}, '横版远景')">上传横版(远景)</button>
+      <button class="mini" onclick="pickUpload(${l.id}, '竖版近景')">上传竖版(近景)</button>
+      <button class="mini" onclick="pickUpload(${l.id}, '竖版远景')">上传竖版(远景)</button>`}
       <span class="muted2" id="up${l.id}"></span>
       <span style="flex:1"></span>
       <button class="mini danger" onclick="delLib(${l.id})">删除库</button>
     </div>
-    <div class="muted2" style="margin-top:6px">主图直出、2合1 两张横版上下拼、4合1 四张竖版田字拼(均不裁切/不翻转)。数量已与 COS 桶实时对齐,支持一次选多张/整个文件夹。COS 目录:<span class="path">${esc(l.cos_prefix||'')}</span></div>
+    <div class="muted2" style="margin-top:6px">${cap.mode === 'legacy' && (cap.two > 0 || cap.four > 0)
+      ? '旧版三分类库:按旧逻辑发完为止;新素材建议新建库,使用近/远景五分类。'
+      : '主图直出;2合1 = 横版近景 × 横版远景 随机配对上下拼;4合1 = 竖版近景 2 张 + 竖版远景 2 张随机组合田字拼(位置随机,不裁切/不翻转)。容量 = min(横近×横远, C(竖近,2)×C(竖远,2))。'}数量已与 COS 桶对齐,支持一次选多张。COS 目录:<span class="path">${esc(l.cos_prefix||'')}</span></div>
   </div>`;
 }
 
@@ -259,7 +272,7 @@ document.getElementById('tkAdd').onclick = async () => {
     deadline: document.getElementById('tkDeadline').value,
   });
   if (!r.ok || r.data.error) { App.toast(r.data.error || '发布失败'); return; }
-  App.toast(r.data.enough ? '任务已发布' : `任务已发布,但素材不够:需 ${r.data.need} 份、仅剩 ${r.data.remaining},请补 2合1横版 / 4合1竖版 素材`);
+  App.toast(r.data.enough ? '任务已发布' : `任务已发布,但素材不够:需 ${r.data.need} 份、仅剩 ${r.data.remaining},请补充拼图素材(新库:横/竖版近远景)`);
   document.getElementById('tkTitle').value = '';
   await loadTasks();
 };

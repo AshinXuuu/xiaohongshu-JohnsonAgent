@@ -56,8 +56,11 @@ def _list_cos(prefix):
 
 
 def _classify(key):
-    """按 COS 子目录判定角色:主图/ → 主图;2合1/ → 2合1横版;4合1/ → 4合1竖版。
-    旧版 可拼图/ 目录已弃用(方向不明),一律忽略(返回 None,不登记)。"""
+    """按 COS 子目录判定角色。五分类目录(横版近景/ 等)优先;
+    旧三分类目录(2合1/、4合1/)继续识别以兼容遗留库;可拼图/ 一律忽略。"""
+    for role in kos_store.SPLIT_ROLES:
+        if f'/{role}/' in key or key.startswith(f'{role}/'):
+            return role
     if '/主图/' in key or key.startswith('主图/'):
         return kos_store.ROLE_MAIN
     if '/2合1/' in key or key.startswith('2合1/'):
@@ -248,7 +251,7 @@ class handler(BaseHTTPRequestHandler):
                 if not lib:
                     return self._json(404, {"error": "素材库不存在"})
                 role = (req.get("role") or "").strip()
-                if role not in (kos_store.ROLE_MAIN, kos_store.ROLE_TWO, kos_store.ROLE_FOUR):
+                if role not in (kos_store.ROLE_MAIN, kos_store.ROLE_TWO, kos_store.ROLE_FOUR) + kos_store.SPLIT_ROLES:
                     return self._json(400, {"error": "角色不合法"})
                 files = req.get("files") or []
                 if not files:
@@ -272,7 +275,7 @@ class handler(BaseHTTPRequestHandler):
                 if not lib:
                     return self._json(404, {"error": "素材库不存在"})
                 role = (req.get("role") or "").strip()
-                if role not in (kos_store.ROLE_MAIN, kos_store.ROLE_TWO, kos_store.ROLE_FOUR):
+                if role not in (kos_store.ROLE_MAIN, kos_store.ROLE_TWO, kos_store.ROLE_FOUR) + kos_store.SPLIT_ROLES:
                     return self._json(400, {"error": "角色不合法"})
                 exist = kos_store.existing_cos_keys(lib['id'])
                 n = 0
