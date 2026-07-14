@@ -481,7 +481,7 @@
   <div class="portal-bar">
     <h1>乔山销售助手 <span class="dot">·</span> 工作台</h1>
     <div class="spacer"></div>
-    <button class="version-badge" id="versionBadge" onclick="openVersionModal()">v3.2 新</button>
+    <button class="version-badge" id="versionBadge" onclick="openVersionModal()"></button>
     <span class="me" id="meLabel"></span>
     <button class="logout" onclick="logout()">退出</button>
   </div>
@@ -696,6 +696,8 @@ window.logout = logout;
 // ─────────── 版本更新公告 ───────────
 const SEEN_VERSION_KEY = 'xhsAgent:seenVersion';
 const APP_VERSION = 'v3.3';
+// 徽章文字跟随 APP_VERSION,避免再出现 HTML 写死导致版本号漂移
+(() => { const b = document.getElementById('versionBadge'); if (b) b.textContent = APP_VERSION + ' 新'; })();
 const CHANGELOG = [
   {
     version: 'v3.3',
