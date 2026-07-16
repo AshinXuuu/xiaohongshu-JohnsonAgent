@@ -133,13 +133,41 @@ async function api(action, extra) {
 }
 
 async function load() {
-  const [t, b, s, sp] = await Promise.all([
-    api('my_tasks'), api('leaderboard'), api('summary'), api('my_self_posts')]);
+  const [t, b, s, sp, mp] = await Promise.all([
+    api('my_tasks'), api('leaderboard'), api('summary'), api('my_self_posts'), api('my_packs')]);
+  mergeServerPacks((mp.data && mp.data.packs) || []);   // 跨设备同步:服务器领取记录并入本地视图
   renderTasks((t.data && t.data.tasks) || []);
   renderBoard((b.data && b.data.board) || []);
   renderSummary(s.data || {});
   renderSelfList((sp.data && sp.data.posts) || []);
   renderTaskNotes();
+}
+
+// 把服务器上的领取记录并入本地(pack_id 去重);服务器为权威源,
+// 让手机领的在电脑登录后也能看到「已领素材包」和回填链接。
+function mergeServerPacks(serverPacks) {
+  const o = allLocal();
+  serverPacks.forEach(sp => {
+    if (sp.task_id == null) return;
+    const arr = o[sp.task_id] = o[sp.task_id] || [];
+    const ex = arr.find(x => x.pack_id === sp.pack_id);
+    const hasCopy = c => c && (c.titles && c.titles.length || c.body || (c.tags && c.tags.length));
+    if (ex) {
+      ex.images = sp.images || ex.images;
+      if (hasCopy(sp.copy)) ex.copy = sp.copy;
+      ex.note_url = sp.note_url || ex.note_url || '';
+      ex.task_name = ex.task_name || sp.task_name;
+      ex.per_person = ex.per_person || sp.per_person;
+      if (!ex.at) ex.at = sp.at;
+      if (sp.ai_covers && sp.ai_covers.length) ex.ai_covers = sp.ai_covers;
+    } else {
+      arr.push({ pack_id: sp.pack_id, task_id: sp.task_id, post_index: sp.post_index,
+                 per_person: sp.per_person, task_name: sp.task_name, images: sp.images,
+                 copy: sp.copy || {}, note_url: sp.note_url || '', at: sp.at,
+                 ai_covers: sp.ai_covers || [] });
+    }
+  });
+  saveLocal(o);
 }
 
 // ───────── 任务发布笔记(逐个已领素材包,回填/展示链接)─────────

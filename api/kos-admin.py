@@ -315,6 +315,47 @@ class handler(BaseHTTPRequestHandler):
                 kos_store.close_task(req.get("id"))
                 return self._json(200, {"ok": True})
 
+            if action == "bonus_targets":
+                # 定向补发候选:该任务范围内在职且参与 KOS 的员工 + 各自已领/已发/已补发
+                task = kos_store.get_task(req.get("task_id"))
+                if not task:
+                    return self._json(404, {"error": "任务不存在"})
+                from lib.users_store import all_users
+                depts = task.get("depts") or []
+                users = []
+                for u in all_users():
+                    if u.get("kos_join") is False:
+                        continue
+                    if task["scope"] == "dept" and u.get("department") not in depts:
+                        continue
+                    emp = u.get("emp_id")
+                    users.append({
+                        "emp_id": emp, "name": u.get("name"), "department": u.get("department"),
+                        "issued": kos_store.count_user_task_packs(task["id"], emp),
+                        "bonus": kos_store.get_task_bonus(task["id"], emp),
+                    })
+                return self._json(200, {"targets": users, "per_person": task["per_person"],
+                                        "title": task.get("title") or (task.get("brand", "") + " " + task.get("product", ""))})
+
+            if action == "grant_bonus":
+                # 给指定的人 +1 篇配额(定向补发);emp_ids 数组
+                task = kos_store.get_task(req.get("task_id"))
+                if not task:
+                    return self._json(404, {"error": "任务不存在"})
+                if task.get("status") != "open":
+                    return self._json(400, {"error": "任务已结束,无法补发"})
+                emp_ids = req.get("emp_ids") or []
+                n = max(1, int(req.get("n") or 1))
+                done = 0
+                for emp in emp_ids:
+                    if emp:
+                        kos_store.add_task_bonus(task["id"], str(emp), n)
+                        done += 1
+                from lib.audit import log
+                log(caller, '任务', 'grant_bonus',
+                    f"定向补发任务(id {task['id']})给 {done} 人各 +{n} 篇")
+                return self._json(200, {"ok": True, "count": done})
+
             return self._json(400, {"error": "未知 action"})
         except Exception as e:
             import traceback; traceback.print_exc()

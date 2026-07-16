@@ -386,7 +386,37 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(200, {"board": kos_store.leaderboard()})
 
             if action == "my_packs":
-                return self._json(200, {"packs": kos_store.my_packs(emp, req.get("task_id"))})
+                # 富化后返回,供任意设备恢复「已领素材包」显示(数据早已在服务器,零新增存储)
+                raw = kos_store.my_packs(emp, req.get("task_id"))
+                task_cache = {}
+                packs = []
+                for p in raw:
+                    tid = p.get("task_id")
+                    if tid not in task_cache:
+                        task_cache[tid] = kos_store.get_task(tid) or {} if tid else {}
+                    t = task_cache[tid]
+                    pid = p["id"]
+                    ai = [_img_url(pid, f"ai{i}", emp) for i in range(3)
+                          if (KOS_OUT / f"{pid}_ai{i}.jpg").exists()]
+                    try:
+                        copy_json = json.loads(p.get("copy_json") or "{}") or {}
+                    except Exception:
+                        copy_json = {}
+                    packs.append({
+                        "pack_id": pid, "task_id": tid,
+                        "post_index": p.get("post_index") or 1,
+                        "per_person": (t.get("per_person") if t else None) or 1,
+                        "task_name": ((t.get("title") if t else "") or
+                                      ((t.get("brand") or "") + " " + (t.get("product") or "")).strip()
+                                      if t else "任务") or "任务",
+                        "task_open": (t.get("status") == "open") if t else False,
+                        "note_url": p.get("note_url") or "",
+                        "at": (p.get("created_at") or 0) * 1000,
+                        "images": {k: _img_url(pid, k, emp) for k in ("cover", "two", "four")},
+                        "copy": copy_json,
+                        "ai_covers": ai,
+                    })
+                return self._json(200, {"packs": packs})
 
             if action == "my_self_posts":
                 return self._json(200, {"posts": kos_store.my_self_posts(emp)})
@@ -470,10 +500,12 @@ class handler(BaseHTTPRequestHandler):
 
         # 原子领取(2026-07 并发修复):限额校验 + 选组合 + 落库在同一事务,
         # 并发领取不会拿到重复组合、双击不会超领。
+        # 定向补发:该人该任务的额外配额计入上限。
+        _limit = int(task["per_person"]) + kos_store.get_task_bonus(task["id"], emp)
         status, data = kos_store.claim_pack(
-            task["library_id"], task["id"], user, task["per_person"])
+            task["library_id"], task["id"], user, _limit)
         if status == 'limit':
-            return self._json(400, {"error": f"你已领满 {task['per_person']} 篇"})
+            return self._json(400, {"error": f"你已领满 {_limit} 篇"})
         if status == 'exhausted':
             return self._json(409, {"error": "素材已发尽,请联系管理员补充可拼图素材"})
         if status != 'ok':

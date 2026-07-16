@@ -115,6 +115,14 @@ def _ensure():
                     created_at INTEGER
                 );
                 CREATE INDEX IF NOT EXISTS idx_kself_user ON kos_self_posts(emp_id);
+
+                CREATE TABLE IF NOT EXISTS kos_task_bonus (
+                    task_id INTEGER NOT NULL,
+                    emp_id  TEXT NOT NULL,
+                    extra   INTEGER NOT NULL DEFAULT 0,   -- 定向补发:该人该任务额外可领篇数
+                    updated_at INTEGER,
+                    PRIMARY KEY(task_id, emp_id)
+                );
             """)
             c.commit()
             # 唯一约束(2026-07 并发修复):同一素材库内 2合1/4合1 组合不得重复发放。
@@ -710,6 +718,35 @@ def my_kos_summary(user):
 
 # ──────────────── 业务侧 ────────────────
 
+def get_task_bonus(task_id, emp_id):
+    """该人在该任务上的额外配额(定向补发累加);无则 0。"""
+    _ensure()
+    c = _conn()
+    try:
+        r = c.execute("SELECT extra FROM kos_task_bonus WHERE task_id=? AND emp_id=?",
+                      (task_id, emp_id)).fetchone()
+        return int(r['extra']) if r else 0
+    finally:
+        c.close()
+
+
+def add_task_bonus(task_id, emp_id, n=1):
+    """给某人某任务 +n 篇配额(定向补发)。返回累计 extra。"""
+    _ensure()
+    c = _conn()
+    try:
+        c.execute(
+            "INSERT INTO kos_task_bonus(task_id,emp_id,extra,updated_at) VALUES(?,?,?,?) "
+            "ON CONFLICT(task_id,emp_id) DO UPDATE SET extra=extra+?, updated_at=?",
+            (task_id, str(emp_id), int(n), int(time.time()), int(n), int(time.time())))
+        c.commit()
+        r = c.execute("SELECT extra FROM kos_task_bonus WHERE task_id=? AND emp_id=?",
+                      (task_id, str(emp_id))).fetchone()
+        return int(r['extra']) if r else int(n)
+    finally:
+        c.close()
+
+
 def tasks_for_user(user):
     """该业务能看到的进行中任务 + 自己的进度。"""
     _ensure()
@@ -725,6 +762,10 @@ def tasks_for_user(user):
             if t['scope'] == 'dept' and dept not in depts:
                 continue
             t['depts'] = depts
+            _bonus = c.execute("SELECT extra FROM kos_task_bonus WHERE task_id=? AND emp_id=?",
+                               (t['id'], emp)).fetchone()
+            t['bonus'] = int(_bonus['extra']) if _bonus else 0
+            t['per_person'] = int(t['per_person'] or 1) + t['bonus']   # 含定向补发的可领上限
             t['my_issued'] = c.execute(
                 "SELECT COUNT(*) FROM kos_packs WHERE task_id=? AND emp_id=?", (t['id'], emp)).fetchone()[0]
             t['my_published'] = c.execute(

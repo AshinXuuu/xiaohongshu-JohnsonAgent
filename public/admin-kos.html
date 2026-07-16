@@ -33,6 +33,16 @@
   .depts { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:4px; }
   .depts label { font-size:13px; color:var(--text-soft); display:flex; align-items:center; gap:4px; }
   .deny { text-align:center; padding:60px 20px; color:var(--muted); }
+  .bmodal { position:fixed; inset:0; background:rgba(15,23,42,.5); display:none; align-items:center; justify-content:center; z-index:200; padding:20px; }
+  .bmodal.show { display:flex; }
+  .bcard { background:white; border-radius:14px; width:100%; max-width:560px; max-height:86vh; display:flex; flex-direction:column; box-shadow:var(--shadow-md); }
+  .bcard h3 { margin:0; padding:16px 20px; border-bottom:1px solid var(--border-soft); font-size:15px; display:flex; align-items:center; gap:10px; }
+  .bcard .bx { margin-left:auto; cursor:pointer; border:none; background:none; font-size:20px; color:var(--muted); }
+  .bbody { padding:12px 20px; overflow:auto; }
+  .brow { display:flex; align-items:center; gap:10px; padding:8px 4px; border-top:1px solid var(--border-soft); font-size:13px; }
+  .brow:first-child { border-top:none; }
+  .brow .bn { flex:1; }
+  .bfoot { padding:14px 20px; border-top:1px solid var(--border-soft); display:flex; align-items:center; gap:10px; }
 </style>
 </head>
 <body>
@@ -77,6 +87,18 @@
     </div>
     <div id="tasks"><div class="muted2">加载中...</div></div>
     <div id="tasksPager" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<div class="bmodal" id="bmodal">
+  <div class="bcard">
+    <h3 id="bTitle">定向补发<button class="bx" onclick="closeBonus()">×</button></h3>
+    <div class="bbody" id="bBody"></div>
+    <div class="bfoot">
+      <input id="bFilter" placeholder="搜姓名/工号" style="flex:1" oninput="drawBonusList()" />
+      <span class="muted2" id="bSel">已选 0 人</span>
+      <button class="mini" onclick="grantBonus(this)" id="bDo">补发 +1 篇</button>
+    </div>
   </div>
 </div>
 
@@ -287,7 +309,10 @@ function drawTasks() {
   const pg = App.paginate(_taskList, _taskPage);
   _taskPage = pg.page;
   document.getElementById('tasks').innerHTML = pg.rows.length ? pg.rows.map(taskRow).join('') : '<div class="muted2">还没有任务</div>';
-  pg.rows.forEach(t => { const b = document.getElementById('close'+t.id); if (b) b.onclick = () => closeTask(t.id); });
+  pg.rows.forEach(t => {
+    const b = document.getElementById('close'+t.id); if (b) b.onclick = () => closeTask(t.id);
+    const bn = document.getElementById('bonus'+t.id); if (bn) bn.onclick = () => openBonus(t.id);
+  });
   App.renderPager('tasksPager', pg.page, pg.pages, p => { _taskPage = p; drawTasks(); });
 }
 
@@ -300,6 +325,7 @@ function taskRow(t) {
       <span class="pill ${open?'ok':''}">${open?'进行中':'已结束'}</span>
       <span class="muted2">${esc(scopeTxt)} · 每人 ${t.per_person} 篇${t.deadline?(' · 截止 '+esc(t.deadline)):''}</span>
       <span class="muted2">已发 ${t.issued} · 已发布 ${t.published} · 剩余容量 ${t.capacity.remaining}</span>
+      ${open?`<button class="mini" id="bonus${t.id}">定向补发</button>`:''}
       ${open?`<button class="mini" id="close${t.id}">结束任务</button>`:''}
     </div>
   </div>`;
@@ -311,6 +337,52 @@ async function closeTask(id) {
   if (!r.ok || r.data.error) { App.toast(r.data.error || '操作失败'); return; }
   App.toast('已结束'); await loadTasks();
 }
+
+// ───────── 定向补发:给指定的人 +1 篇配额 ─────────
+let _bonusTaskId = null, _bonusTargets = [], _bonusSel = new Set();
+async function openBonus(taskId) {
+  _bonusTaskId = taskId; _bonusSel = new Set();
+  document.getElementById('bFilter').value = '';
+  document.getElementById('bBody').innerHTML = '<div class="muted2" style="padding:14px 0">加载中...</div>';
+  document.getElementById('bmodal').classList.add('show');
+  const r = await api('bonus_targets', { task_id: taskId });
+  if (!r.ok || r.data.error) { App.toast((r.data && r.data.error) || '加载失败'); closeBonus(); return; }
+  _bonusTargets = r.data.targets || [];
+  document.getElementById('bTitle').firstChild.textContent = '定向补发:' + (r.data.title || '任务') + '  ';
+  drawBonusList();
+}
+window.openBonus = openBonus;
+function closeBonus() { document.getElementById('bmodal').classList.remove('show'); }
+window.closeBonus = closeBonus;
+
+function drawBonusList() {
+  const kw = (document.getElementById('bFilter').value || '').trim().toLowerCase();
+  const list = _bonusTargets.filter(u =>
+    !kw || (u.name||'').toLowerCase().includes(kw) || (u.emp_id||'').toLowerCase().includes(kw));
+  document.getElementById('bBody').innerHTML = list.length ? list.map(u => `
+    <label class="brow">
+      <input type="checkbox" class="bck" value="${esc(u.emp_id)}" ${_bonusSel.has(u.emp_id)?'checked':''} />
+      <span class="bn">${esc(u.name||'')} <span class="muted2">${esc(u.department||'')} · ${esc(u.emp_id||'')}</span></span>
+      <span class="muted2">已领 ${u.issued}${u.bonus?(' · 已补发 +'+u.bonus):''}</span>
+    </label>`).join('') : '<div class="muted2" style="padding:14px 0">没有匹配的人员</div>';
+  document.querySelectorAll('.bck').forEach(cb => cb.addEventListener('change', () => {
+    if (cb.checked) _bonusSel.add(cb.value); else _bonusSel.delete(cb.value);
+    document.getElementById('bSel').textContent = '已选 ' + _bonusSel.size + ' 人';
+  }));
+  document.getElementById('bSel').textContent = '已选 ' + _bonusSel.size + ' 人';
+}
+window.drawBonusList = drawBonusList;
+
+async function grantBonus(btn) {
+  if (!_bonusSel.size) { App.toast('请先勾选要补发的人'); return; }
+  btn.disabled = true; const o = btn.textContent; btn.textContent = '补发中...';
+  const r = await api('grant_bonus', { task_id: _bonusTaskId, emp_ids: [..._bonusSel], n: 1 });
+  btn.disabled = false; btn.textContent = o;
+  if (!r.ok || r.data.error) { App.toast((r.data && r.data.error) || '补发失败'); return; }
+  App.toast('已给 ' + (r.data.count||0) + ' 人各补发 1 篇');
+  closeBonus(); await loadTasks();
+}
+window.grantBonus = grantBonus;
 </script>
 </body>
 </html>
