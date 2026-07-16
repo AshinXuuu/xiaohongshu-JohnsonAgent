@@ -9,6 +9,7 @@ POST /api/kos
   action=my_packs {task_id?}          我领过的记录
   action=ai_cover {pack_id}           可选 AI 封面:文案快照提炼三段字 → 豆包在原封面素材上
                                         叠字出图,返回候选图临时 URL(不落库、不改 pack)
+  action=regen_copy {pack_id}         重新生成本篇文案(领取时 AI 超时导致空文案时用),回填 pack
 
 GET /api/kos?img=1&pack=<id>&kind=cover|two|four&t=<token>
   令牌校验后返回本地成品 JPEG(成品图不写 COS,规避只读密钥限制)。
@@ -429,6 +430,30 @@ class handler(BaseHTTPRequestHandler):
                 except AIBusyError as e:
                     return self._json(503, {"error": str(e)})
                 return self._json(code, obj)
+
+            if action == "regen_copy":
+                # 重新生成本篇文案(领取时 AI 超时/失败导致标题正文为空时用)。
+                # 归属校验 → 限流(与文案生成同 'generate' 配额池)→ 重生成 → 回填 pack。
+                pack = kos_store.get_pack(req.get("pack_id"))
+                if not pack:
+                    return self._json(404, {"error": "素材包不存在"})
+                if (pack.get("emp_id") or "") != emp:
+                    return self._json(403, {"error": "无权操作他人的素材包"})
+                from lib.ratelimit import check as _rl_check
+                ip = self.client_address[0] if self.client_address else ''
+                ok, msg = _rl_check(user, ip, 'generate')
+                if not ok:
+                    return self._json(429, {"error": msg})
+                task = kos_store.get_task(pack.get("task_id")) or {}
+                brand = task.get("brand") or ""
+                product = task.get("product") or ""
+                copy_json = _make_copy(brand, product)
+                if not (copy_json.get("titles") or copy_json.get("body")):
+                    # AI 仍未吐出正文,不覆盖旧文案,让用户再试
+                    return self._json(502, {"error": "文案生成失败,请稍后再试一次(标签不受影响)"})
+                kos_store.set_pack_copy(pack["id"], copy_json)
+                print(f"[USAGE] action=kos_regen_copy user={emp}/{user.get('name')} pack={pack['id']}", flush=True)
+                return self._json(200, {"ok": True, "copy": copy_json})
 
             return self._json(400, {"error": "未知 action"})
         except Exception as e:

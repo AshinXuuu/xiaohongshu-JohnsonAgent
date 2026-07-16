@@ -49,6 +49,11 @@
   .cbox .chead { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
   .cbox .t { font-weight:600; font-size:12.5px; color:var(--text-soft); }
   .cbox .copybtn { margin-left:auto; font-size:12px; padding:3px 10px; border:1px solid var(--border); background:white; border-radius:7px; cursor:pointer; color:var(--accent-strong); }
+  .copyhead { display:flex; align-items:center; gap:10px; margin:14px 0 8px; }
+  .copyhead .regenbtn { margin-left:auto; font-size:12px; padding:5px 12px; border:1px solid var(--border); background:white; border-radius:7px; cursor:pointer; color:var(--accent-strong); font-family:inherit; }
+  .copyhead .regenbtn:hover { background:var(--accent-soft); }
+  .copyhead .regenbtn:disabled { opacity:.6; cursor:default; }
+  .copywarn { background:#fffbeb; color:#b45309; font-size:12.5px; padding:8px 12px; border-radius:8px; margin-bottom:10px; }
   .cbox .copybtn:hover { border-color:var(--accent); }
   .cbox .val { font-size:13px; white-space:pre-wrap; line-height:1.6; }
   .cbox .val.tags { color:var(--accent-strong); }
@@ -272,6 +277,11 @@ function showPack(p, taskId, fromList) {
       <div id="aiWrap${p.pack_id}">${cs.length ? aiCoverHtml(cs) : ''}</div>`; })()}
     </div>
 
+    <div class="copyhead">
+      <span class="t" style="font-weight:600;font-size:13px">文案</span>
+      <button class="btn regenbtn" onclick="regenCopy(${p.pack_id}, ${taskId}, this)">重新生成文案</button>
+    </div>
+    ${(!title && !body) ? '<div class="copywarn">这次文案没有正常生成(标签不受影响),点上方「重新生成文案」再试一次。</div>' : ''}
     <div class="cbox">
       <div class="chead"><span class="t">标题</span><button class="copybtn" onclick="copyText(this)" data-c="${esc(title)}">复制标题</button></div>
       <div class="val">${esc(title) || '<span style="color:var(--muted)">(无)</span>'}</div>
@@ -334,6 +344,28 @@ async function genAiCover(packId, btn) {
   if (wrap) wrap.innerHTML = aiCoverHtml(r.data.covers);
 }
 window.genAiCover = genAiCover;
+
+// 重新生成文案(领取时 AI 超时导致标题/正文为空时用)
+function updateLocalCopy(taskId, packId, copy) {
+  const o = allLocal();
+  (o[taskId] || []).forEach(p => { if (p.pack_id === packId) p.copy = copy; });
+  saveLocal(o);
+}
+async function regenCopy(packId, taskId, btn) {
+  btn.disabled = true; const o = btn.textContent; btn.textContent = '生成中...(约 10-30 秒)';
+  const r = await api('regen_copy', { pack_id: packId });
+  if (!r.ok || r.data.error || !r.data.copy) {
+    btn.disabled = false; btn.textContent = o;
+    App.toast((r.data && r.data.error) || '文案生成失败,请稍后再试');
+    return;
+  }
+  updateLocalCopy(taskId, packId, r.data.copy);
+  // 用新文案重渲染当前素材包(保留 AI 封面、回填状态)
+  const p = getLocalPacks(taskId).find(x => x.pack_id === packId);
+  if (p) { p.copy = r.data.copy; showPack(p, taskId, false); }
+  App.toast('文案已重新生成');
+}
+window.regenCopy = regenCopy;
 
 async function copyText(btn) {
   const txt = btn.getAttribute('data-c') || '';
