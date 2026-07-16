@@ -1251,6 +1251,7 @@ function renderDetailRows(rows) {
     if (r.details?.copy_type) bits.push(`<span class="pill">${escapeHtml(r.details.copy_type)}</span>`);
     if (r.details?.file)      bits.push(`<span class="pill">${escapeHtml(r.details.file)}</span>`);
     if (r.details?.reason)    bits.push(`<span style="color:#991b1b">${escapeHtml(r.details.reason).slice(0, 80)}</span>`);
+    if (r.details?.device)    bits.push(`<span class="pill">${escapeHtml(r.details.device)}${r.details.os ? ' · ' + escapeHtml(r.details.os) : ''}</span>`);
     return `<tr>
       <td style="color:var(--muted);font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.time))}</td>
       <td><span class="pill ${escapeHtml(action)}">${escapeHtml(ACTION_LABEL[action] || action)}</span></td>

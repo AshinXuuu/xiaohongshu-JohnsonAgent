@@ -142,7 +142,12 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(401, {"error": err or "登录失败"})
 
             # 登录成功才记录用量事件(失败的不记)
-            log_event('login', user)
+            try:
+                from lib.device import parse_ua
+                dev = parse_ua(self.headers.get('User-Agent') or '')
+            except Exception:
+                dev = {'device': '未知', 'os': '其他'}
+            log_event('login', user, {'device': dev['device'], 'os': dev['os']})
             from lib.session import issue_token
             token = issue_token(user)
             self._json(200, {"ok": True, "user": user, "token": token})
