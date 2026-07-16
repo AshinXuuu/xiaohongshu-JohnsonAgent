@@ -297,8 +297,10 @@ def _persist_ai_covers(pack_id, urls, emp):
         try:
             with urllib.request.urlopen(u, timeout=60) as resp:
                 data = resp.read()
-            (KOS_OUT / f"{pack_id}_ai{i}.jpg").write_bytes(data)
-            out.append(_img_url(pack_id, f"ai{i}", emp))
+            fp = KOS_OUT / f"{pack_id}_ai{i}.jpg"
+            fp.write_bytes(data)
+            # URL 带上文件版本号(mtime),「再来一批」覆盖后 URL 变化 → 浏览器不吃旧缓存
+            out.append(_img_url(pack_id, f"ai{i}", emp) + f"&v={int(fp.stat().st_mtime)}")
         except Exception as e:
             print(f"[KOS] AI 封面持久化失败(第{i+1}张,退回临时地址):{e}", flush=True)
             out.append(u)
@@ -396,8 +398,11 @@ class handler(BaseHTTPRequestHandler):
                         task_cache[tid] = kos_store.get_task(tid) or {} if tid else {}
                     t = task_cache[tid]
                     pid = p["id"]
-                    ai = [_img_url(pid, f"ai{i}", emp) for i in range(3)
-                          if (KOS_OUT / f"{pid}_ai{i}.jpg").exists()]
+                    ai = []
+                    for i in range(3):
+                        _af = KOS_OUT / f"{pid}_ai{i}.jpg"
+                        if _af.exists():
+                            ai.append(_img_url(pid, f"ai{i}", emp) + f"&v={int(_af.stat().st_mtime)}")
                     try:
                         copy_json = json.loads(p.get("copy_json") or "{}") or {}
                     except Exception:
