@@ -546,14 +546,14 @@ def list_tasks(org='johnson'):
         c.close()
 
 
-# ──────────────── 本期(任务周期:周四 → 下周四)────────────────
+# ──────────────── 本期(任务周期:周三 → 下周二)────────────────
 
 def current_period_start_ts():
-    """本期起点 = 最近一个周四的 00:00(本地时区)。任务通常周四发布、下周四回收。"""
+    """本期起点 = 最近一个周三的 00:00(本地时区)。周期为周三 → 下周二。"""
     import datetime
     now = datetime.datetime.now()
-    days_since_thu = (now.weekday() - 3) % 7      # 周四 weekday()==3
-    start = (now - datetime.timedelta(days=days_since_thu)).replace(
+    days_since_wed = (now.weekday() - 2) % 7      # 周三 weekday()==2
+    start = (now - datetime.timedelta(days=days_since_wed)).replace(
         hour=0, minute=0, second=0, microsecond=0)
     return int(start.timestamp())
 
