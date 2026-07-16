@@ -27,7 +27,9 @@ if str(_ROOT_BOOT) not in _sys_boot.path:
 
 DOUBAO_URL = 'https://ark.cn-beijing.volces.com/api/v3/images/generations'
 DOUBAO_MODEL = os.environ.get('DOUBAO_MODEL', 'doubao-seedream-5-0-pro-260628')
-SIZE = os.environ.get('DOUBAO_IMAGE_SIZE', '1920x2560')
+# 输出尺寸:'adaptive' = 跟随输入图比例出图,不拉伸产品(此前固定 1920x2560 3:4,
+# 非 3:4 的产品照会被强行拉伸变形)。要强制固定比例可用 .env 的 DOUBAO_IMAGE_SIZE 覆盖。
+SIZE = os.environ.get('DOUBAO_IMAGE_SIZE', 'adaptive')
 MAX_PHOTO_BYTES = 4 * 1024 * 1024
 
 
