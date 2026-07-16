@@ -145,11 +145,14 @@ async function load() {
 // ───────── 任务发布笔记(逐个已领素材包,回填/展示链接)─────────
 function renderTaskNotes() {
   const all = allLocal();
+  const openIds = new Set(_tasks.map(t => t.id));   // 只显示进行中任务;已结束的不再显示
   const rows = [];
-  Object.keys(all).forEach(tid => (all[tid] || []).forEach(p => rows.push(p)));
+  Object.keys(all).forEach(tid => (all[tid] || []).forEach(p => {
+    if (openIds.has(p.task_id)) rows.push(p);
+  }));
   rows.sort((a, b) => (b.at || 0) - (a.at || 0));
   const el = document.getElementById('taskNotes');
-  if (!rows.length) { el.innerHTML = '<div class="muted2">还没有领取过素材包。领取并发布后在这里贴回链接。</div>'; return; }
+  if (!rows.length) { el.innerHTML = '<div class="muted2">当前进行中的任务还没有领取素材包;领取并发布后在这里贴回链接。</div>'; return; }
   el.innerHTML = rows.map(p => `
     <div class="item tnote">
       <div class="thd">
