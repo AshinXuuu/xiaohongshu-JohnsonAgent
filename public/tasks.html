@@ -68,6 +68,13 @@
   .backbtn { font-size:12.5px; color:var(--accent-strong); cursor:pointer; background:none; border:none; padding:0; margin-bottom:8px; }
   .linkline { font-size:12.5px; margin-top:12px; word-break:break-all; }
   .selfbox { background:var(--card); border:1px solid var(--border-soft); border-radius:12px; box-shadow:var(--shadow); padding:16px 18px; }
+  .notes-sub { font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:8px; }
+  .notes-div { border-top:1px dashed var(--border); margin:16px 0; }
+  .tnote { flex-direction:column; align-items:stretch; gap:8px; }
+  .tnote .thd { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .tnote .tnm { font-weight:600; font-size:13px; }
+  .tnote .tlink { color:var(--accent-strong); word-break:break-all; text-decoration:none; font-size:12.5px; }
+  .tnote .fillrow { margin-top:0; }
   .selfbox .item a { color:var(--accent-strong); word-break:break-all; text-decoration:none; }
   .selfbox .item .del { font-size:12px; color:var(--danger); background:none; border:1px solid var(--border); border-radius:7px; padding:4px 10px; cursor:pointer; }
   .deny { text-align:center; padding:60px 20px; color:var(--muted); }
@@ -85,8 +92,15 @@
     <h2 class="sec">待办任务</h2>
     <div id="tasks"><div class="muted2">加载中...</div></div>
 
-    <h2 class="sec">自发布笔记</h2>
+    <h2 class="sec">笔记链接</h2>
     <div class="selfbox">
+      <div class="notes-sub">任务发布笔记</div>
+      <div class="muted2" style="margin:-2px 0 10px">发布小红书后,在对应素材包下贴回链接即计入完成。</div>
+      <div id="taskNotes" class="taken"></div>
+
+      <div class="notes-div"></div>
+
+      <div class="notes-sub">自发布笔记</div>
       <div class="fillrow" style="margin-top:0">
         <input id="selfUrl" placeholder="粘贴小红书链接,登记你自发布的笔记" />
         <button class="btn btn-primary" onclick="submitSelf(this)">登记</button>
@@ -125,6 +139,30 @@ async function load() {
   renderBoard((b.data && b.data.board) || []);
   renderSummary(s.data || {});
   renderSelfList((sp.data && sp.data.posts) || []);
+  renderTaskNotes();
+}
+
+// ───────── 任务发布笔记(逐个已领素材包,回填/展示链接)─────────
+function renderTaskNotes() {
+  const all = allLocal();
+  const rows = [];
+  Object.keys(all).forEach(tid => (all[tid] || []).forEach(p => rows.push(p)));
+  rows.sort((a, b) => (b.at || 0) - (a.at || 0));
+  const el = document.getElementById('taskNotes');
+  if (!rows.length) { el.innerHTML = '<div class="muted2">还没有领取过素材包。领取并发布后在这里贴回链接。</div>'; return; }
+  el.innerHTML = rows.map(p => `
+    <div class="item tnote">
+      <div class="thd">
+        <span class="tnm">${esc(p.task_name || '任务')}</span>
+        <span class="muted2">第 ${p.post_index || 1} 篇</span>
+        <span class="st ${p.note_url ? 'pub' : 'no'}">${p.note_url ? '已回填' : '未回填'}</span>
+      </div>
+      ${p.note_url ? `<a class="tlink" href="${esc(p.note_url)}" target="_blank" rel="noopener">${esc(p.note_url)}</a>` : ''}
+      <div class="fillrow">
+        <input id="tn-${p.pack_id}" placeholder="粘贴小红书链接" value="${esc(p.note_url || '')}" />
+        <button class="btn btn-primary" onclick="completePack(${p.pack_id}, ${p.task_id}, this)">${p.note_url ? '更新链接' : '回收链接'}</button>
+      </div>
+    </div>`).join('');
 }
 
 function renderSummary(s) {
@@ -219,8 +257,10 @@ async function issue(taskId, btn) {
   btn.disabled = false; btn.textContent = '领取新素材包';
   if (!r.ok || r.data.error) { App.toast(r.data.error || '领取失败'); return; }
   const d = r.data;
+  const _t = _tasks.find(x => x.id === taskId);
   const pack = { pack_id: d.pack_id, post_index: d.post_index, per_person: d.per_person,
-                 images: d.images, copy: d.copy || {}, task_id: taskId, note_url: '', at: Date.now() };
+                 images: d.images, copy: d.copy || {}, task_id: taskId, note_url: '', at: Date.now(),
+                 task_name: _t ? (_t.title || (_t.brand + ' ' + _t.product)) : '任务' };
   addLocalPack(taskId, pack);
   showPack(pack, taskId, false);
   load();
@@ -296,12 +336,7 @@ function showPack(p, taskId, fromList) {
     </div>
 
     <div style="margin-top:16px;border-top:1px solid var(--border-soft);padding-top:12px">
-      <div class="t" style="font-weight:600;font-size:13px">发布后回收笔记链接</div>
-      ${p.note_url ? `<div class="linkline">已回填:<a href="${esc(p.note_url)}" target="_blank" rel="noopener">${esc(p.note_url)}</a></div>` : ''}
-      <div class="fillrow">
-        <input id="noteUrl" placeholder="粘贴小红书链接" value="${esc(p.note_url||'')}" />
-        <button class="btn btn-primary" onclick="completePack(${p.pack_id}, ${taskId}, this)">回收链接</button>
-      </div>
+      <div class="muted2">保存好图片、复制文案后,发布小红书;发布后回到「笔记链接」区把链接贴回来即计入完成。</div>
     </div>`;
   document.getElementById('modal').classList.add('show');
 }
@@ -377,7 +412,8 @@ window.copyText = copyText;
 
 const XHS_RE = /(?:xhslink\.com|xiaohongshu\.com)/i;
 async function completePack(packId, taskId, btn) {
-  const url = (document.getElementById('noteUrl').value || '').trim();
+  const inEl = document.getElementById('tn-' + packId) || document.getElementById('noteUrl');
+  const url = ((inEl && inEl.value) || '').trim();
   if (!url) { App.toast('请先粘贴笔记链接'); return; }
   if (!XHS_RE.test(url)) { App.toast('链接无效,请粘贴正确的小红书笔记链接。'); return; }
   btn.disabled = true; const o = btn.textContent; btn.textContent = '提交中...';
@@ -387,7 +423,6 @@ async function completePack(packId, taskId, btn) {
   updateLocalNote(taskId, packId, url);
   App.toast('已回收链接,计入统计');
   load();
-  showPack(getLocalPacks(taskId).find(x => x.pack_id === packId) || {}, taskId, true);
 }
 window.completePack = completePack;
 
