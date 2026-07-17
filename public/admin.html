@@ -678,8 +678,19 @@ function renderKos(k) {
     </div>`;
   }, '<div style="color:var(--muted);padding:12px 0">暂无素材库</div>');
   const notes = k.task_notes || [];
-  $('kosNotesCount').textContent = notes.length ? '  共 ' + notes.length + ' 条' : '';
-  pagedList('kosNotes', 'kosNotesPager', notes, n => {
+  const selfNotes = k.self_notes || [];
+  // 链接查重:任务笔记 + 自发布合并计数(同一链接出现 ≥2 次即标注,含跨卡片重复)
+  const normUrl = u => String(u || '').trim().replace(/\/+$/, '');
+  const dupCount = {};
+  notes.concat(selfNotes).forEach(n => { const key = normUrl(n.url); if (key) dupCount[key] = (dupCount[key] || 0) + 1; });
+  const isDup = u => dupCount[normUrl(u)] > 1;
+  const dupBadge = u => isDup(u)
+    ? `<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600;white-space:nowrap" title="该链接共被提交 ${dupCount[normUrl(u)]} 次(任务+自发布合并统计)">重复×${dupCount[normUrl(u)]}</span>` : '';
+  const dupTotal = arr => arr.filter(n => isDup(n.url)).length;
+  const dupFirst = arr => arr.slice().sort((a, b) => (isDup(b.url) ? 1 : 0) - (isDup(a.url) ? 1 : 0));
+  const nd = dupTotal(notes);
+  $('kosNotesCount').innerHTML = notes.length ? '  共 ' + notes.length + ' 条' + (nd ? ' · <span style="color:#dc2626;font-weight:600">重复 ' + nd + ' 条</span>' : '') : '';
+  pagedList('kosNotes', 'kosNotesPager', dupFirst(notes), n => {
     const d = n.at ? new Date(n.at * 1000) : null;
     const pad = x => String(x).padStart(2, '0');
     const tm = d ? `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
@@ -687,18 +698,20 @@ function renderKos(k) {
       <span style="min-width:110px">${escapeHtml(n.name || '')} <span style="color:var(--muted)">${escapeHtml(n.department || '')}</span></span>
       <span style="color:var(--muted);min-width:120px">${escapeHtml(n.task || '')}</span>
       <a href="${escapeHtml(n.url)}" target="_blank" rel="noopener" style="color:var(--accent-strong);word-break:break-all;flex:1">${escapeHtml(n.url)}</a>
+      ${dupBadge(n.url)}
       <span style="color:var(--muted);font-size:12px">${tm}</span>
     </div>`;
   }, '<div style="color:var(--muted);padding:12px 0">时间范围内还没有回填的笔记链接</div>');
-  const selfNotes = k.self_notes || [];
-  $('kosSelfCount').textContent = selfNotes.length ? '  共 ' + selfNotes.length + ' 条' : '';
-  pagedList('kosSelfNotes', 'kosSelfPager', selfNotes, n => {
+  const sd = dupTotal(selfNotes);
+  $('kosSelfCount').innerHTML = selfNotes.length ? '  共 ' + selfNotes.length + ' 条' + (sd ? ' · <span style="color:#dc2626;font-weight:600">重复 ' + sd + ' 条</span>' : '') : '';
+  pagedList('kosSelfNotes', 'kosSelfPager', dupFirst(selfNotes), n => {
     const d = n.at ? new Date(n.at * 1000) : null;
     const pad = x => String(x).padStart(2, '0');
     const tm = d ? `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
     return `<div style="display:flex;gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--border-soft);font-size:13px;flex-wrap:wrap">
       <span style="min-width:110px">${escapeHtml(n.name || '')} <span style="color:var(--muted)">${escapeHtml(n.department || '')}</span></span>
       <a href="${escapeHtml(n.url)}" target="_blank" rel="noopener" style="color:var(--accent-strong);word-break:break-all;flex:1">${escapeHtml(n.url)}</a>
+      ${dupBadge(n.url)}
       <span style="color:var(--muted);font-size:12px">${tm}</span>
     </div>`;
   }, '<div style="color:var(--muted);padding:12px 0">时间范围内还没有自发布笔记</div>');
