@@ -896,6 +896,25 @@ def leaderboard(org='johnson'):
             a["self_notes"] += r['c']
             if not a.get("name"):
                 a["name"] = r['user_name']; a["department"] = r['department']
+        # 每人重复链接数:本期任务笔记 + 自发布链接合并计数(同一链接出现 ≥2 次,
+        # 无论同人重复提交还是任务/自发布两边都算,均计入提交者的重复数)
+        entries = []          # (emp_id, 归一化url)
+        for r in c.execute(
+                "SELECT emp_id, note_url FROM kos_packs "
+                "WHERE status='published' AND note_url IS NOT NULL AND note_url!='' "
+                "AND COALESCE(published_at,created_at)>=?", (start,)).fetchall():
+            entries.append((r['emp_id'] or '', (r['note_url'] or '').strip().rstrip('/')))
+        for r in c.execute(
+                "SELECT emp_id, note_url FROM kos_self_posts WHERE created_at>=?",
+                (start,)).fetchall():
+            entries.append((r['emp_id'] or '', (r['note_url'] or '').strip().rstrip('/')))
+        cnt = {}
+        for _, u in entries:
+            if u:
+                cnt[u] = cnt.get(u, 0) + 1
+        for e, u in entries:
+            if u and cnt[u] > 1 and e in agg:
+                agg[e]["dup_links"] = agg[e].get("dup_links", 0) + 1
         board = sorted(agg.values(), key=lambda x: (-(x["task_notes"] + x["self_notes"]),
                                                     -x["task_notes"]))
         return board

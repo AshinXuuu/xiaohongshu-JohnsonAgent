@@ -464,7 +464,7 @@ function renderBoard(board) {
     return `<div class="brow">
       <span class="rank">${i+1}</span>
       <span class="who ${mine?'me':''}">${esc(b.name||'')} ${esc(b.department||'')}${mine?'(我)':''}</span>
-      <span class="muted2">任务完成 ${b.task_notes||0} · 自发布 ${b.self_notes||0}</span>
+      <span class="muted2">任务完成 ${b.task_notes||0} · 自发布 ${b.self_notes||0}${b.dup_links ? ` · <span style="color:#dc2626;font-weight:600">重复链接 ${b.dup_links}</span>` : ''}</span>
     </div>`;
   }).join('') : '<div class="brow muted2">本期还没有人上榜,快来抢第一</div>';
 }
