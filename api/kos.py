@@ -363,6 +363,27 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             qs = parse_qs(urlparse(self.path).query)
+            if qs.get('snapimg'):
+                # 笔记快照封面(管理员看板用):/api/kos?snapimg=1&id=<note_id>&t=<hmac>
+                import re as _re2
+                from lib import xhs_snap
+                nid = qs.get('id', [''])[0]
+                tok = qs.get('t', [''])[0]
+                if not _re2.fullmatch(r'[0-9a-f]{24}', nid or ''):
+                    return self._err(400, "bad id")
+                if not hmac.compare_digest(tok, xhs_snap.snap_token(nid)):
+                    return self._err(403, "无权访问")
+                fp = xhs_snap.SNAP_DIR / f"{nid}.jpg"
+                if not fp.exists():
+                    return self._err(404, "快照不存在")
+                data = fp.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "private, max-age=86400")
+                self.end_headers()
+                self.wfile.write(data)
+                return
             if qs.get('img'):
                 pack_id = qs.get('pack', [''])[0]
                 kind = qs.get('kind', [''])[0]
@@ -475,6 +496,12 @@ class handler(BaseHTTPRequestHandler):
                 res = kos_store.add_self_post(user, req.get("note_url") or "")
                 if res == 'bad_url':
                     return self._json(400, {"error": "链接无效,请粘贴正确的小红书笔记链接。"})
+                try:
+                    from lib.xhs_snap import capture_async
+                    from lib.kos_store import extract_note_url
+                    capture_async(extract_note_url(req.get("note_url") or "") or "")
+                except Exception:
+                    pass
                 return self._json(200, {"ok": True})
 
             if action == "delete_self_post":
@@ -489,6 +516,12 @@ class handler(BaseHTTPRequestHandler):
                     return self._json(400, {"error": "链接无效,请粘贴正确的小红书笔记链接。"})
                 if res == 'not_owner' or res is False:
                     return self._json(400, {"error": "回填失败(记录不存在或非本人)"})
+                try:                     # 后台抓笔记快照(标题/封面存证),失败不影响提交
+                    from lib.xhs_snap import capture_async
+                    from lib.kos_store import extract_note_url
+                    capture_async(extract_note_url(req.get("note_url") or "") or "")
+                except Exception:
+                    pass
                 return self._json(200, {"ok": True})
 
             if action == "issue":

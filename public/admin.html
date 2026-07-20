@@ -681,13 +681,22 @@ function renderKos(k) {
   const selfNotes = k.self_notes || [];
   // 链接查重:任务笔记 + 自发布合并计数(同一链接出现 ≥2 次即标注,含跨卡片重复)
   const normUrl = u => String(u || '').trim().replace(/\/+$/, '');
+  const dupKey = n => (n.snap && n.snap.note_id) || normUrl(n.url);   // 有快照按笔记ID查重(换参数/短链也认得)
   const dupCount = {};
-  notes.concat(selfNotes).forEach(n => { const key = normUrl(n.url); if (key) dupCount[key] = (dupCount[key] || 0) + 1; });
-  const isDup = u => dupCount[normUrl(u)] > 1;
-  const dupBadge = u => isDup(u)
-    ? `<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600;white-space:nowrap" title="该链接共被提交 ${dupCount[normUrl(u)]} 次(任务+自发布合并统计)">重复×${dupCount[normUrl(u)]}</span>` : '';
-  const dupTotal = arr => arr.filter(n => isDup(n.url)).length;
-  const dupFirst = arr => arr.slice().sort((a, b) => (isDup(b.url) ? 1 : 0) - (isDup(a.url) ? 1 : 0));
+  notes.concat(selfNotes).forEach(n => { const key = dupKey(n); if (key) dupCount[key] = (dupCount[key] || 0) + 1; });
+  const isDup = n => dupCount[dupKey(n)] > 1;
+  const dupBadge = n => isDup(n)
+    ? `<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600;white-space:nowrap" title="该笔记共被提交 ${dupCount[dupKey(n)]} 次(任务+自发布合并统计,按笔记ID/链接)">重复×${dupCount[dupKey(n)]}</span>` : '';
+  const dupTotal = arr => arr.filter(n => isDup(n)).length;
+  const dupFirst = arr => arr.slice().sort((a, b) => (isDup(b) ? 1 : 0) - (isDup(a) ? 1 : 0));
+  const snapHtml = n => {
+    const sn = n.snap;
+    if (!sn || !sn.title) return '';
+    return `<span style="flex-basis:100%;display:flex;gap:8px;align-items:center;margin-top:2px">
+      ${sn.img ? `<a href="${escapeHtml(n.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(sn.img)}" style="width:34px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border-soft);display:block" loading="lazy" /></a>` : ''}
+      <span style="font-size:12px;color:var(--text-soft)">📌 ${escapeHtml(sn.title)}${sn.liked ? ` <span style="color:var(--muted)">· 赞 ${escapeHtml(String(sn.liked))}</span>` : ''}</span>
+    </span>`;
+  };
   const nd = dupTotal(notes);
   $('kosNotesCount').innerHTML = notes.length ? '  共 ' + notes.length + ' 条' + (nd ? ' · <span style="color:#dc2626;font-weight:600">重复 ' + nd + ' 条</span>' : '') : '';
   pagedList('kosNotes', 'kosNotesPager', dupFirst(notes), n => {
@@ -698,8 +707,9 @@ function renderKos(k) {
       <span style="min-width:110px">${escapeHtml(n.name || '')} <span style="color:var(--muted)">${escapeHtml(n.department || '')}</span></span>
       <span style="color:var(--muted);min-width:120px">${escapeHtml(n.task || '')}</span>
       <a href="${escapeHtml(n.url)}" target="_blank" rel="noopener" style="color:var(--accent-strong);word-break:break-all;flex:1">${escapeHtml(n.url)}</a>
-      ${dupBadge(n.url)}
+      ${dupBadge(n)}
       <span style="color:var(--muted);font-size:12px">${tm}</span>
+      ${snapHtml(n)}
     </div>`;
   }, '<div style="color:var(--muted);padding:12px 0">时间范围内还没有回填的笔记链接</div>');
   const sd = dupTotal(selfNotes);
@@ -711,8 +721,9 @@ function renderKos(k) {
     return `<div style="display:flex;gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--border-soft);font-size:13px;flex-wrap:wrap">
       <span style="min-width:110px">${escapeHtml(n.name || '')} <span style="color:var(--muted)">${escapeHtml(n.department || '')}</span></span>
       <a href="${escapeHtml(n.url)}" target="_blank" rel="noopener" style="color:var(--accent-strong);word-break:break-all;flex:1">${escapeHtml(n.url)}</a>
-      ${dupBadge(n.url)}
+      ${dupBadge(n)}
       <span style="color:var(--muted);font-size:12px">${tm}</span>
+      ${snapHtml(n)}
     </div>`;
   }, '<div style="color:var(--muted);padding:12px 0">时间范围内还没有自发布笔记</div>');
   const dd = (k.by_daily || []).slice().sort((a, b) => a.key.localeCompare(b.key));

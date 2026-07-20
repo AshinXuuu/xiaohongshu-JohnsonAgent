@@ -994,6 +994,23 @@ def kos_dashboard(days=30):
             "url": extract_note_url(r["note_url"]) or r["note_url"],
             "at": r["created_at"],
         } for r in srows]
+        # 笔记快照附加(标题/封面/点赞 + note_id 供前端精确查重);历史缺的每次懒回填 5 条
+        try:
+            from lib import xhs_snap
+            allu = [n["url"] for n in task_notes] + [n["url"] for n in self_notes]
+            snaps = xhs_snap.snaps_for_urls(allu)
+            for n in task_notes + self_notes:
+                sn = snaps.get(xhs_snap.norm_url(n["url"]))
+                if sn and sn.get('status') == 'ok':
+                    n["snap"] = {
+                        "note_id": sn.get("note_id"), "title": sn.get("title"),
+                        "liked": sn.get("liked"),
+                        "img": ("/api/kos?snapimg=1&id=%s&t=%s" % (sn["note_id"], xhs_snap.snap_token(sn["note_id"])))
+                               if (sn.get("has_cover") and sn.get("note_id")) else None,
+                    }
+            xhs_snap.backfill_missing(allu, limit=5)
+        except Exception as _e:
+            print(f"[SNAP] 看板快照附加失败:{_e}", flush=True)
         return {"tasks": tasks, "open_tasks": open_tasks, "issued": issued, "published": published,
                 "completion_pct": (round(published / issued * 100) if issued else 0),
                 "self_published": self_published,
