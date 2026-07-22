@@ -122,6 +122,15 @@ def _users_in_scope(scope, depts):
     return len(allu)
 
 
+def _users_in_scope_kos(scope, depts):
+    """实际会被派到任务的人数:在职 + 参与 KOS(kos_join!=False),再按 scope 过滤。"""
+    allu = [u for u in users_store.all_users()
+            if u.get('active', True) and u.get('kos_join', True) is not False]
+    if scope == 'dept' and depts:
+        allu = [u for u in allu if u.get('department') in depts]
+    return len(allu)
+
+
 def _audit_log(caller, action, req):
     from lib.audit import log
     s = None
@@ -296,9 +305,13 @@ class handler(BaseHTTPRequestHandler):
                 lib = kos_store.get_library(library_id)
                 if not lib:
                     return self._json(404, {"error": "素材库不存在"})
-                # 容量预警(不硬拦)
-                need = _users_in_scope(scope, depts) * per_person
+                # 容量确认:实际发布人数(参与 KOS 的在职员工)× 每人篇数 vs 素材库可用份数
+                need = _users_in_scope_kos(scope, depts) * per_person
                 remaining = kos_store.capacity(library_id)['remaining']
+                if remaining < need and not req.get("confirm"):
+                    # 不够且未确认 → 先不建任务,回传数字让前端弹窗二次确认
+                    return self._json(200, {"need_confirm": True, "need": need,
+                                            "remaining": remaining})
                 tid = kos_store.create_task(
                     req.get("title") or f"{lib['brand']} {lib['product']} 种草任务",
                     lib['brand'], lib['product'], library_id, scope, depts, per_person,

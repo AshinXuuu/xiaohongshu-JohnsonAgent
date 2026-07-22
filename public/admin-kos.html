@@ -287,14 +287,20 @@ document.getElementById('tkAdd').onclick = async () => {
   const depts = scope === 'dept'
     ? [...document.querySelectorAll('#tkDepts input:checked')].map(x => x.value) : [];
   if (scope === 'dept' && !depts.length) { App.toast('请选至少一个部门'); return; }
-  const r = await api('create_task', {
+  const payload = {
     title: document.getElementById('tkTitle').value.trim(),
     library_id, scope, depts,
     per_person: parseInt(document.getElementById('tkPer').value) || 1,
     deadline: document.getElementById('tkDeadline').value,
-  });
+  };
+  let r = await api('create_task', payload);
+  if (r.ok && r.data.need_confirm) {
+    // 可用份数 < 实际发布人数 → 二次确认
+    if (!confirm(`素材可用 ${r.data.remaining} 份,实际发布 ${r.data.need} 人。\n可用份数不足,部分人可能领不到素材。是否继续发布?`)) return;
+    r = await api('create_task', Object.assign({ confirm: true }, payload));
+  }
   if (!r.ok || r.data.error) { App.toast(r.data.error || '发布失败'); return; }
-  App.toast(r.data.enough ? '任务已发布' : `任务已发布,但素材不够:需 ${r.data.need} 份、仅剩 ${r.data.remaining},请补充拼图素材(新库:横/竖版近远景)`);
+  App.toast(r.data.enough ? '任务已发布' : `任务已发布(素材不足:可用 ${r.data.remaining} 份 / 需 ${r.data.need} 人,请尽快补充拼图素材)`);
   document.getElementById('tkTitle').value = '';
   await loadTasks();
 };

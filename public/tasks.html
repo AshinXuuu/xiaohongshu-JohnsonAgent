@@ -108,7 +108,11 @@
       <div id="selfList" class="taken" style="margin-top:12px"></div>
     </div>
 
-    <h2 class="sec">排行榜(本期)</h2>
+    <div style="display:flex;align-items:center;gap:10px;margin:20px 0 12px">
+      <h2 class="sec" style="margin:0">排行榜</h2>
+      <select id="periodSel" style="margin-left:auto;padding:5px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--card)"></select>
+    </div>
+    <div id="myPeriod"></div>
     <div class="board" id="board"></div>
   </div>
 </div>
@@ -457,7 +461,49 @@ async function completePack(packId, taskId, btn) {
 }
 window.completePack = completePack;
 
+let _periodOffset = 0;
+
+function periodLabel(off) {
+  return off === 0 ? '本期' : (off === 1 ? '上一期' : `前 ${off} 期`);
+}
+
+function initPeriodSel() {
+  const sel = document.getElementById('periodSel');
+  if (!sel || sel.dataset.ready) return;
+  sel.dataset.ready = '1';
+  let html = '';
+  for (let i = 0; i <= 8; i++) html += `<option value="${i}">${periodLabel(i)}</option>`;
+  sel.innerHTML = html;
+  sel.addEventListener('change', async () => {
+    _periodOffset = parseInt(sel.value) || 0;
+    const r = await api('period_view', { period_offset: _periodOffset });
+    renderBoard((r.data && r.data.board) || []);
+    renderMyPeriod((r.data && r.data.my_completion) || []);
+  });
+}
+
+function renderMyPeriod(list) {
+  const box = document.getElementById('myPeriod');
+  if (!box) return;
+  if (_periodOffset === 0) { box.innerHTML = ''; return; }   // 本期用上方"待办任务",不重复展示
+  if (!list.length) {
+    box.innerHTML = `<div class="muted2" style="padding:10px 2px">${periodLabel(_periodOffset)}没有派给你的任务。</div>`;
+    return;
+  }
+  const badge = s => s === 'done' ? '<span style="color:#15803d;font-weight:600">已达标</span>'
+    : (s === 'doing' ? '<span style="color:#b45309;font-weight:600">进行中</span>'
+    : '<span style="color:var(--muted)">未开始</span>');
+  box.innerHTML = `<div class="selfbox" style="margin-bottom:12px">
+    <div class="notes-sub">我的${periodLabel(_periodOffset)}完成情况</div>
+    ${list.map(t => `<div class="brow" style="border-top:1px solid var(--border-soft)">
+      <span class="who">${esc(t.title || (t.brand+' '+t.product))}</span>
+      <span class="muted2">已发 ${t.published}/${t.owed} 篇 · ${badge(t.status)}</span>
+    </div>`).join('')}
+  </div>`;
+}
+
 function renderBoard(board) {
+  initPeriodSel();
   const me_emp = me.emp_id;
   document.getElementById('board').innerHTML = board.length ? board.map((b,i) => {
     const mine = b.emp_id === me_emp;
@@ -466,7 +512,7 @@ function renderBoard(board) {
       <span class="who ${mine?'me':''}">${esc(b.name||'')} ${esc(b.department||'')}${mine?'(我)':''}</span>
       <span class="muted2">任务完成 ${b.task_notes||0} · 自发布 ${b.self_notes||0}${b.dup_links ? ` · <span style="color:#dc2626;font-weight:600">重复链接 ${b.dup_links}</span>` : ''}</span>
     </div>`;
-  }).join('') : '<div class="brow muted2">本期还没有人上榜,快来抢第一</div>';
+  }).join('') : `<div class="brow muted2">${_periodOffset===0?'本期还没有人上榜,快来抢第一':periodLabel(_periodOffset)+'没有排行数据'}</div>`;
 }
 </script>
 </body>

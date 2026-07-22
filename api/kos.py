@@ -451,7 +451,17 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(200, kos_store.my_kos_summary(user))
 
             if action == "leaderboard":
-                return self._json(200, {"board": kos_store.leaderboard()})
+                off = max(0, min(8, int(req.get("period_offset") or 0)))
+                return self._json(200, {"board": kos_store.leaderboard(period_offset=off)})
+
+            if action == "period_view":
+                # 往期查看:该期排行 + 我在该期的完成情况(offset 0=本期,最多回溯 8 期)
+                off = max(0, min(8, int(req.get("period_offset") or 0)))
+                return self._json(200, {
+                    "period_offset": off,
+                    "board": kos_store.leaderboard(period_offset=off),
+                    "my_completion": kos_store.my_period_completion(user, period_offset=off),
+                })
 
             if action == "my_packs":
                 # 富化后返回,供任意设备恢复「已领素材包」显示(数据早已在服务器,零新增存储)

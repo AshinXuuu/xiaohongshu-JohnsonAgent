@@ -539,6 +539,7 @@ def close_task(task_id):
 
 def list_tasks(org='johnson'):
     _ensure()
+    _auto_close_expired(org)
     c = _conn()
     try:
         tasks = [dict(r) for r in c.execute(
@@ -566,6 +567,40 @@ def current_period_start_ts():
     return int(start.timestamp())
 
 
+def period_window(offset=0):
+    """按周三→下周二的周期返回窗口 (start_ts, end_ts)。
+    offset=0 本期,1 上一期,2 上上期…… end_ts 为下个周三 00:00(不含)。"""
+    import datetime
+    now = datetime.datetime.now()
+    days_since_wed = (now.weekday() - 2) % 7
+    cur_start = (now - datetime.timedelta(days=days_since_wed)).replace(
+        hour=0, minute=0, second=0, microsecond=0)
+    start = cur_start - datetime.timedelta(days=7 * int(offset or 0))
+    end = start + datetime.timedelta(days=7)
+    return int(start.timestamp()), int(end.timestamp())
+
+
+def _auto_close_expired(org='johnson'):
+    """到期自动结束:deadline(YYYY-MM-DD)已过当天的 open 任务置为 closed。
+    惰性触发(每次读任务时跑一遍),无需定时进程;deadline 当天仍算进行中,
+    次日 0 点起关闭。空 deadline 的任务不受影响。"""
+    import datetime
+    today = datetime.date.today().isoformat()
+    c = _conn()
+    try:
+        rows = c.execute(
+            "SELECT id, deadline FROM kos_tasks WHERE org=? AND status='open' "
+            "AND deadline IS NOT NULL AND deadline<>''", (org,)).fetchall()
+        expired = [r['id'] for r in rows if (r['deadline'] or '').strip() < today]
+        if expired:
+            c.executemany("UPDATE kos_tasks SET status='closed' WHERE id=?",
+                          [(i,) for i in expired])
+            c.commit()
+            print(f"[KOS] 到期自动结束任务 {expired}", flush=True)
+    finally:
+        c.close()
+
+
 def period_completion(org='johnson'):
     """本期任务完成情况(合并当前全部进行中任务)。
 
@@ -580,6 +615,7 @@ def period_completion(org='johnson'):
         owed, published, issued, status: done|doing|todo}]}
     """
     _ensure()
+    _auto_close_expired(org)
     c = _conn()
     try:
         tasks = [dict(r) for r in c.execute(
@@ -750,6 +786,7 @@ def add_task_bonus(task_id, emp_id, n=1):
 def tasks_for_user(user):
     """该业务能看到的进行中任务 + 自己的进度。"""
     _ensure()
+    _auto_close_expired()
     dept = (user or {}).get('department')
     emp = (user or {}).get('emp_id')
     c = _conn()
@@ -870,10 +907,12 @@ def my_packs(emp_id, task_id=None):
         c.close()
 
 
-def leaderboard(org='johnson'):
-    """本期排行:每人 本期任务完成笔记数 + 本期自发布笔记数。按两者之和排序。"""
+def leaderboard(org='johnson', period_offset=0):
+    """排行:每人 该期任务完成笔记数 + 该期自发布笔记数。按两者之和排序。
+    period_offset=0 本期,1 上一期…… 窗口 = 周三→下周二。"""
     _ensure()
-    start = current_period_start_ts()
+    _auto_close_expired(org)
+    start, end = period_window(period_offset)
     c = _conn()
     try:
         agg = {}
@@ -881,7 +920,8 @@ def leaderboard(org='johnson'):
         for r in c.execute(
                 "SELECT emp_id, user_name, department, COUNT(*) c FROM kos_packs "
                 "WHERE status='published' AND COALESCE(published_at,created_at)>=? "
-                "GROUP BY emp_id", (start,)).fetchall():
+                "AND COALESCE(published_at,created_at)<? "
+                "GROUP BY emp_id", (start, end)).fetchall():
             e = r['emp_id'] or ''
             a = agg.setdefault(e, {"emp_id": e, "name": r['user_name'], "department": r['department'],
                                    "task_notes": 0, "self_notes": 0})
@@ -889,7 +929,7 @@ def leaderboard(org='johnson'):
         # 本期自发布
         for r in c.execute(
                 "SELECT emp_id, user_name, department, COUNT(*) c FROM kos_self_posts "
-                "WHERE created_at>=? GROUP BY emp_id", (start,)).fetchall():
+                "WHERE created_at>=? AND created_at<? GROUP BY emp_id", (start, end)).fetchall():
             e = r['emp_id'] or ''
             a = agg.setdefault(e, {"emp_id": e, "name": r['user_name'], "department": r['department'],
                                    "task_notes": 0, "self_notes": 0})
@@ -902,11 +942,12 @@ def leaderboard(org='johnson'):
         for r in c.execute(
                 "SELECT emp_id, note_url FROM kos_packs "
                 "WHERE status='published' AND note_url IS NOT NULL AND note_url!='' "
-                "AND COALESCE(published_at,created_at)>=?", (start,)).fetchall():
+                "AND COALESCE(published_at,created_at)>=? AND COALESCE(published_at,created_at)<?",
+                (start, end)).fetchall():
             entries.append((r['emp_id'] or '', (r['note_url'] or '').strip().rstrip('/')))
         for r in c.execute(
-                "SELECT emp_id, note_url FROM kos_self_posts WHERE created_at>=?",
-                (start,)).fetchall():
+                "SELECT emp_id, note_url FROM kos_self_posts WHERE created_at>=? AND created_at<?",
+                (start, end)).fetchall():
             entries.append((r['emp_id'] or '', (r['note_url'] or '').strip().rstrip('/')))
         cnt = {}
         for _, u in entries:
@@ -918,6 +959,42 @@ def leaderboard(org='johnson'):
         board = sorted(agg.values(), key=lambda x: (-(x["task_notes"] + x["self_notes"]),
                                                     -x["task_notes"]))
         return board
+    finally:
+        c.close()
+
+
+def my_period_completion(user, period_offset=0):
+    """某业务在指定周期的完成情况:该周期内发布的任务(按任务 created_at 落窗口),
+    每个任务显示我在窗口内已发布篇数 / 应发篇数 + 达标状态。offset=0 本期。"""
+    _ensure()
+    _auto_close_expired()
+    start, end = period_window(period_offset)
+    dept = (user or {}).get('department')
+    emp = (user or {}).get('emp_id')
+    c = _conn()
+    try:
+        rows = c.execute(
+            "SELECT id, title, brand, product, scope, depts, per_person, deadline, status "
+            "FROM kos_tasks WHERE org='johnson' AND created_at>=? AND created_at<? "
+            "ORDER BY created_at DESC", (start, end)).fetchall()
+        out = []
+        for r in rows:
+            t = dict(r)
+            depts = json.loads(t.get('depts') or '[]')
+            if t['scope'] == 'dept' and dept not in depts:
+                continue                      # 不覆盖我的任务不显示
+            owed = int(t['per_person'] or 1)
+            pub = c.execute(
+                "SELECT COUNT(*) FROM kos_packs WHERE task_id=? AND emp_id=? AND status='published' "
+                "AND COALESCE(published_at,created_at)>=? AND COALESCE(published_at,created_at)<?",
+                (t['id'], emp, start, end)).fetchone()[0]
+            out.append({
+                "title": (t['title'] or ((t['brand'] or '') + ' ' + (t['product'] or ''))).strip(),
+                "brand": t['brand'], "product": t['product'], "deadline": t['deadline'],
+                "owed": owed, "published": pub,
+                "status": "done" if pub >= owed else ("doing" if pub > 0 else "todo"),
+            })
+        return out
     finally:
         c.close()
 
