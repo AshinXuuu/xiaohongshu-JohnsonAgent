@@ -840,10 +840,10 @@ import re as _re
 # 只接受小红书链接:手机端 xhslink.com 短链 / 电脑端 xiaohongshu.com。
 # 小红书分享出来的是"一段口令+链接+文字",这里只把其中的链接抽出来存,避免整段被当成 URL。
 _URLCH = r"[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%\-]"
-_XHS_RE = _re.compile(r'https?://' + _URLCH + r'*?(?:xhslink\.com|xiaohongshu\.com)' + _URLCH + r'*', _re.I)
+_XHS_RE = _re.compile(r'https?://' + _URLCH + r'*?(?:xhslink\.(?:com|cn)|xiaohongshu\.(?:com|cn))' + _URLCH + r'*', _re.I)
 
 
-_XHS_HOSTS = ('xhslink.com', 'xiaohongshu.com')
+_XHS_HOSTS = ('xhslink.com', 'xhslink.cn', 'xiaohongshu.com', 'xiaohongshu.cn')   # 2026-07:补 .cn 域(短链+主站)
 
 
 def _is_xhs_host(url):
