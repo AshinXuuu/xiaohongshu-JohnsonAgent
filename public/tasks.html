@@ -445,7 +445,7 @@ async function copyText(btn) {
 }
 window.copyText = copyText;
 
-const XHS_RE = /(?:xhslink\.com|xiaohongshu\.com)/i;
+const XHS_RE = /(?:xhslink\.(?:com|cn)|xiaohongshu\.(?:com|cn))/i;
 async function completePack(packId, taskId, btn) {
   const inEl = document.getElementById('tn-' + packId) || document.getElementById('noteUrl');
   const url = ((inEl && inEl.value) || '').trim();
